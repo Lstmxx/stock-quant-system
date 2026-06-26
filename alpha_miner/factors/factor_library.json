@@ -1,0 +1,2940 @@
+{
+  "version": "1.0",
+  "updated_at": "2026-06-25T13:32:09.612328",
+  "count": 88,
+  "factors": [
+    {
+      "id": "6a10dffadd78",
+      "name": "Round1_Factor1",
+      "expression": "TS_CORR(DELTA(pctChg, 1), DELTA(volume, 1) / DELAY(volume, 1), 20)",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.016004036239117666,
+      "ic_std": 0.07168123675952796,
+      "icir": -0.22326674263178625,
+      "ic_abs_weighted": 0.05763925435824141,
+      "ic_positive_ratio": 0.38144329896907214,
+      "ic_negative_ratio": 0.6185567010309279,
+      "monotonicity_score": 0.7,
+      "long_short_return": 0.09345899133659012,
+      "turnover_rate": 0.04075979120241766,
+      "variables": [
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "DELAY",
+        "DELTA",
+        "TS_CORR"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-05-28T14:11:33.654244",
+      "updated_at": "2026-06-25T13:03:30.657603",
+      "generation": 1,
+      "parent_ids": [],
+      "hypothesis": "股价变动加速度与成交量变化率正相关时，未来短期上涨动能更强。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "674cb693b1ca",
+      "name": "Round1_Factor1_opt",
+      "expression": "TS_CORR(DELTA(pctChg, 5), DELTA(volume, 1) / DELAY(volume, 1), 20)",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.031135032594421713,
+      "ic_std": 0.07843911606691385,
+      "icir": -0.3969324764937615,
+      "ic_abs_weighted": 0.06697026539796146,
+      "ic_positive_ratio": 0.35106382978723405,
+      "ic_negative_ratio": 0.648936170212766,
+      "monotonicity_score": 0.3,
+      "long_short_return": -0.05708427780838505,
+      "turnover_rate": 0.04224030037546934,
+      "variables": [
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "DELAY",
+        "DELTA",
+        "TS_CORR"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-01T22:57:53.471794",
+      "updated_at": "2026-06-25T13:03:30.665521",
+      "generation": 2,
+      "parent_ids": [
+        "6a10dffadd78"
+      ],
+      "hypothesis": "参数优化自: TS_CORR(DELTA(pctChg, 1), DELTA(volume, 1) / DELAY(volume, 1), 20)",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "fa25d83fc7b6",
+      "name": "Round1_Factor2_opt",
+      "expression": "(-TS_MEAN(pctChg, 60)) * (volume / TS_MEAN(volume, 5))",
+      "direction": 1,
+      "is_positive": true,
+      "ic_mean": 0.03450591969582958,
+      "ic_std": 0.12501471346382625,
+      "icir": 0.27601486848837253,
+      "ic_abs_weighted": 0.10392410317001835,
+      "ic_positive_ratio": 0.5895953757225434,
+      "ic_negative_ratio": 0.41040462427745666,
+      "monotonicity_score": 0.8999999999999998,
+      "long_short_return": -0.09467754374087187,
+      "turnover_rate": 0.030832132909303468,
+      "variables": [
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "TS_MEAN"
+      ],
+      "nesting_depth": 1,
+      "created_at": "2026-06-02T12:07:39.704692",
+      "updated_at": "2026-06-25T13:03:30.669914",
+      "generation": 2,
+      "parent_ids": [
+        "fa8f5afffab7"
+      ],
+      "hypothesis": "参数优化自: (-TS_MEAN(pctChg, 5)) * (volume / TS_MEAN(volume, 5))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "ae77c3e4244f",
+      "name": "Round2_Factor1",
+      "expression": "(-TS_MEAN(pctChg, 5)) * (1 - volume / TS_MEAN(volume, 10))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.02298691146819044,
+      "ic_std": 0.07478533808908015,
+      "icir": -0.30737190010172455,
+      "ic_abs_weighted": 0.0620239684049803,
+      "ic_positive_ratio": 0.3333333333333333,
+      "ic_negative_ratio": 0.6666666666666666,
+      "monotonicity_score": 0.6,
+      "long_short_return": -0.1280404271741949,
+      "turnover_rate": 0.42975215517241383,
+      "variables": [
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "TS_MEAN"
+      ],
+      "nesting_depth": 1,
+      "created_at": "2026-06-02T12:14:24.476098",
+      "updated_at": "2026-06-25T13:03:30.674368",
+      "generation": 2,
+      "parent_ids": [],
+      "hypothesis": "在股价下跌期间，成交量萎缩程度越大，预示短期反弹概率越高。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "19e2f93ebd54",
+      "name": "Round1_Factor1",
+      "expression": "RANK(TS_MEAN(IF(pctChg < 0, volume, 0), 20) / TS_MEAN(volume, 20))",
+      "direction": 1,
+      "is_positive": true,
+      "ic_mean": 0.019511091769312604,
+      "ic_std": 0.09290112105384035,
+      "icir": 0.21001998197637523,
+      "ic_abs_weighted": 0.07687316552933797,
+      "ic_positive_ratio": 0.6062176165803109,
+      "ic_negative_ratio": 0.39378238341968913,
+      "monotonicity_score": 0.7,
+      "long_short_return": -0.11755432529454915,
+      "turnover_rate": 0.063421719855698,
+      "variables": [
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "IF",
+        "RANK",
+        "TS_MEAN"
+      ],
+      "nesting_depth": 3,
+      "created_at": "2026-06-02T13:51:31.204904",
+      "updated_at": "2026-06-25T13:03:30.678642",
+      "generation": 1,
+      "parent_ids": [],
+      "hypothesis": "成交量分布的负偏态（价格下跌时成交量集中放大）预示未来市场情绪悲观和收益下降。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "159424958fd3",
+      "name": "Round3_Factor3",
+      "expression": "RANK(-DELTA(TS_MEAN(IF(volume > TS_MEAN(volume, 20), amount, 0), 5) / TS_MEAN(amount, 5), 5) * DELTA(TS_STD(pctChg, 10), 5))",
+      "direction": 1,
+      "is_positive": true,
+      "ic_mean": 0.014538125917286314,
+      "ic_std": 0.04307332880232548,
+      "icir": 0.3375203709935095,
+      "ic_abs_weighted": 0.03667172795112338,
+      "ic_positive_ratio": 0.6476683937823834,
+      "ic_negative_ratio": 0.35233160621761656,
+      "monotonicity_score": 0.8999999999999998,
+      "long_short_return": 0.08745108882756364,
+      "turnover_rate": 0.28300169132801595,
+      "variables": [
+        "amount",
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "DELTA",
+        "IF",
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 3,
+      "created_at": "2026-06-02T15:48:51.015167",
+      "updated_at": "2026-06-25T13:03:30.682778",
+      "generation": 3,
+      "parent_ids": [],
+      "hypothesis": "动量反转前，大单资金流入比率下降与价格波动率上升的背离加剧。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "f477e959dda6",
+      "name": "Round2_Factor1_opt",
+      "expression": "TS_MEAN(IF(pctChg < 0, volume, 0), 5) / TS_MEAN(IF(pctChg < 0, volume, 0), 20) / (TS_MEAN(volume, 5) / TS_MEAN(volume, 60))",
+      "direction": 1,
+      "is_positive": true,
+      "ic_mean": 0.022426530258488772,
+      "ic_std": 0.1084387278213995,
+      "icir": 0.20681292292017353,
+      "ic_abs_weighted": 0.08513200800181839,
+      "ic_positive_ratio": 0.5885714285714285,
+      "ic_negative_ratio": 0.4114285714285714,
+      "monotonicity_score": 0.8999999999999998,
+      "long_short_return": -0.035740751706236876,
+      "turnover_rate": 0.20727431006307562,
+      "variables": [
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "IF",
+        "TS_MEAN"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-03T12:46:53.334952",
+      "updated_at": "2026-06-25T13:03:30.686895",
+      "generation": 3,
+      "parent_ids": [
+        "2457425b940f"
+      ],
+      "hypothesis": "参数优化自: TS_MEAN(IF(pctChg < 0, volume, 0), 5) / TS_MEAN(IF(pctChg < 0, volume, 0), 20) / (TS_MEAN(volume, 5) / TS_MEAN(volume, 20))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "5cd00190e78c",
+      "name": "Round2_Factor1",
+      "expression": "RANK(TS_STD(close, 20) / TS_MEAN(close, 20) * TS_MEAN(IF(pctChg > 0, volume, 0), 10) / TS_MEAN(volume, 10) * TS_MEAN(volume, 5) / TS_MEAN(volume, 20))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.039976131405943555,
+      "ic_std": 0.12329961042585344,
+      "icir": -0.32421944617564963,
+      "ic_abs_weighted": 0.10032460951417728,
+      "ic_positive_ratio": 0.37948717948717947,
+      "ic_negative_ratio": 0.6205128205128205,
+      "monotonicity_score": 0.8999999999999998,
+      "long_short_return": 0.18934238435103876,
+      "turnover_rate": 0.048609649323510126,
+      "variables": [
+        "close",
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "IF",
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 3,
+      "created_at": "2026-06-03T12:54:01.065285",
+      "updated_at": "2026-06-25T13:03:30.690977",
+      "generation": 2,
+      "parent_ids": [],
+      "hypothesis": "波动率高位震荡时，成交量温和萎缩且资金净流入，预示未来收益正向。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "c8bf3fe1bcd6",
+      "name": "Round3_Factor7",
+      "expression": "RANK(TS_STD(close, 20) / TS_MEAN(close, 20) * TS_MEAN(IF(pctChg > 0, volume, 0), 10) / TS_MEAN(volume, 10) * TS_MEAN(volume, 20) / TS_MEAN(volume, 20))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.03493035744401431,
+      "ic_std": 0.13915883225883002,
+      "icir": -0.25101071112069406,
+      "ic_abs_weighted": 0.11312456074490962,
+      "ic_positive_ratio": 0.4256410256410256,
+      "ic_negative_ratio": 0.5743589743589743,
+      "monotonicity_score": 0.9999999999999999,
+      "long_short_return": 0.23102263853034155,
+      "turnover_rate": 0.042249483451383435,
+      "variables": [
+        "close",
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "IF",
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 3,
+      "created_at": "2026-06-05T16:41:01.889829",
+      "updated_at": "2026-06-25T13:03:30.695070",
+      "generation": 3,
+      "parent_ids": [],
+      "hypothesis": "股价突破近期高点时，大单资金流入集中度越高，后续趋势强度越大。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "4ebaa9514d15",
+      "name": "Round3_Factor3_opt",
+      "expression": "RANK(EMA(amount, 60) / EMA(amount, 20)) * (close / TS_MAX(close, 10)) * (1 - TS_STD(close, 5) / TS_STD(close, 20))",
+      "direction": 1,
+      "is_positive": true,
+      "ic_mean": 0.029778455805134232,
+      "ic_std": 0.10092030687197243,
+      "icir": 0.2950690176052596,
+      "ic_abs_weighted": 0.08173771162883368,
+      "ic_positive_ratio": 0.5942857142857143,
+      "ic_negative_ratio": 0.4057142857142857,
+      "monotonicity_score": 0.7,
+      "long_short_return": -0.05670004837964852,
+      "turnover_rate": 0.11498999648731617,
+      "variables": [
+        "amount",
+        "close"
+      ],
+      "operators": [
+        "EMA",
+        "RANK",
+        "TS_MAX",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-04T14:54:13.203782",
+      "updated_at": "2026-06-25T13:03:30.699199",
+      "generation": 4,
+      "parent_ids": [
+        "bde7933fc89b"
+      ],
+      "hypothesis": "参数优化自: RANK(EMA(amount, 5) / EMA(amount, 20)) * (close / TS_MAX(close, 10)) * (1 - TS_STD(close, 5) / TS_STD(close, 20))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "6ae932508cee",
+      "name": "Round1_Factor3",
+      "expression": "RANK(TS_CORR(close, volume, 5)) * (close / TS_MAX(close, 20))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.0313593997064037,
+      "ic_std": 0.07854458510493298,
+      "icir": -0.3992560361036802,
+      "ic_abs_weighted": 0.067442136018462,
+      "ic_positive_ratio": 0.3399014778325123,
+      "ic_negative_ratio": 0.6600985221674877,
+      "monotonicity_score": 0.9999999999999999,
+      "long_short_return": -0.10685663412103592,
+      "turnover_rate": 0.3103622320999702,
+      "variables": [
+        "close",
+        "volume"
+      ],
+      "operators": [
+        "RANK",
+        "TS_CORR",
+        "TS_MAX"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-04T14:55:27.854009",
+      "updated_at": "2026-06-25T13:03:30.703298",
+      "generation": 1,
+      "parent_ids": [],
+      "hypothesis": "情绪驱动的成交量突增后，股价短期回调概率增加。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "6dedd5bfba5d",
+      "name": "Round3_Factor8",
+      "expression": "close / TS_MAX(high, 5)",
+      "direction": 1,
+      "is_positive": true,
+      "ic_mean": 0.03561058108109503,
+      "ic_std": 0.14964848306662756,
+      "icir": 0.23796152390826597,
+      "ic_abs_weighted": 0.12255743604168638,
+      "ic_positive_ratio": 0.6029411764705882,
+      "ic_negative_ratio": 0.39705882352941174,
+      "monotonicity_score": 0.6,
+      "long_short_return": 0.6085988808832214,
+      "turnover_rate": 0.2862235912137177,
+      "variables": [
+        "close",
+        "high"
+      ],
+      "operators": [
+        "TS_MAX"
+      ],
+      "nesting_depth": 1,
+      "created_at": "2026-06-10T13:38:26.290835",
+      "updated_at": "2026-06-25T13:03:30.661784",
+      "generation": 3,
+      "parent_ids": [],
+      "hypothesis": "在低波动率市场状态下，换手率异动对未来股价动量的预测能力更强。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "daa3ddb8b6ed",
+      "name": "Round3_Factor3_opt",
+      "expression": "TS_MEAN(IF(pctChg > 0, volume, 0), 5) / TS_MEAN(volume, 60) * (close / TS_MAX(high, 5))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.034755885466468704,
+      "ic_std": 0.11679014485355313,
+      "icir": -0.2975926223060192,
+      "ic_abs_weighted": 0.09527689025776283,
+      "ic_positive_ratio": 0.38857142857142857,
+      "ic_negative_ratio": 0.6114285714285714,
+      "monotonicity_score": 0.9999999999999999,
+      "long_short_return": 0.0704167943727791,
+      "turnover_rate": 0.14505704293110558,
+      "variables": [
+        "close",
+        "high",
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "IF",
+        "TS_MAX",
+        "TS_MEAN"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-05T16:34:20.116993",
+      "updated_at": "2026-06-25T13:03:30.707444",
+      "generation": 4,
+      "parent_ids": [
+        "3e0dd6f444f2"
+      ],
+      "hypothesis": "参数优化自: TS_MEAN(IF(pctChg > 0, volume, 0), 5) / TS_MEAN(volume, 5) * (close / TS_MAX(high, 5))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "a12e461e704f",
+      "name": "Round3_Factor2_opt",
+      "expression": "(-TS_MEAN(pctChg, 60)) * (volume / TS_MEAN(volume, 5)) * RANK(TS_STD(close, 20))",
+      "direction": 1,
+      "is_positive": true,
+      "ic_mean": 0.030502682106410255,
+      "ic_std": 0.1263331649050528,
+      "icir": 0.24144635440214696,
+      "ic_abs_weighted": 0.10438116594406342,
+      "ic_positive_ratio": 0.5895953757225434,
+      "ic_negative_ratio": 0.41040462427745666,
+      "monotonicity_score": 0.8999999999999998,
+      "long_short_return": -0.15739128925472698,
+      "turnover_rate": 0.02880709211545046,
+      "variables": [
+        "close",
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-08T13:11:58.396859",
+      "updated_at": "2026-06-25T13:03:30.711557",
+      "generation": 4,
+      "parent_ids": [
+        "44d479756499"
+      ],
+      "hypothesis": "参数优化自: (-TS_MEAN(pctChg, 5)) * (volume / TS_MEAN(volume, 5)) * RANK(TS_STD(close, 20))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "91413756f89f",
+      "name": "Round2_Factor2",
+      "expression": "TS_CORR(close, volume, 10) * (TS_MEAN(volume, 20) / TS_MEAN(volume, 5))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.021858633595319765,
+      "ic_std": 0.08319229181151278,
+      "icir": -0.2627483041919853,
+      "ic_abs_weighted": 0.06877046510593142,
+      "ic_positive_ratio": 0.39378238341968913,
+      "ic_negative_ratio": 0.6062176165803109,
+      "monotonicity_score": 0.9999999999999999,
+      "long_short_return": -0.15408816710672057,
+      "turnover_rate": 0.1316051660232493,
+      "variables": [
+        "close",
+        "volume"
+      ],
+      "operators": [
+        "TS_CORR",
+        "TS_MEAN"
+      ],
+      "nesting_depth": 1,
+      "created_at": "2026-06-08T13:36:12.521831",
+      "updated_at": "2026-06-25T13:03:30.715650",
+      "generation": 2,
+      "parent_ids": [],
+      "hypothesis": "在成交量收缩时期，低流动性股票（高Amihud值）的流动性溢价显著增强，表现为正向因子IC。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "38c71ee1ae4e",
+      "name": "Round3_Factor3_opt",
+      "expression": "TS_STD(close, 30) / TS_MEAN(amount, 10) * (TS_MEAN(volume, 60) / TS_MEAN(volume, 10))",
+      "direction": 1,
+      "is_positive": true,
+      "ic_mean": 0.029083755013558706,
+      "ic_std": 0.12645652916430325,
+      "icir": 0.22999014132177056,
+      "ic_abs_weighted": 0.10211160746661403,
+      "ic_positive_ratio": 0.6127167630057804,
+      "ic_negative_ratio": 0.3872832369942196,
+      "monotonicity_score": 0.9999999999999999,
+      "long_short_return": 0.1998281977921328,
+      "turnover_rate": 0.0007526427322165019,
+      "variables": [
+        "amount",
+        "close",
+        "volume"
+      ],
+      "operators": [
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 1,
+      "created_at": "2026-06-08T14:42:18.412934",
+      "updated_at": "2026-06-25T13:03:30.720018",
+      "generation": 4,
+      "parent_ids": [
+        "eb58ba2e89ed"
+      ],
+      "hypothesis": "参数优化自: TS_STD(close, 10) / TS_MEAN(amount, 10) * (TS_MEAN(volume, 60) / TS_MEAN(volume, 10))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "a705b9589907",
+      "name": "Round3_Factor2",
+      "expression": "TS_CORR(close, volume, 10) * (TS_MEAN(volume, 5) / TS_MEAN(volume, 60))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.043920167482672245,
+      "ic_std": 0.09114113317770983,
+      "icir": -0.4818918303005442,
+      "ic_abs_weighted": 0.08352195173769435,
+      "ic_positive_ratio": 0.30057803468208094,
+      "ic_negative_ratio": 0.6994219653179191,
+      "monotonicity_score": 0.9999999999999999,
+      "long_short_return": -0.19861248141685145,
+      "turnover_rate": 0.08786949668559585,
+      "variables": [
+        "close",
+        "volume"
+      ],
+      "operators": [
+        "TS_CORR",
+        "TS_MEAN"
+      ],
+      "nesting_depth": 1,
+      "created_at": "2026-06-08T14:50:28.552889",
+      "updated_at": "2026-06-25T13:03:30.724272",
+      "generation": 3,
+      "parent_ids": [],
+      "hypothesis": "价格形态突破后，资金流入持续性、成交量相对放大与趋势确认结合能稳定预测未来正收益。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "0882fad656a7",
+      "name": "Round3_Factor3",
+      "expression": "TS_STD(pctChg, 10) * (TS_MEAN(amount, 5) / TS_MEAN(amount, 20)) * RANK(TS_MEAN(pctChg, 5))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.032036476173195,
+      "ic_std": 0.11208503301279989,
+      "icir": -0.2858229623712249,
+      "ic_abs_weighted": 0.09271511332516338,
+      "ic_positive_ratio": 0.40414507772020725,
+      "ic_negative_ratio": 0.5958549222797928,
+      "monotonicity_score": 0.8999999999999998,
+      "long_short_return": 0.26641429158869084,
+      "turnover_rate": 0.16907839118443724,
+      "variables": [
+        "amount",
+        "pctChg"
+      ],
+      "operators": [
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-08T14:50:30.967363",
+      "updated_at": "2026-06-25T13:03:30.728341",
+      "generation": 3,
+      "parent_ids": [],
+      "hypothesis": "价格形态突破后，资金流入持续性、成交量相对放大与趋势确认结合能稳定预测未来正收益。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "b8e7cd83e725",
+      "name": "Round1_Factor3_opt",
+      "expression": "RANK(TS_CORR(close, volume, 5)) * (close / TS_MAX(close, 60))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.029707009635458734,
+      "ic_std": 0.08083893909738962,
+      "icir": -0.36748391266824537,
+      "ic_abs_weighted": 0.06956876354045967,
+      "ic_positive_ratio": 0.3564356435643564,
+      "ic_negative_ratio": 0.6435643564356436,
+      "monotonicity_score": 0.8999999999999998,
+      "long_short_return": -0.08174962370764187,
+      "turnover_rate": 0.3068759232358151,
+      "variables": [
+        "close",
+        "volume"
+      ],
+      "operators": [
+        "RANK",
+        "TS_CORR",
+        "TS_MAX"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-09T13:02:29.958766",
+      "updated_at": "2026-06-25T13:03:30.732407",
+      "generation": 2,
+      "parent_ids": [
+        "6ae932508cee"
+      ],
+      "hypothesis": "参数优化自: RANK(TS_CORR(close, volume, 5)) * (close / TS_MAX(close, 20))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "456e510d34ca",
+      "name": "Round3_Factor3_opt",
+      "expression": "TS_STD(pctChg, 10) * (TS_MEAN(amount, 5) / TS_MEAN(amount, 60)) * RANK(TS_MEAN(pctChg, 5))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.03399943601519103,
+      "ic_std": 0.1150660265943551,
+      "icir": -0.29547762290471735,
+      "ic_abs_weighted": 0.09348311658946441,
+      "ic_positive_ratio": 0.43103448275862066,
+      "ic_negative_ratio": 0.5689655172413793,
+      "monotonicity_score": 0.8999999999999998,
+      "long_short_return": 0.2334175237547725,
+      "turnover_rate": 0.14082777757314574,
+      "variables": [
+        "amount",
+        "pctChg"
+      ],
+      "operators": [
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-09T13:15:47.507260",
+      "updated_at": "2026-06-25T13:03:30.736516",
+      "generation": 4,
+      "parent_ids": [
+        "0882fad656a7"
+      ],
+      "hypothesis": "参数优化自: TS_STD(pctChg, 10) * (TS_MEAN(amount, 5) / TS_MEAN(amount, 20)) * RANK(TS_MEAN(pctChg, 5))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "858e9c4b582c",
+      "name": "Round1_Factor2",
+      "expression": "RANK(DELTA(turn - TS_MEAN(turn, 10), 5)) * TS_MEAN(pctChg, 20)",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.023363899594879837,
+      "ic_std": 0.11089685264855963,
+      "icir": -0.21068135873000626,
+      "ic_abs_weighted": 0.0905375767827501,
+      "ic_positive_ratio": 0.4020618556701031,
+      "ic_negative_ratio": 0.5979381443298969,
+      "monotonicity_score": 0.9999999999999999,
+      "long_short_return": 0.224058535641873,
+      "turnover_rate": 0.15484924823321014,
+      "variables": [
+        "pctChg",
+        "turn"
+      ],
+      "operators": [
+        "DELTA",
+        "RANK",
+        "TS_MEAN"
+      ],
+      "nesting_depth": 3,
+      "created_at": "2026-06-09T13:17:07.176677",
+      "updated_at": "2026-06-25T13:03:30.740770",
+      "generation": 1,
+      "parent_ids": [],
+      "hypothesis": "换手率异动的加速度负向预测价格趋势反转。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "841b49bd9d52",
+      "name": "Round3_Factor2",
+      "expression": "TS_STD(turn, 20) / TS_STD(pctChg, 20)",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.03300700615972462,
+      "ic_std": 0.1317947069799989,
+      "icir": -0.25044257782472057,
+      "ic_abs_weighted": 0.11110177005648197,
+      "ic_positive_ratio": 0.4175257731958763,
+      "ic_negative_ratio": 0.5824742268041238,
+      "monotonicity_score": 0.8999999999999998,
+      "long_short_return": -0.14615653046652868,
+      "turnover_rate": 0.012061060748150462,
+      "variables": [
+        "pctChg",
+        "turn"
+      ],
+      "operators": [
+        "TS_STD"
+      ],
+      "nesting_depth": 1,
+      "created_at": "2026-06-09T13:21:20.963274",
+      "updated_at": "2026-06-25T13:03:30.745188",
+      "generation": 3,
+      "parent_ids": [],
+      "hypothesis": "换手率异动与价格波动率的耦合强度负向预测价格尾部下跌风险。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "4d2766127ed7",
+      "name": "Round2_Factor2_opt",
+      "expression": "RANK(TS_CORR(turn, DELAY(turn, 5), 20)) * TS_MEAN(pctChg, 60)",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.026932740858431278,
+      "ic_std": 0.11854545347447686,
+      "icir": -0.22719336818961147,
+      "ic_abs_weighted": 0.09822763977495887,
+      "ic_positive_ratio": 0.43103448275862066,
+      "ic_negative_ratio": 0.5689655172413793,
+      "monotonicity_score": 0.7,
+      "long_short_return": 0.17926655705424435,
+      "turnover_rate": 0.028863862389038274,
+      "variables": [
+        "pctChg",
+        "turn"
+      ],
+      "operators": [
+        "DELAY",
+        "RANK",
+        "TS_CORR",
+        "TS_MEAN"
+      ],
+      "nesting_depth": 3,
+      "created_at": "2026-06-09T16:45:04.366463",
+      "updated_at": "2026-06-25T13:03:30.749290",
+      "generation": 3,
+      "parent_ids": [
+        "3381535f4539"
+      ],
+      "hypothesis": "参数优化自: RANK(TS_CORR(turn, DELAY(turn, 5), 20)) * TS_MEAN(pctChg, 10)",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "6ebb6e6fc683",
+      "name": "Round2_Factor2_opt",
+      "expression": "(1 - DELTA(TS_STD(close, 60), 5) / TS_STD(close, 5)) * (TS_MEAN(volume, 5) / TS_MEAN(volume, 20)) * (TS_MEAN(IF(pctChg > 0, volume, 0), 10) / TS_MEAN(volume, 10))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.026199316710651347,
+      "ic_std": 0.08645113779361593,
+      "icir": -0.3030534632545468,
+      "ic_abs_weighted": 0.07092904579660585,
+      "ic_positive_ratio": 0.4294117647058823,
+      "ic_negative_ratio": 0.5705882352941176,
+      "monotonicity_score": 0.7,
+      "long_short_return": -0.11759615091656497,
+      "turnover_rate": 0.07392390366121011,
+      "variables": [
+        "close",
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "DELTA",
+        "IF",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-10T13:12:35.239561",
+      "updated_at": "2026-06-25T13:03:30.753656",
+      "generation": 3,
+      "parent_ids": [
+        "185319b48b9a"
+      ],
+      "hypothesis": "参数优化自: (1 - DELTA(TS_STD(close, 5), 5) / TS_STD(close, 5)) * (TS_MEAN(volume, 5) / TS_MEAN(volume, 20)) * (TS_MEAN(IF(pctChg > 0, volume, 0), 10) / TS_MEAN(volume, 10))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "19605292d611",
+      "name": "Round1_Factor3_opt",
+      "expression": "(TS_STD(close, 30) / TS_STD(close, 10)) * (1 - TS_CORR(pctChg, volume, 10)) * (TS_MEAN(volume, 60) / TS_MEAN(volume, 5))",
+      "direction": 1,
+      "is_positive": true,
+      "ic_mean": 0.03429165594246836,
+      "ic_std": 0.09235529838292222,
+      "icir": 0.3713014471599537,
+      "ic_abs_weighted": 0.0785503638394322,
+      "ic_positive_ratio": 0.6457142857142857,
+      "ic_negative_ratio": 0.35428571428571426,
+      "monotonicity_score": 0.7,
+      "long_short_return": 0.059673125731288856,
+      "turnover_rate": 0.07078668845548819,
+      "variables": [
+        "close",
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "TS_CORR",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 1,
+      "created_at": "2026-06-10T13:30:59.732252",
+      "updated_at": "2026-06-25T13:03:30.757735",
+      "generation": 2,
+      "parent_ids": [
+        "ca95215c857f"
+      ],
+      "hypothesis": "参数优化自: (TS_STD(close, 30) / TS_STD(close, 10)) * (1 - TS_CORR(pctChg, volume, 10)) * (TS_MEAN(volume, 20) / TS_MEAN(volume, 5))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "f3cc0b85bd4c",
+      "name": "Round1_Factor3",
+      "expression": "RANK(TS_STD(IF(pctChg > 0, pctChg, 0), 10)) * RANK(DELTA(turn, 5))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.026302534109825856,
+      "ic_std": 0.08172983845877439,
+      "icir": -0.3218229058790224,
+      "ic_abs_weighted": 0.06907005126198258,
+      "ic_positive_ratio": 0.35678391959798994,
+      "ic_negative_ratio": 0.6432160804020101,
+      "monotonicity_score": 0.8999999999999998,
+      "long_short_return": 0.12033195308390573,
+      "turnover_rate": 0.27283526101906846,
+      "variables": [
+        "pctChg",
+        "turn"
+      ],
+      "operators": [
+        "DELTA",
+        "IF",
+        "RANK",
+        "TS_STD"
+      ],
+      "nesting_depth": 3,
+      "created_at": "2026-06-10T13:32:35.257453",
+      "updated_at": "2026-06-25T13:03:30.761784",
+      "generation": 1,
+      "parent_ids": [],
+      "hypothesis": "股票换手率异动（日换手率相对20日均值）与价格波动率的乘积可预测未来短期股价动量。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "87d99f73f51a",
+      "name": "Round2_Factor1",
+      "expression": "TS_STD(turn, 20) * (close - amount / volume) / (amount / volume)",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.02957331527123939,
+      "ic_std": 0.11281358585195028,
+      "icir": -0.26214320773430266,
+      "ic_abs_weighted": 0.08514400405949217,
+      "ic_positive_ratio": 0.441025641025641,
+      "ic_negative_ratio": 0.558974358974359,
+      "monotonicity_score": 0.7,
+      "long_short_return": -0.10598050537870861,
+      "turnover_rate": 0.422601575187368,
+      "variables": [
+        "amount",
+        "close",
+        "turn",
+        "volume"
+      ],
+      "operators": [
+        "TS_STD"
+      ],
+      "nesting_depth": 1,
+      "created_at": "2026-06-10T13:35:23.842349",
+      "updated_at": "2026-06-25T13:03:30.765888",
+      "generation": 2,
+      "parent_ids": [],
+      "hypothesis": "股票换手率异动与成交量加权价格偏离度的乘积可预测未来股价波动率变化。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "30b85044b1f9",
+      "name": "Round2_Factor3",
+      "expression": "RANK(TS_STD(turn, 5)) * RANK((close - amount / volume) / (amount / volume))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.04332053073255854,
+      "ic_std": 0.11785664416510844,
+      "icir": -0.3675696948563178,
+      "ic_abs_weighted": 0.10347670340996161,
+      "ic_positive_ratio": 0.39408866995073893,
+      "ic_negative_ratio": 0.6059113300492611,
+      "monotonicity_score": 0.49999999999999994,
+      "long_short_return": 0.006227748221543109,
+      "turnover_rate": 0.3067772703360044,
+      "variables": [
+        "amount",
+        "close",
+        "turn",
+        "volume"
+      ],
+      "operators": [
+        "RANK",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-10T13:35:28.037137",
+      "updated_at": "2026-06-25T13:03:30.769993",
+      "generation": 2,
+      "parent_ids": [],
+      "hypothesis": "股票换手率异动与成交量加权价格偏离度的乘积可预测未来股价波动率变化。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "ff6a1fe11f3d",
+      "name": "Round1_Factor1_opt",
+      "expression": "RANK(TS_MEAN(IF(pctChg < 0, volume, 0), 20) / TS_MEAN(volume, 5))",
+      "direction": 1,
+      "is_positive": true,
+      "ic_mean": 0.028361948096899823,
+      "ic_std": 0.0998338288364855,
+      "icir": 0.2840915592183979,
+      "ic_abs_weighted": 0.08427977306848472,
+      "ic_positive_ratio": 0.6,
+      "ic_negative_ratio": 0.4,
+      "monotonicity_score": 0.09999999999999999,
+      "long_short_return": 0.015011781709825334,
+      "turnover_rate": 0.04816596649867719,
+      "variables": [
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "IF",
+        "RANK",
+        "TS_MEAN"
+      ],
+      "nesting_depth": 3,
+      "created_at": "2026-06-11T13:03:54.096808",
+      "updated_at": "2026-06-25T13:03:30.774041",
+      "generation": 2,
+      "parent_ids": [
+        "19e2f93ebd54"
+      ],
+      "hypothesis": "参数优化自: RANK(TS_MEAN(IF(pctChg < 0, volume, 0), 20) / TS_MEAN(volume, 20))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "97982a179235",
+      "name": "Round3_Factor1_opt",
+      "expression": "RANK(TS_MEAN(amount, 5) / TS_MEAN(amount, 5)) * (close / DELAY(close, 20) - 1) * (1 - TS_STD(close, 5) / TS_STD(close, 20))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.023291422912303593,
+      "ic_std": 0.10904493270785262,
+      "icir": -0.21359472956624892,
+      "ic_abs_weighted": 0.08880776761592774,
+      "ic_positive_ratio": 0.41847826086956524,
+      "ic_negative_ratio": 0.5815217391304348,
+      "monotonicity_score": 0.09999999999999999,
+      "long_short_return": -0.10528723111722617,
+      "turnover_rate": 0.11503950532463073,
+      "variables": [
+        "amount",
+        "close"
+      ],
+      "operators": [
+        "DELAY",
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-11T13:07:36.110417",
+      "updated_at": "2026-06-25T13:03:30.778096",
+      "generation": 4,
+      "parent_ids": [
+        "d5a4b5e952e4"
+      ],
+      "hypothesis": "参数优化自: RANK(TS_MEAN(amount, 5) / TS_MEAN(amount, 20)) * (close / DELAY(close, 20) - 1) * (1 - TS_STD(close, 5) / TS_STD(close, 20))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "02c5fe711066",
+      "name": "Round1_Factor3_opt",
+      "expression": "RANK(TS_STD(IF(pctChg > 0, pctChg, 0), 10)) * RANK(DELTA(turn, 60))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.03909967861117527,
+      "ic_std": 0.10711299535070277,
+      "icir": -0.3650320718149792,
+      "ic_abs_weighted": 0.09278654472483897,
+      "ic_positive_ratio": 0.375,
+      "ic_negative_ratio": 0.625,
+      "monotonicity_score": 0.3,
+      "long_short_return": 0.03404371491832685,
+      "turnover_rate": 0.09852741035247345,
+      "variables": [
+        "pctChg",
+        "turn"
+      ],
+      "operators": [
+        "DELTA",
+        "IF",
+        "RANK",
+        "TS_STD"
+      ],
+      "nesting_depth": 3,
+      "created_at": "2026-06-11T13:24:42.585806",
+      "updated_at": "2026-06-25T13:03:30.782520",
+      "generation": 2,
+      "parent_ids": [
+        "f3cc0b85bd4c"
+      ],
+      "hypothesis": "参数优化自: RANK(TS_STD(IF(pctChg > 0, pctChg, 0), 10)) * RANK(DELTA(turn, 5))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "eafe74716a74",
+      "name": "Round2_Factor1_opt",
+      "expression": "TS_STD(turn, 60) * (close - amount / volume) / (amount / volume)",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.029604885415823574,
+      "ic_std": 0.11457141800712646,
+      "icir": -0.2583967793257313,
+      "ic_abs_weighted": 0.08699158713715428,
+      "ic_positive_ratio": 0.4342857142857143,
+      "ic_negative_ratio": 0.5657142857142857,
+      "monotonicity_score": 0.7,
+      "long_short_return": -0.09802823711936624,
+      "turnover_rate": 0.3875269178490158,
+      "variables": [
+        "amount",
+        "close",
+        "turn",
+        "volume"
+      ],
+      "operators": [
+        "TS_STD"
+      ],
+      "nesting_depth": 1,
+      "created_at": "2026-06-11T13:24:52.724678",
+      "updated_at": "2026-06-25T13:03:30.786804",
+      "generation": 3,
+      "parent_ids": [
+        "87d99f73f51a"
+      ],
+      "hypothesis": "参数优化自: TS_STD(turn, 20) * (close - amount / volume) / (amount / volume)",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "ce5410ff6c7f",
+      "name": "Round2_Factor3_opt",
+      "expression": "RANK(TS_STD(turn, 60)) * RANK((close - amount / volume) / (amount / volume))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.03153943684454721,
+      "ic_std": 0.1393553246159588,
+      "icir": -0.2263238733895881,
+      "ic_abs_weighted": 0.11764135564820537,
+      "ic_positive_ratio": 0.4228571428571429,
+      "ic_negative_ratio": 0.5771428571428572,
+      "monotonicity_score": 0.09999999999999999,
+      "long_short_return": -0.013057357040538172,
+      "turnover_rate": 0.2236082899338699,
+      "variables": [
+        "amount",
+        "close",
+        "turn",
+        "volume"
+      ],
+      "operators": [
+        "RANK",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-11T13:25:03.396475",
+      "updated_at": "2026-06-25T13:03:30.790891",
+      "generation": 3,
+      "parent_ids": [
+        "30b85044b1f9"
+      ],
+      "hypothesis": "参数优化自: RANK(TS_STD(turn, 5)) * RANK((close - amount / volume) / (amount / volume))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "b06f36cccb7d",
+      "name": "Round2_Factor3_opt",
+      "expression": "RANK(TS_STD(pctChg, 60) / TS_STD(turn, 10)) * RANK(TS_MEAN(pctChg, 10))",
+      "direction": 1,
+      "is_positive": true,
+      "ic_mean": 0.02935479427185747,
+      "ic_std": 0.1276254439565434,
+      "icir": 0.23000738224152864,
+      "ic_abs_weighted": 0.10861232039448006,
+      "ic_positive_ratio": 0.5942857142857143,
+      "ic_negative_ratio": 0.4057142857142857,
+      "monotonicity_score": 0.9999999999999999,
+      "long_short_return": 0.3516552332388301,
+      "turnover_rate": 0.08902209936313515,
+      "variables": [
+        "pctChg",
+        "turn"
+      ],
+      "operators": [
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-11T15:08:06.887285",
+      "updated_at": "2026-06-25T13:03:30.798435",
+      "generation": 3,
+      "parent_ids": [
+        "c15413aefbb6"
+      ],
+      "hypothesis": "参数优化自: RANK(TS_STD(pctChg, 10) / TS_STD(turn, 10)) * RANK(TS_MEAN(pctChg, 10))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "86c9d37ecd47",
+      "name": "Round1_Factor3",
+      "expression": "RANK(TS_STD(turn, 5) * TS_STD(pctChg, 5) / TS_MEAN(volume, 5))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.030716424216618618,
+      "ic_std": 0.12543504498618205,
+      "icir": -0.2448791262442035,
+      "ic_abs_weighted": 0.1074648586469348,
+      "ic_positive_ratio": 0.4187192118226601,
+      "ic_negative_ratio": 0.5812807881773399,
+      "monotonicity_score": 0.8999999999999998,
+      "long_short_return": 0.029672112249157164,
+      "turnover_rate": 0.07054643600515405,
+      "variables": [
+        "pctChg",
+        "turn",
+        "volume"
+      ],
+      "operators": [
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-11T15:09:57.846770",
+      "updated_at": "2026-06-25T13:03:30.802193",
+      "generation": 1,
+      "parent_ids": [],
+      "hypothesis": "假设日内交易量波动性与日间价格波动正相关，高交易量波动预示未来价格波动加剧和收益风险上升。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "bff85f214e5d",
+      "name": "Round3_Factor2_opt",
+      "expression": "TS_CORR(close, volume, 10) * (TS_MEAN(volume, 10) / TS_MEAN(volume, 60))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.04423855309482064,
+      "ic_std": 0.09488586548683697,
+      "icir": -0.4662291150303901,
+      "ic_abs_weighted": 0.08633075466038467,
+      "ic_positive_ratio": 0.33714285714285713,
+      "ic_negative_ratio": 0.6628571428571428,
+      "monotonicity_score": 0.9999999999999999,
+      "long_short_return": -0.2556991133134928,
+      "turnover_rate": 0.08712847650499343,
+      "variables": [
+        "close",
+        "volume"
+      ],
+      "operators": [
+        "TS_CORR",
+        "TS_MEAN"
+      ],
+      "nesting_depth": 1,
+      "created_at": "2026-06-12T13:18:53.106038",
+      "updated_at": "2026-06-25T13:03:30.809043",
+      "generation": 4,
+      "parent_ids": [
+        "a705b9589907"
+      ],
+      "hypothesis": "参数优化自: TS_CORR(close, volume, 10) * (TS_MEAN(volume, 5) / TS_MEAN(volume, 60))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "c85e7b8b3634",
+      "name": "Round1_Factor2_opt",
+      "expression": "RANK(DELTA(turn - TS_MEAN(turn, 10), 5)) * TS_MEAN(pctChg, 60)",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.02804713384963328,
+      "ic_std": 0.1178013546053915,
+      "icir": -0.2380883814416649,
+      "ic_abs_weighted": 0.09891952684695943,
+      "ic_positive_ratio": 0.41714285714285715,
+      "ic_negative_ratio": 0.5828571428571429,
+      "monotonicity_score": 0.6,
+      "long_short_return": 0.09550566677294337,
+      "turnover_rate": 0.08573986392392473,
+      "variables": [
+        "pctChg",
+        "turn"
+      ],
+      "operators": [
+        "DELTA",
+        "RANK",
+        "TS_MEAN"
+      ],
+      "nesting_depth": 3,
+      "created_at": "2026-06-12T13:21:34.397949",
+      "updated_at": "2026-06-25T13:03:30.812440",
+      "generation": 2,
+      "parent_ids": [
+        "858e9c4b582c"
+      ],
+      "hypothesis": "参数优化自: RANK(DELTA(turn - TS_MEAN(turn, 10), 5)) * TS_MEAN(pctChg, 20)",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "927eacfd2d10",
+      "name": "Round2_Factor1_opt",
+      "expression": "RANK(TS_CORR(turn, pctChg, 10)) * RANK(TS_MEAN(pctChg, 15))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.026431298238638573,
+      "ic_std": 0.10755754567549615,
+      "icir": -0.24574099448478,
+      "ic_abs_weighted": 0.08847900161008063,
+      "ic_positive_ratio": 0.4090909090909091,
+      "ic_negative_ratio": 0.5909090909090909,
+      "monotonicity_score": 0.8999999999999998,
+      "long_short_return": 0.09173370009706856,
+      "turnover_rate": 0.11874683582000654,
+      "variables": [
+        "pctChg",
+        "turn"
+      ],
+      "operators": [
+        "RANK",
+        "TS_CORR",
+        "TS_MEAN"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-12T13:27:07.830451",
+      "updated_at": "2026-06-25T13:03:30.815838",
+      "generation": 3,
+      "parent_ids": [
+        "b0d910bca36d"
+      ],
+      "hypothesis": "参数优化自: RANK(TS_CORR(turn, pctChg, 10)) * RANK(TS_MEAN(pctChg, 10))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "64ccbc18e751",
+      "name": "Round1_Factor3",
+      "expression": "RANK(TS_STD(pctChg, 5) / TS_STD(pctChg, 20) * TS_STD(volume, 5))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.03899401091424234,
+      "ic_std": 0.12357778918237816,
+      "icir": -0.31554222787311986,
+      "ic_abs_weighted": 0.1018133654622925,
+      "ic_positive_ratio": 0.37435897435897436,
+      "ic_negative_ratio": 0.6256410256410256,
+      "monotonicity_score": 0.8999999999999998,
+      "long_short_return": -0.12192666663147514,
+      "turnover_rate": 0.080542402493622,
+      "variables": [
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "RANK",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-12T13:35:30.415704",
+      "updated_at": "2026-06-25T13:03:30.822717",
+      "generation": 1,
+      "parent_ids": [],
+      "hypothesis": "波动率与成交量变化率的比值能预测A股股票的短期收益反转。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "f658d830d3a4",
+      "name": "Round1_Factor3_opt",
+      "expression": "RANK(TS_STD(pctChg, 20) / TS_STD(pctChg, 20) * TS_STD(volume, 5))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.038961625673083075,
+      "ic_std": 0.12952230010647342,
+      "icir": -0.30081017431789575,
+      "ic_abs_weighted": 0.10747467824191444,
+      "ic_positive_ratio": 0.38461538461538464,
+      "ic_negative_ratio": 0.6153846153846154,
+      "monotonicity_score": 0.8999999999999998,
+      "long_short_return": -0.12526093376067288,
+      "turnover_rate": 0.051510368583539315,
+      "variables": [
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "RANK",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-15T16:35:08.918861",
+      "updated_at": "2026-06-25T13:03:30.826098",
+      "generation": 2,
+      "parent_ids": [
+        "64ccbc18e751"
+      ],
+      "hypothesis": "参数优化自: RANK(TS_STD(pctChg, 5) / TS_STD(pctChg, 20) * TS_STD(volume, 5))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "add0c2dca957",
+      "name": "Round1_Factor1",
+      "expression": "RANK(TS_STD(IF(pctChg<0, pctChg, 0), 20) / TS_STD(IF(pctChg>0, pctChg, 0), 20))",
+      "direction": 1,
+      "is_positive": true,
+      "ic_mean": 0.025475805347079016,
+      "ic_std": 0.09845245317967415,
+      "icir": 0.2587625246938853,
+      "ic_abs_weighted": 0.07950497046803043,
+      "ic_positive_ratio": 0.5743589743589743,
+      "ic_negative_ratio": 0.4256410256410256,
+      "monotonicity_score": 0.6,
+      "long_short_return": -0.24130843306653987,
+      "turnover_rate": 0.057440662318711096,
+      "variables": [
+        "pctChg"
+      ],
+      "operators": [
+        "IF",
+        "RANK",
+        "TS_STD"
+      ],
+      "nesting_depth": 3,
+      "created_at": "2026-06-15T16:36:46.433320",
+      "updated_at": "2026-06-25T13:03:30.829497",
+      "generation": 1,
+      "parent_ids": [],
+      "hypothesis": "个股下行波动率与上行波动率之比越高，未来资金净流出概率越大。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "340ec1e2308b",
+      "name": "Round3_Factor3_opt",
+      "expression": "TS_STD(pctChg, 30) * (TS_MEAN(amount, 5) / TS_MEAN(amount, 20)) * RANK(TS_MEAN(pctChg, 5))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.03517734678872775,
+      "ic_std": 0.12895448320818836,
+      "icir": -0.2727888625007033,
+      "ic_abs_weighted": 0.10716477591275345,
+      "ic_positive_ratio": 0.41798941798941797,
+      "ic_negative_ratio": 0.582010582010582,
+      "monotonicity_score": 0.7,
+      "long_short_return": 0.2624018096403675,
+      "turnover_rate": 0.17579878336876917,
+      "variables": [
+        "amount",
+        "pctChg"
+      ],
+      "operators": [
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-16T13:30:54.740378",
+      "updated_at": "2026-06-25T13:03:30.833018",
+      "generation": 4,
+      "parent_ids": [
+        "0882fad656a7"
+      ],
+      "hypothesis": "参数优化自: TS_STD(pctChg, 10) * (TS_MEAN(amount, 5) / TS_MEAN(amount, 20)) * RANK(TS_MEAN(pctChg, 5))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "cbebfd3ec119",
+      "name": "Round2_Factor1_opt",
+      "expression": "TS_STD(turn, 30) * (close - amount / volume) / (amount / volume)",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.03664396301898255,
+      "ic_std": 0.13777118408997105,
+      "icir": -0.26597697668804476,
+      "ic_abs_weighted": 0.10780733728602711,
+      "ic_positive_ratio": 0.4126984126984127,
+      "ic_negative_ratio": 0.5873015873015873,
+      "monotonicity_score": 0.7,
+      "long_short_return": -0.20286154026908101,
+      "turnover_rate": 0.4486918261280416,
+      "variables": [
+        "amount",
+        "close",
+        "turn",
+        "volume"
+      ],
+      "operators": [
+        "TS_STD"
+      ],
+      "nesting_depth": 1,
+      "created_at": "2026-06-16T13:33:04.297107",
+      "updated_at": "2026-06-25T13:03:30.836469",
+      "generation": 3,
+      "parent_ids": [
+        "87d99f73f51a"
+      ],
+      "hypothesis": "参数优化自: TS_STD(turn, 20) * (close - amount / volume) / (amount / volume)",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "4ae8cc1f1c30",
+      "name": "Round1_Factor3_opt",
+      "expression": "RANK(TS_STD(pctChg, 5) / TS_STD(pctChg, 5) * TS_STD(volume, 5))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.03719689248752796,
+      "ic_std": 0.14371959517140231,
+      "icir": -0.258815733812542,
+      "ic_abs_weighted": 0.12340742991452168,
+      "ic_positive_ratio": 0.4158415841584158,
+      "ic_negative_ratio": 0.5841584158415841,
+      "monotonicity_score": 0.9999999999999999,
+      "long_short_return": 0.06299380662590372,
+      "turnover_rate": 0.064973127805339,
+      "variables": [
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "RANK",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-16T13:36:07.043491",
+      "updated_at": "2026-06-25T13:03:30.839869",
+      "generation": 2,
+      "parent_ids": [
+        "64ccbc18e751"
+      ],
+      "hypothesis": "参数优化自: RANK(TS_STD(pctChg, 5) / TS_STD(pctChg, 20) * TS_STD(volume, 5))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "63ccafdecb21",
+      "name": "Round3_Factor1_opt",
+      "expression": "RANK(TS_STD(close, 60) / TS_STD(close, 60) * TS_MEAN(volume, 20) / TS_MEAN(volume, 5))",
+      "direction": 1,
+      "is_positive": true,
+      "ic_mean": 0.03397962514488791,
+      "ic_std": 0.1051407619278673,
+      "icir": 0.3231822227824439,
+      "ic_abs_weighted": 0.08806470578870397,
+      "ic_positive_ratio": 0.632183908045977,
+      "ic_negative_ratio": 0.367816091954023,
+      "monotonicity_score": 0.39999999999999997,
+      "long_short_return": 0.13445876002638252,
+      "turnover_rate": 0.06354831089062131,
+      "variables": [
+        "close",
+        "volume"
+      ],
+      "operators": [
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-16T13:37:02.589905",
+      "updated_at": "2026-06-25T13:03:30.843318",
+      "generation": 4,
+      "parent_ids": [
+        "d1f79cc2f839"
+      ],
+      "hypothesis": "参数优化自: RANK(TS_STD(close, 60) / TS_STD(close, 20) * TS_MEAN(volume, 20) / TS_MEAN(volume, 5))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "87b91d80493e",
+      "name": "Round1_Factor3",
+      "expression": "RANK(TS_MEAN(DELTA(amount, 1), 5) / TS_STD(pctChg, 5))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.02648562555946547,
+      "ic_std": 0.10783582863050686,
+      "icir": -0.2456106277090605,
+      "ic_abs_weighted": 0.08626495761491043,
+      "ic_positive_ratio": 0.4129353233830846,
+      "ic_negative_ratio": 0.5870646766169154,
+      "monotonicity_score": 0.7,
+      "long_short_return": -0.17257840862240642,
+      "turnover_rate": 0.33909166076068975,
+      "variables": [
+        "amount",
+        "pctChg"
+      ],
+      "operators": [
+        "DELTA",
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 3,
+      "created_at": "2026-06-16T13:38:39.533919",
+      "updated_at": "2026-06-25T13:03:30.846783",
+      "generation": 1,
+      "parent_ids": [],
+      "hypothesis": "资金流入越分散（跨行业/板块），后续市场整体回调概率越高。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "90e90cecfbb3",
+      "name": "Round3_Factor3",
+      "expression": "RANK(TS_MEAN(DELTA(amount, 1), 5) / TS_STD(IF(pctChg < 0, pctChg, 0), 10))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.02681481747803539,
+      "ic_std": 0.10749853048292171,
+      "icir": -0.24944357246162968,
+      "ic_abs_weighted": 0.08630653783080727,
+      "ic_positive_ratio": 0.38190954773869346,
+      "ic_negative_ratio": 0.6180904522613065,
+      "monotonicity_score": 0.8999999999999998,
+      "long_short_return": -0.153190022423058,
+      "turnover_rate": 0.3242602763997165,
+      "variables": [
+        "amount",
+        "pctChg"
+      ],
+      "operators": [
+        "DELTA",
+        "IF",
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 3,
+      "created_at": "2026-06-16T13:44:43.734001",
+      "updated_at": "2026-06-25T13:03:30.850194",
+      "generation": 3,
+      "parent_ids": [],
+      "hypothesis": "股价下跌时大单资金逆势流入增加，后续反弹概率提升。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "cd681b279090",
+      "name": "Round1_Factor2_opt",
+      "expression": "RANK(DELTA(amount, 60) / DELAY(amount, 5))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.04403558338753265,
+      "ic_std": 0.11879868227882245,
+      "icir": -0.3706740053242376,
+      "ic_abs_weighted": 0.09888980561624065,
+      "ic_positive_ratio": 0.3356643356643357,
+      "ic_negative_ratio": 0.6643356643356644,
+      "monotonicity_score": 0.6,
+      "long_short_return": -0.135273630503187,
+      "turnover_rate": 0.15993385305929603,
+      "variables": [
+        "amount"
+      ],
+      "operators": [
+        "DELAY",
+        "DELTA",
+        "RANK"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-16T16:02:42.186183",
+      "updated_at": "2026-06-25T13:03:30.853615",
+      "generation": 2,
+      "parent_ids": [
+        "4dbcf35e55c9"
+      ],
+      "hypothesis": "参数优化自: RANK(DELTA(amount, 5) / DELAY(amount, 5))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "75707432889a",
+      "name": "Round1_Factor3_opt",
+      "expression": "RANK(TS_MEAN(DELTA(amount, 60), 5) / TS_STD(pctChg, 5))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.03486926267042652,
+      "ic_std": 0.1313230218956236,
+      "icir": -0.26552284715273183,
+      "ic_abs_weighted": 0.10681183644722796,
+      "ic_positive_ratio": 0.4014084507042254,
+      "ic_negative_ratio": 0.5985915492957746,
+      "monotonicity_score": 0.39999999999999997,
+      "long_short_return": -0.012084410534420522,
+      "turnover_rate": 0.024074238128986535,
+      "variables": [
+        "amount",
+        "pctChg"
+      ],
+      "operators": [
+        "DELTA",
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 3,
+      "created_at": "2026-06-16T16:02:51.209792",
+      "updated_at": "2026-06-25T13:03:30.857024",
+      "generation": 2,
+      "parent_ids": [
+        "87b91d80493e"
+      ],
+      "hypothesis": "参数优化自: RANK(TS_MEAN(DELTA(amount, 1), 5) / TS_STD(pctChg, 5))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "53fc136bbb47",
+      "name": "Round3_Factor3_opt",
+      "expression": "RANK(TS_MEAN(DELTA(amount, 60), 5) / TS_STD(IF(pctChg < 0, pctChg, 0), 10))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.03629775522650158,
+      "ic_std": 0.1339998023822806,
+      "icir": -0.27087916982854743,
+      "ic_abs_weighted": 0.10955416475094847,
+      "ic_positive_ratio": 0.38028169014084506,
+      "ic_negative_ratio": 0.6197183098591549,
+      "monotonicity_score": 0.39999999999999997,
+      "long_short_return": -0.061459985531446146,
+      "turnover_rate": 0.022420564611386723,
+      "variables": [
+        "amount",
+        "pctChg"
+      ],
+      "operators": [
+        "DELTA",
+        "IF",
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 3,
+      "created_at": "2026-06-16T16:03:12.408091",
+      "updated_at": "2026-06-25T13:03:30.861132",
+      "generation": 4,
+      "parent_ids": [
+        "90e90cecfbb3"
+      ],
+      "hypothesis": "参数优化自: RANK(TS_MEAN(DELTA(amount, 1), 5) / TS_STD(IF(pctChg < 0, pctChg, 0), 10))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "4a9969b99026",
+      "name": "Round1_Factor3_opt",
+      "expression": "TS_CORR(close, volume, 20) * (close / TS_MAX(close, 5))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.02459484168398067,
+      "ic_std": 0.11476013206793759,
+      "icir": -0.2143152089561958,
+      "ic_abs_weighted": 0.09469296985389515,
+      "ic_positive_ratio": 0.41025641025641024,
+      "ic_negative_ratio": 0.5897435897435898,
+      "monotonicity_score": 0.3,
+      "long_short_return": -0.03252472832043406,
+      "turnover_rate": 0.03688569348380052,
+      "variables": [
+        "close",
+        "volume"
+      ],
+      "operators": [
+        "TS_CORR",
+        "TS_MAX"
+      ],
+      "nesting_depth": 1,
+      "created_at": "2026-06-17T12:27:32.028645",
+      "updated_at": "2026-06-25T13:03:30.865147",
+      "generation": 2,
+      "parent_ids": [
+        "e2ee0ff0b4c8"
+      ],
+      "hypothesis": "参数优化自: TS_CORR(close, volume, 20) * (close / TS_MAX(close, 60))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "d0a6a40f1552",
+      "name": "Round1_Factor1_opt",
+      "expression": "TS_CORR(DELTA(pctChg, 15), DELTA(volume, 1) / DELAY(volume, 1), 20)",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.02891755667231042,
+      "ic_std": 0.0822468806867068,
+      "icir": -0.3515945702848307,
+      "ic_abs_weighted": 0.06806277323147779,
+      "ic_positive_ratio": 0.37777777777777777,
+      "ic_negative_ratio": 0.6222222222222222,
+      "monotonicity_score": 0.7,
+      "long_short_return": -0.0878633094498021,
+      "turnover_rate": 0.040267236509223106,
+      "variables": [
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "DELAY",
+        "DELTA",
+        "TS_CORR"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-18T12:51:39.203257",
+      "updated_at": "2026-06-25T13:03:30.868632",
+      "generation": 2,
+      "parent_ids": [
+        "6a10dffadd78"
+      ],
+      "hypothesis": "参数优化自: TS_CORR(DELTA(pctChg, 1), DELTA(volume, 1) / DELAY(volume, 1), 20)",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "c8a61c5542f0",
+      "name": "Round1_Factor2",
+      "expression": "RANK((close / TS_MAX(close, 60)) * (turn / TS_MEAN(turn, 20)))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.03427425690278005,
+      "ic_std": 0.11174075335615553,
+      "icir": -0.3067301398401746,
+      "ic_abs_weighted": 0.09301934401971586,
+      "ic_positive_ratio": 0.37435897435897436,
+      "ic_negative_ratio": 0.6256410256410256,
+      "monotonicity_score": 0.8999999999999998,
+      "long_short_return": -0.11425443991342116,
+      "turnover_rate": 0.31334159843863163,
+      "variables": [
+        "close",
+        "turn"
+      ],
+      "operators": [
+        "RANK",
+        "TS_MAX",
+        "TS_MEAN"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-18T13:16:19.296823",
+      "updated_at": "2026-06-25T13:03:30.872303",
+      "generation": 1,
+      "parent_ids": [],
+      "hypothesis": "日内成交量在价格高位时段的集中度负向预测次日股票收益率。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "7d654d71c697",
+      "name": "Round2_Factor1_opt",
+      "expression": "(-TS_MEAN(pctChg, 5)) * (1 - volume / TS_MEAN(volume, 15))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.019712017422612048,
+      "ic_std": 0.07776402757349533,
+      "icir": -0.2534850372041505,
+      "ic_abs_weighted": 0.06336942944495104,
+      "ic_positive_ratio": 0.3401015228426396,
+      "ic_negative_ratio": 0.6598984771573604,
+      "monotonicity_score": 0.6,
+      "long_short_return": -0.08992896377739237,
+      "turnover_rate": 0.40601995721702244,
+      "variables": [
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "TS_MEAN"
+      ],
+      "nesting_depth": 1,
+      "created_at": "2026-06-19T12:19:51.966603",
+      "updated_at": "2026-06-25T13:03:30.875801",
+      "generation": 3,
+      "parent_ids": [
+        "ae77c3e4244f"
+      ],
+      "hypothesis": "参数优化自: (-TS_MEAN(pctChg, 5)) * (1 - volume / TS_MEAN(volume, 10))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "e20007dc39d8",
+      "name": "Round1_Factor2_opt",
+      "expression": "RANK((close / TS_MAX(close, 60)) * (turn / TS_MEAN(turn, 60)))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.03989756821862496,
+      "ic_std": 0.11672643746801031,
+      "icir": -0.34180404271790754,
+      "ic_abs_weighted": 0.09739929894104349,
+      "ic_positive_ratio": 0.3505747126436782,
+      "ic_negative_ratio": 0.6494252873563219,
+      "monotonicity_score": 0.6,
+      "long_short_return": -0.0852122395670318,
+      "turnover_rate": 0.20026366839785384,
+      "variables": [
+        "close",
+        "turn"
+      ],
+      "operators": [
+        "RANK",
+        "TS_MAX",
+        "TS_MEAN"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-19T12:47:21.463678",
+      "updated_at": "2026-06-25T13:03:30.879248",
+      "generation": 2,
+      "parent_ids": [
+        "c8a61c5542f0"
+      ],
+      "hypothesis": "参数优化自: RANK((close / TS_MAX(close, 60)) * (turn / TS_MEAN(turn, 20)))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "c7a007f7ec7c",
+      "name": "Round1_Factor1",
+      "expression": "RANK(turn - TS_MEAN(turn, 60)) * RANK(TS_STD(pctChg, 20))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.04220650049211359,
+      "ic_std": 0.10989230066484822,
+      "icir": -0.3840714976096081,
+      "ic_abs_weighted": 0.09647539893510036,
+      "ic_positive_ratio": 0.3160919540229885,
+      "ic_negative_ratio": 0.6839080459770115,
+      "monotonicity_score": 0.6,
+      "long_short_return": 0.05580748136176041,
+      "turnover_rate": 0.09584607167851486,
+      "variables": [
+        "pctChg",
+        "turn"
+      ],
+      "operators": [
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-19T12:49:38.795077",
+      "updated_at": "2026-06-25T13:03:30.882699",
+      "generation": 1,
+      "parent_ids": [],
+      "hypothesis": "异常高换手率伴随价格波动率上升预测资金流出加剧。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "edb6289ff11b",
+      "name": "Round1_Factor2",
+      "expression": "RANK(TS_STD(turn, 20) / TS_STD(turn, 60)) * RANK(TS_STD(pctChg, 20))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.03930911410486825,
+      "ic_std": 0.1302275986904819,
+      "icir": -0.3018493353186684,
+      "ic_abs_weighted": 0.11436592024854293,
+      "ic_positive_ratio": 0.3735632183908046,
+      "ic_negative_ratio": 0.6264367816091954,
+      "monotonicity_score": 0.7999999999999999,
+      "long_short_return": 0.051016307535744945,
+      "turnover_rate": 0.01618537208245853,
+      "variables": [
+        "pctChg",
+        "turn"
+      ],
+      "operators": [
+        "RANK",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-19T12:49:41.042956",
+      "updated_at": "2026-06-25T13:03:30.886254",
+      "generation": 1,
+      "parent_ids": [],
+      "hypothesis": "异常高换手率伴随价格波动率上升预测资金流出加剧。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "013793eb213a",
+      "name": "Round2_Factor1",
+      "expression": "RANK(turn - TS_MEAN(turn, 60)) * RANK(close / TS_MIN(close, 60))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.0351974843052564,
+      "ic_std": 0.11628501524406662,
+      "icir": -0.30268288851647485,
+      "ic_abs_weighted": 0.09501718748663564,
+      "ic_positive_ratio": 0.3850574712643678,
+      "ic_negative_ratio": 0.6149425287356322,
+      "monotonicity_score": 0.7,
+      "long_short_return": 0.10700150018719064,
+      "turnover_rate": 0.11769463577541224,
+      "variables": [
+        "close",
+        "turn"
+      ],
+      "operators": [
+        "RANK",
+        "TS_MEAN",
+        "TS_MIN"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-19T12:51:31.966527",
+      "updated_at": "2026-06-25T13:03:30.889676",
+      "generation": 2,
+      "parent_ids": [],
+      "hypothesis": "异常换手率与价格残差的乘积预测未来收益反转。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "1d610dc917d6",
+      "name": "Round3_Factor1",
+      "expression": "RANK(turn / TS_MEAN(turn, 60)) * RANK(close / TS_MEAN(close, 60)) * RANK(TS_STD(close, 60))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.03978419318385259,
+      "ic_std": 0.12488308587975436,
+      "icir": -0.31857150953299973,
+      "ic_abs_weighted": 0.10404631038341285,
+      "ic_positive_ratio": 0.3390804597701149,
+      "ic_negative_ratio": 0.6609195402298851,
+      "monotonicity_score": 0.49999999999999994,
+      "long_short_return": 0.0960036117916996,
+      "turnover_rate": 0.07387319361056884,
+      "variables": [
+        "close",
+        "turn"
+      ],
+      "operators": [
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-19T12:54:20.348132",
+      "updated_at": "2026-06-25T13:03:30.893081",
+      "generation": 3,
+      "parent_ids": [],
+      "hypothesis": "异常换手率与价格均线偏离度的交互作用，结合高波动率，预测未来资金流出。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "8c0f949d1ef1",
+      "name": "Round3_Factor2",
+      "expression": "RANK(1 - TS_CORR(close, volume, 60)) * RANK(turn / TS_MEAN(turn, 60)) * RANK(TS_STD(close, 60))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.01996058073737036,
+      "ic_std": 0.08514052920223632,
+      "icir": -0.2344427609788227,
+      "ic_abs_weighted": 0.06868415527065838,
+      "ic_positive_ratio": 0.42528735632183906,
+      "ic_negative_ratio": 0.5747126436781609,
+      "monotonicity_score": 0.6,
+      "long_short_return": 0.02802177537450942,
+      "turnover_rate": 0.08339779242943264,
+      "variables": [
+        "close",
+        "turn",
+        "volume"
+      ],
+      "operators": [
+        "RANK",
+        "TS_CORR",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-19T12:54:23.259609",
+      "updated_at": "2026-06-25T13:03:30.896520",
+      "generation": 3,
+      "parent_ids": [],
+      "hypothesis": "异常换手率与价格均线偏离度的交互作用，结合高波动率，预测未来资金流出。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "e66657f13ecb",
+      "name": "Round3_Factor3",
+      "expression": "RANK(turn / TS_MEAN(turn, 20)) * RANK(close / TS_MEAN(close, 20)) * RANK(TS_STD(pctChg, 20))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.04374725486239591,
+      "ic_std": 0.10995307508331258,
+      "icir": -0.39787204522700403,
+      "ic_abs_weighted": 0.09577298518212098,
+      "ic_positive_ratio": 0.35051546391752575,
+      "ic_negative_ratio": 0.6494845360824743,
+      "monotonicity_score": 0.7,
+      "long_short_return": 0.08531449461756008,
+      "turnover_rate": 0.15437268999503523,
+      "variables": [
+        "close",
+        "pctChg",
+        "turn"
+      ],
+      "operators": [
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-19T12:54:25.622913",
+      "updated_at": "2026-06-25T13:03:30.900020",
+      "generation": 3,
+      "parent_ids": [],
+      "hypothesis": "异常换手率与价格均线偏离度的交互作用，结合高波动率，预测未来资金流出。",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "cf0b16317f03",
+      "name": "Round1_Factor1_opt",
+      "expression": "RANK(turn - TS_MEAN(turn, 60)) * RANK(TS_STD(pctChg, 30))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.04156574692301284,
+      "ic_std": 0.11148579332222006,
+      "icir": -0.3728344723069611,
+      "ic_abs_weighted": 0.09833799759000232,
+      "ic_positive_ratio": 0.3391812865497076,
+      "ic_negative_ratio": 0.6608187134502924,
+      "monotonicity_score": 0.8999999999999998,
+      "long_short_return": 0.10306022552101722,
+      "turnover_rate": 0.09654140069844888,
+      "variables": [
+        "pctChg",
+        "turn"
+      ],
+      "operators": [
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-22T12:30:00.176931",
+      "updated_at": "2026-06-25T13:03:30.903440",
+      "generation": 2,
+      "parent_ids": [
+        "c7a007f7ec7c"
+      ],
+      "hypothesis": "参数优化自: RANK(turn - TS_MEAN(turn, 60)) * RANK(TS_STD(pctChg, 20))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "9ef400ae8de6",
+      "name": "Round3_Factor5",
+      "expression": "RANK(TS_STD(turn, 60) / TS_STD(turn, 60)) * RANK(TS_STD(pctChg, 20))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.04343448599888954,
+      "ic_std": 0.18383909744354252,
+      "icir": -0.23626359464818625,
+      "ic_abs_weighted": 0.1576609999648677,
+      "ic_positive_ratio": 0.4425287356321839,
+      "ic_negative_ratio": 0.5574712643678161,
+      "monotonicity_score": 0.9999999999999999,
+      "long_short_return": 0.20027539966009447,
+      "turnover_rate": 0.009901774397972117,
+      "variables": [
+        "pctChg",
+        "turn"
+      ],
+      "operators": [
+        "RANK",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-25T13:31:25.504355",
+      "updated_at": "2026-06-25T13:31:25.504355",
+      "generation": 3,
+      "parent_ids": [],
+      "hypothesis": "股价回调期间成交量持续萎缩，且价格跌幅小于市场平均水平，可能预示短期反弹机会。",
+      "notes": ""
+    },
+    {
+      "id": "d57cb816fb0b",
+      "name": "Round3_Factor3_opt",
+      "expression": "RANK(turn / TS_MEAN(turn, 60)) * RANK(close / TS_MEAN(close, 20)) * RANK(TS_STD(pctChg, 20))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.04515430566768761,
+      "ic_std": 0.11896135151391128,
+      "icir": -0.3795712228639844,
+      "ic_abs_weighted": 0.10361507503256906,
+      "ic_positive_ratio": 0.38596491228070173,
+      "ic_negative_ratio": 0.6140350877192983,
+      "monotonicity_score": 0.7,
+      "long_short_return": 0.11687442014300457,
+      "turnover_rate": 0.0958684972133696,
+      "variables": [
+        "close",
+        "pctChg",
+        "turn"
+      ],
+      "operators": [
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-22T12:31:11.060321",
+      "updated_at": "2026-06-25T13:03:30.910367",
+      "generation": 4,
+      "parent_ids": [
+        "e66657f13ecb"
+      ],
+      "hypothesis": "参数优化自: RANK(turn / TS_MEAN(turn, 20)) * RANK(close / TS_MEAN(close, 20)) * RANK(TS_STD(pctChg, 20))",
+      "notes": "[衰退] IC连续下降"
+    },
+    {
+      "id": "d94161686cf3",
+      "name": "Round3_Factor8_opt",
+      "expression": "RANK(TS_STD(close, 60) / TS_MEAN(close, 20) * TS_MEAN(IF(pctChg > 0, volume, 0), 10) / TS_MEAN(volume, 5) * TS_MEAN(volume, 20) / TS_MEAN(volume, 20))",
+      "direction": 1,
+      "is_positive": true,
+      "ic_mean": -0.020317468374069725,
+      "ic_std": 0.14848721191148662,
+      "icir": -0.1368297519531917,
+      "ic_abs_weighted": 0.12096158298407259,
+      "ic_positive_ratio": 0.4941860465116279,
+      "ic_negative_ratio": 0.5058139534883721,
+      "monotonicity_score": 0.8999999999999998,
+      "long_short_return": 0.2773938634129428,
+      "turnover_rate": 0.03757572940392631,
+      "variables": [
+        "close",
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "IF",
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 3,
+      "created_at": "2026-06-23T12:07:52.091487",
+      "updated_at": "2026-06-23T12:07:52.091487",
+      "generation": 4,
+      "parent_ids": [
+        "f8fe738709a3"
+      ],
+      "hypothesis": "参数优化自: RANK(TS_STD(close, 60) / TS_MEAN(close, 20) * TS_MEAN(IF(pctChg > 0, volume, 0), 10) / TS_MEAN(volume, 10) * TS_MEAN(volume, 20) / TS_MEAN(volume, 20))",
+      "notes": ""
+    },
+    {
+      "id": "7a7b365dd8b3",
+      "name": "Round2_Factor2_opt",
+      "expression": "TS_CORR(close, volume, 10) * (TS_MEAN(volume, 20) / TS_MEAN(volume, 60))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.03962326129430894,
+      "ic_std": 0.09063275957351673,
+      "icir": -0.43718476057400135,
+      "ic_abs_weighted": 0.08109500417333033,
+      "ic_positive_ratio": 0.3372093023255814,
+      "ic_negative_ratio": 0.6627906976744186,
+      "monotonicity_score": 0.9999999999999999,
+      "long_short_return": -0.21404772447418313,
+      "turnover_rate": 0.09353569159732876,
+      "variables": [
+        "close",
+        "volume"
+      ],
+      "operators": [
+        "TS_CORR",
+        "TS_MEAN"
+      ],
+      "nesting_depth": 1,
+      "created_at": "2026-06-23T12:08:18.663034",
+      "updated_at": "2026-06-23T12:08:18.663034",
+      "generation": 3,
+      "parent_ids": [
+        "91413756f89f"
+      ],
+      "hypothesis": "参数优化自: TS_CORR(close, volume, 10) * (TS_MEAN(volume, 20) / TS_MEAN(volume, 5))",
+      "notes": ""
+    },
+    {
+      "id": "e1d8c62edb85",
+      "name": "Round3_Factor4",
+      "expression": "RANK(TS_STD(turn, 60) / TS_STD(turn, 60)) * RANK(TS_STD(pctChg, 60))",
+      "direction": 1,
+      "is_positive": true,
+      "ic_mean": -0.03530868088770799,
+      "ic_std": 0.19454601100186564,
+      "icir": -0.18149270039450663,
+      "ic_abs_weighted": 0.16411462328240362,
+      "ic_positive_ratio": 0.47701149425287354,
+      "ic_negative_ratio": 0.5229885057471264,
+      "monotonicity_score": 0.9999999999999999,
+      "long_short_return": 0.16422436619351446,
+      "turnover_rate": 0.0005897270938808239,
+      "variables": [
+        "pctChg",
+        "turn"
+      ],
+      "operators": [
+        "RANK",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-25T13:31:23.802182",
+      "updated_at": "2026-06-25T13:31:23.802182",
+      "generation": 3,
+      "parent_ids": [],
+      "hypothesis": "股价回调期间成交量持续萎缩，且价格跌幅小于市场平均水平，可能预示短期反弹机会。",
+      "notes": ""
+    },
+    {
+      "id": "d0596cc96203",
+      "name": "Round1_Factor1_opt",
+      "expression": "RANK(TS_STD(pctChg, 60) / TS_STD(pctChg, 20))",
+      "direction": 1,
+      "is_positive": true,
+      "ic_mean": 0.025039518489960683,
+      "ic_std": 0.0995596799470349,
+      "icir": 0.2515026012868015,
+      "ic_abs_weighted": 0.07897208445775981,
+      "ic_positive_ratio": 0.5930232558139535,
+      "ic_negative_ratio": 0.4069767441860465,
+      "monotonicity_score": 0.6,
+      "long_short_return": -0.023903364811840227,
+      "turnover_rate": 0.026961991973845276,
+      "variables": [
+        "pctChg"
+      ],
+      "operators": [
+        "RANK",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-23T12:31:35.709775",
+      "updated_at": "2026-06-23T12:31:35.709775",
+      "generation": 2,
+      "parent_ids": [
+        "84daf0a40575"
+      ],
+      "hypothesis": "参数优化自: RANK(TS_STD(pctChg, 5) / TS_STD(pctChg, 20))",
+      "notes": ""
+    },
+    {
+      "id": "6858094825c1",
+      "name": "Round1_Factor3",
+      "expression": "RANK(DELTA(TS_MEAN(turn, 20), 10) / TS_STD(turn, 20)) * RANK(1 - TS_CORR(close, volume, 20))",
+      "direction": 1,
+      "is_positive": true,
+      "ic_mean": 0.008736902701980109,
+      "ic_std": 0.07612763828802975,
+      "icir": 0.11476650134506922,
+      "ic_abs_weighted": 0.059718802257708155,
+      "ic_positive_ratio": 0.5274725274725275,
+      "ic_negative_ratio": 0.4725274725274725,
+      "monotonicity_score": 0.9999999999999999,
+      "long_short_return": 0.1899112558018006,
+      "turnover_rate": 0.02870946675786679,
+      "variables": [
+        "close",
+        "turn",
+        "volume"
+      ],
+      "operators": [
+        "DELTA",
+        "RANK",
+        "TS_CORR",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 3,
+      "created_at": "2026-06-23T12:33:58.346644",
+      "updated_at": "2026-06-23T12:33:58.346644",
+      "generation": 1,
+      "parent_ids": [],
+      "hypothesis": "在资金净流出时期，低换手率股票的回报溢价显著高于高换手率股票。",
+      "notes": ""
+    },
+    {
+      "id": "6c0750bec187",
+      "name": "Round3_Factor2",
+      "expression": "RANK(TS_STD(amount, 20) / TS_STD(turn, 20)) * RANK(close / TS_MEAN(close, 60))",
+      "direction": 1,
+      "is_positive": true,
+      "ic_mean": -0.019347245541146568,
+      "ic_std": 0.16510436823917532,
+      "icir": -0.11718191194747522,
+      "ic_abs_weighted": 0.13584074282614014,
+      "ic_positive_ratio": 0.47093023255813954,
+      "ic_negative_ratio": 0.5290697674418605,
+      "monotonicity_score": 0.7,
+      "long_short_return": 0.24233428550940622,
+      "turnover_rate": 0.01188893537241048,
+      "variables": [
+        "amount",
+        "close",
+        "turn"
+      ],
+      "operators": [
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-23T12:38:28.367541",
+      "updated_at": "2026-06-23T12:38:28.367541",
+      "generation": 3,
+      "parent_ids": [],
+      "hypothesis": "在市场资金净流入时期，资金流入强度与换手率变化率的比值能预测股票未来流动性溢价回报。",
+      "notes": ""
+    },
+    {
+      "id": "aafaf808c1f8",
+      "name": "Round3_Factor3",
+      "expression": "RANK(TS_CORR(amount, turn, 20)) * RANK(DELTA(volume, 10))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.014872283810375335,
+      "ic_std": 0.10648113695653809,
+      "icir": -0.13967059552008432,
+      "ic_abs_weighted": 0.08478362024008101,
+      "ic_positive_ratio": 0.4397905759162304,
+      "ic_negative_ratio": 0.5602094240837696,
+      "monotonicity_score": 0.9999999999999999,
+      "long_short_return": -0.25939074343242124,
+      "turnover_rate": 0.17585167394513754,
+      "variables": [
+        "amount",
+        "turn",
+        "volume"
+      ],
+      "operators": [
+        "DELTA",
+        "RANK",
+        "TS_CORR"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-23T12:38:30.986469",
+      "updated_at": "2026-06-23T12:38:30.986469",
+      "generation": 3,
+      "parent_ids": [],
+      "hypothesis": "在市场资金净流入时期，资金流入强度与换手率变化率的比值能预测股票未来流动性溢价回报。",
+      "notes": ""
+    },
+    {
+      "id": "85a2457ba575",
+      "name": "Round1_Factor3_opt",
+      "expression": "RANK(DELTA(TS_MEAN(turn, 5), 10) / TS_STD(turn, 20)) * RANK(1 - TS_CORR(close, volume, 20))",
+      "direction": 1,
+      "is_positive": true,
+      "ic_mean": 0.00923665215331564,
+      "ic_std": 0.08494180798254813,
+      "icir": 0.10874094127138631,
+      "ic_abs_weighted": 0.06889197909515832,
+      "ic_positive_ratio": 0.5549738219895288,
+      "ic_negative_ratio": 0.44502617801047123,
+      "monotonicity_score": 0.3,
+      "long_short_return": 0.08623878650527508,
+      "turnover_rate": 0.08605367748850089,
+      "variables": [
+        "close",
+        "turn",
+        "volume"
+      ],
+      "operators": [
+        "DELTA",
+        "RANK",
+        "TS_CORR",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 3,
+      "created_at": "2026-06-24T12:30:11.509981",
+      "updated_at": "2026-06-24T12:30:11.509981",
+      "generation": 2,
+      "parent_ids": [
+        "6858094825c1"
+      ],
+      "hypothesis": "参数优化自: RANK(DELTA(TS_MEAN(turn, 20), 10) / TS_STD(turn, 20)) * RANK(1 - TS_CORR(close, volume, 20))",
+      "notes": ""
+    },
+    {
+      "id": "bb2f4e0e8db9",
+      "name": "Round3_Factor3_opt",
+      "expression": "RANK(TS_CORR(amount, turn, 20)) * RANK(DELTA(volume, 15))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.020935648915576695,
+      "ic_std": 0.10852572521796713,
+      "icir": -0.19290955092471165,
+      "ic_abs_weighted": 0.08591884344873657,
+      "ic_positive_ratio": 0.40106951871657753,
+      "ic_negative_ratio": 0.5989304812834224,
+      "monotonicity_score": 0.9999999999999999,
+      "long_short_return": -0.3220982996175512,
+      "turnover_rate": 0.15452489001335085,
+      "variables": [
+        "amount",
+        "turn",
+        "volume"
+      ],
+      "operators": [
+        "DELTA",
+        "RANK",
+        "TS_CORR"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-24T12:30:48.001925",
+      "updated_at": "2026-06-24T12:30:48.001925",
+      "generation": 4,
+      "parent_ids": [
+        "aafaf808c1f8"
+      ],
+      "hypothesis": "参数优化自: RANK(TS_CORR(amount, turn, 20)) * RANK(DELTA(volume, 10))",
+      "notes": ""
+    },
+    {
+      "id": "192bf83295fd",
+      "name": "Round2_Factor1",
+      "expression": "RANK(TS_STD(pctChg, 10)) * RANK(TS_MEAN(volume * DELTA(close, 1), 10))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.03074798038689889,
+      "ic_std": 0.11184657896353892,
+      "icir": -0.27491212222881206,
+      "ic_abs_weighted": 0.0959210541615956,
+      "ic_positive_ratio": 0.3756345177664975,
+      "ic_negative_ratio": 0.6243654822335025,
+      "monotonicity_score": 0.9999999999999999,
+      "long_short_return": 0.25818345551206345,
+      "turnover_rate": 0.08567794430833527,
+      "variables": [
+        "close",
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "DELTA",
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 3,
+      "created_at": "2026-06-24T12:37:50.415588",
+      "updated_at": "2026-06-24T12:37:50.415588",
+      "generation": 2,
+      "parent_ids": [],
+      "hypothesis": "短期高波动但伴随持续资金净流入的股票，未来表现可能优于高波动但资金流出的股票。",
+      "notes": ""
+    },
+    {
+      "id": "b0caf12e4ee0",
+      "name": "Round2_Factor3",
+      "expression": "RANK(TS_STD(pctChg, 10) * TS_MEAN(turn * DELTA(close, 1), 10))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.02092248336783622,
+      "ic_std": 0.11113346390446628,
+      "icir": -0.1882644761781368,
+      "ic_abs_weighted": 0.09056568690189643,
+      "ic_positive_ratio": 0.41116751269035534,
+      "ic_negative_ratio": 0.5888324873096447,
+      "monotonicity_score": 0.9999999999999999,
+      "long_short_return": 0.21333761557415165,
+      "turnover_rate": 0.09588895544636024,
+      "variables": [
+        "close",
+        "pctChg",
+        "turn"
+      ],
+      "operators": [
+        "DELTA",
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 3,
+      "created_at": "2026-06-24T12:37:54.919748",
+      "updated_at": "2026-06-24T12:37:54.919748",
+      "generation": 2,
+      "parent_ids": [],
+      "hypothesis": "短期高波动但伴随持续资金净流入的股票，未来表现可能优于高波动但资金流出的股票。",
+      "notes": ""
+    },
+    {
+      "id": "5e115b3b57bc",
+      "name": "Round3_Factor1",
+      "expression": "RANK(DELTA(TS_STD(pctChg, 10), 5)) * RANK(-DELTA(TS_MEAN(volume, 5), 5))",
+      "direction": 1,
+      "is_positive": true,
+      "ic_mean": 0.030786808151235277,
+      "ic_std": 0.07837259579578526,
+      "icir": 0.39282618929014645,
+      "ic_abs_weighted": 0.0663708310084942,
+      "ic_positive_ratio": 0.6476683937823834,
+      "ic_negative_ratio": 0.35233160621761656,
+      "monotonicity_score": 0.9999999999999999,
+      "long_short_return": 0.2551504615796805,
+      "turnover_rate": 0.19972990327950388,
+      "variables": [
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "DELTA",
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 3,
+      "created_at": "2026-06-24T12:39:53.417085",
+      "updated_at": "2026-06-24T12:39:53.417085",
+      "generation": 3,
+      "parent_ids": [],
+      "hypothesis": "高波动率伴随低成交量的股票，未来收益可能优于高波动率高成交量的股票。",
+      "notes": ""
+    },
+    {
+      "id": "eacefae21350",
+      "name": "Round3_Factor7_opt",
+      "expression": "RANK(TS_STD(close, 15) / TS_MEAN(close, 20) * TS_MEAN(IF(pctChg > 0, volume, 0), 10) / TS_MEAN(volume, 10) * TS_MEAN(volume, 20) / TS_MEAN(volume, 20))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.03662169779581007,
+      "ic_std": 0.14611328610471683,
+      "icir": -0.25063906761746463,
+      "ic_abs_weighted": 0.12151670215842358,
+      "ic_positive_ratio": 0.4329896907216495,
+      "ic_negative_ratio": 0.5670103092783505,
+      "monotonicity_score": 0.9999999999999999,
+      "long_short_return": 0.2587358063313309,
+      "turnover_rate": 0.05282008290251968,
+      "variables": [
+        "close",
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "IF",
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 3,
+      "created_at": "2026-06-25T13:05:56.842513",
+      "updated_at": "2026-06-25T13:05:56.842513",
+      "generation": 4,
+      "parent_ids": [
+        "c8bf3fe1bcd6"
+      ],
+      "hypothesis": "参数优化自: RANK(TS_STD(close, 20) / TS_MEAN(close, 20) * TS_MEAN(IF(pctChg > 0, volume, 0), 10) / TS_MEAN(volume, 10) * TS_MEAN(volume, 20) / TS_MEAN(volume, 20))",
+      "notes": ""
+    },
+    {
+      "id": "e7a1ad4b5b20",
+      "name": "Round3_Factor8_opt",
+      "expression": "close / TS_MAX(high, 15)",
+      "direction": 1,
+      "is_positive": true,
+      "ic_mean": 0.021043051379986008,
+      "ic_std": 0.15688047480327805,
+      "icir": 0.13413429176813219,
+      "ic_abs_weighted": 0.1309565899053391,
+      "ic_positive_ratio": 0.5714285714285714,
+      "ic_negative_ratio": 0.42857142857142855,
+      "monotonicity_score": 0.7,
+      "long_short_return": 0.4474574979159173,
+      "turnover_rate": 0.13518466769130455,
+      "variables": [
+        "close",
+        "high"
+      ],
+      "operators": [
+        "TS_MAX"
+      ],
+      "nesting_depth": 1,
+      "created_at": "2026-06-25T13:06:47.234316",
+      "updated_at": "2026-06-25T13:06:47.234316",
+      "generation": 4,
+      "parent_ids": [
+        "6dedd5bfba5d"
+      ],
+      "hypothesis": "参数优化自: close / TS_MAX(high, 5)",
+      "notes": ""
+    },
+    {
+      "id": "75f93bfccbf2",
+      "name": "Round1_Factor2_opt",
+      "expression": "RANK(DELTA(turn - TS_MEAN(turn, 60), 5)) * TS_MEAN(pctChg, 20)",
+      "direction": 1,
+      "is_positive": true,
+      "ic_mean": -0.017047478531586977,
+      "ic_std": 0.12301692148955186,
+      "icir": -0.1385783217883148,
+      "ic_abs_weighted": 0.10131238589067931,
+      "ic_positive_ratio": 0.47928994082840237,
+      "ic_negative_ratio": 0.5207100591715976,
+      "monotonicity_score": 0.8999999999999998,
+      "long_short_return": 0.2604906203710192,
+      "turnover_rate": 0.14074431484434002,
+      "variables": [
+        "pctChg",
+        "turn"
+      ],
+      "operators": [
+        "DELTA",
+        "RANK",
+        "TS_MEAN"
+      ],
+      "nesting_depth": 3,
+      "created_at": "2026-06-25T13:09:50.713575",
+      "updated_at": "2026-06-25T13:09:50.713575",
+      "generation": 2,
+      "parent_ids": [
+        "858e9c4b582c"
+      ],
+      "hypothesis": "参数优化自: RANK(DELTA(turn - TS_MEAN(turn, 10), 5)) * TS_MEAN(pctChg, 20)",
+      "notes": ""
+    },
+    {
+      "id": "1372bf8f79ff",
+      "name": "Round3_Factor8",
+      "expression": "TS_MEAN(volume, 5) / TS_MEAN(volume, 20) / TS_STD(pctChg, 5)",
+      "direction": 1,
+      "is_positive": true,
+      "ic_mean": 0.0283636225500685,
+      "ic_std": 0.16834569546799943,
+      "icir": 0.1684843943958169,
+      "ic_abs_weighted": 0.13941304913165709,
+      "ic_positive_ratio": 0.5567010309278351,
+      "ic_negative_ratio": 0.44329896907216493,
+      "monotonicity_score": 0.8999999999999998,
+      "long_short_return": -0.20023119812175472,
+      "turnover_rate": 0.11959387080247777,
+      "variables": [
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 1,
+      "created_at": "2026-06-25T13:31:30.544104",
+      "updated_at": "2026-06-25T13:31:30.544104",
+      "generation": 3,
+      "parent_ids": [],
+      "hypothesis": "股价回调期间成交量持续萎缩，且价格跌幅小于市场平均水平，可能预示短期反弹机会。",
+      "notes": ""
+    },
+    {
+      "id": "77e39146f031",
+      "name": "Round1_Factor3_opt",
+      "expression": "RANK(TS_STD(pctChg, 5) / TS_STD(pctChg, 60) * TS_STD(volume, 5))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.03636298560556305,
+      "ic_std": 0.13552709105650892,
+      "icir": -0.26830787351881746,
+      "ic_abs_weighted": 0.10994491588911035,
+      "ic_positive_ratio": 0.40804597701149425,
+      "ic_negative_ratio": 0.5919540229885057,
+      "monotonicity_score": 0.19999999999999998,
+      "long_short_return": -0.008957577635847896,
+      "turnover_rate": 0.06936134720047715,
+      "variables": [
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "RANK",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-25T13:14:36.205715",
+      "updated_at": "2026-06-25T13:14:36.205715",
+      "generation": 2,
+      "parent_ids": [
+        "64ccbc18e751"
+      ],
+      "hypothesis": "参数优化自: RANK(TS_STD(pctChg, 5) / TS_STD(pctChg, 20) * TS_STD(volume, 5))",
+      "notes": ""
+    },
+    {
+      "id": "37c770f8cf35",
+      "name": "Round2_Factor1_opt",
+      "expression": "RANK(TS_STD(pctChg, 10)) * RANK(TS_MEAN(volume * DELTA(close, 30), 10))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.028916242835512744,
+      "ic_std": 0.15258764171261996,
+      "icir": -0.18950579818235166,
+      "ic_abs_weighted": 0.12535210391612744,
+      "ic_positive_ratio": 0.4437869822485207,
+      "ic_negative_ratio": 0.5562130177514792,
+      "monotonicity_score": 0.9999999999999999,
+      "long_short_return": 0.3041937148064308,
+      "turnover_rate": 0.019218576636550962,
+      "variables": [
+        "close",
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "DELTA",
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 3,
+      "created_at": "2026-06-25T13:23:29.131195",
+      "updated_at": "2026-06-25T13:23:29.131195",
+      "generation": 3,
+      "parent_ids": [
+        "192bf83295fd"
+      ],
+      "hypothesis": "参数优化自: RANK(TS_STD(pctChg, 10)) * RANK(TS_MEAN(volume * DELTA(close, 1), 10))",
+      "notes": ""
+    },
+    {
+      "id": "77e718d40570",
+      "name": "Round2_Factor3_opt",
+      "expression": "RANK(TS_STD(pctChg, 10) * TS_MEAN(turn * DELTA(close, 30), 10))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.019510137878765595,
+      "ic_std": 0.1272614834369388,
+      "icir": -0.15330748433742208,
+      "ic_abs_weighted": 0.1011517578300178,
+      "ic_positive_ratio": 0.4378698224852071,
+      "ic_negative_ratio": 0.5621301775147929,
+      "monotonicity_score": 0.39999999999999997,
+      "long_short_return": 0.20025434435425465,
+      "turnover_rate": 0.011099922612887286,
+      "variables": [
+        "close",
+        "pctChg",
+        "turn"
+      ],
+      "operators": [
+        "DELTA",
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 3,
+      "created_at": "2026-06-25T13:23:46.687139",
+      "updated_at": "2026-06-25T13:23:46.687139",
+      "generation": 3,
+      "parent_ids": [
+        "b0caf12e4ee0"
+      ],
+      "hypothesis": "参数优化自: RANK(TS_STD(pctChg, 10) * TS_MEAN(turn * DELTA(close, 1), 10))",
+      "notes": ""
+    },
+    {
+      "id": "752aab16c499",
+      "name": "Round3_Factor1_opt",
+      "expression": "RANK(DELTA(TS_STD(pctChg, 10), 5)) * RANK(-DELTA(TS_MEAN(volume, 60), 5))",
+      "direction": 1,
+      "is_positive": true,
+      "ic_mean": 0.027293213361773216,
+      "ic_std": 0.09062455182385266,
+      "icir": 0.30116798166156067,
+      "ic_abs_weighted": 0.0743613857341675,
+      "ic_positive_ratio": 0.5857988165680473,
+      "ic_negative_ratio": 0.41420118343195267,
+      "monotonicity_score": 0.8999999999999998,
+      "long_short_return": 0.09462921947567009,
+      "turnover_rate": 0.11001557066002816,
+      "variables": [
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "DELTA",
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 3,
+      "created_at": "2026-06-25T13:24:03.239848",
+      "updated_at": "2026-06-25T13:24:03.239848",
+      "generation": 4,
+      "parent_ids": [
+        "5e115b3b57bc"
+      ],
+      "hypothesis": "参数优化自: RANK(DELTA(TS_STD(pctChg, 10), 5)) * RANK(-DELTA(TS_MEAN(volume, 5), 5))",
+      "notes": ""
+    },
+    {
+      "id": "94b076e229be",
+      "name": "Round1_Factor1",
+      "expression": "RANK(TS_MAX(close, 60) / close) * RANK(volume / TS_MAX(volume, 60))",
+      "direction": -1,
+      "is_positive": false,
+      "ic_mean": -0.02266008074674235,
+      "ic_std": 0.0699726115317979,
+      "icir": -0.32384214695838315,
+      "ic_abs_weighted": 0.058541539885718766,
+      "ic_positive_ratio": 0.35467980295566504,
+      "ic_negative_ratio": 0.6403940886699507,
+      "monotonicity_score": 0.9999999999999999,
+      "long_short_return": -0.41339568354733974,
+      "turnover_rate": 0.20943831214195893,
+      "variables": [
+        "close",
+        "volume"
+      ],
+      "operators": [
+        "RANK",
+        "TS_MAX"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-25T13:25:15.208523",
+      "updated_at": "2026-06-25T13:25:15.208523",
+      "generation": 1,
+      "parent_ids": [],
+      "hypothesis": "股价创新高但成交量未创新高，且换手率处于高位时，可能预示短期趋势反转。",
+      "notes": ""
+    },
+    {
+      "id": "4ac13ad23b6d",
+      "name": "Round2_Factor1",
+      "expression": "RANK(volume / TS_MEAN(volume, 60)) * RANK(close / TS_MAX(close, 20))",
+      "direction": 1,
+      "is_positive": true,
+      "ic_mean": -0.015331865150510203,
+      "ic_std": 0.14158948740065153,
+      "icir": -0.10828392299441049,
+      "ic_abs_weighted": 0.11363621938772249,
+      "ic_positive_ratio": 0.47701149425287354,
+      "ic_negative_ratio": 0.5229885057471264,
+      "monotonicity_score": 0.8999999999999998,
+      "long_short_return": 0.2066203706526,
+      "turnover_rate": 0.15041144784910163,
+      "variables": [
+        "close",
+        "volume"
+      ],
+      "operators": [
+        "RANK",
+        "TS_MAX",
+        "TS_MEAN"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-25T13:29:41.132591",
+      "updated_at": "2026-06-25T13:29:41.132591",
+      "generation": 2,
+      "parent_ids": [],
+      "hypothesis": "成交量显著放大同时股价突破关键阻力位时，预示资金系统性流入，中期上涨趋势确立。",
+      "notes": ""
+    },
+    {
+      "id": "d90ebb2310f5",
+      "name": "Round2_Factor2",
+      "expression": "RANK(volume / TS_STD(volume, 20)) * RANK((close - TS_MEAN(close, 20)) / TS_STD(close, 20))",
+      "direction": 1,
+      "is_positive": true,
+      "ic_mean": -0.016043586370544254,
+      "ic_std": 0.1151015447069899,
+      "icir": -0.13938636889179784,
+      "ic_abs_weighted": 0.09412598048727741,
+      "ic_positive_ratio": 0.4845360824742268,
+      "ic_negative_ratio": 0.5154639175257731,
+      "monotonicity_score": 0.7,
+      "long_short_return": 0.2082490227459348,
+      "turnover_rate": 0.19767360625960598,
+      "variables": [
+        "close",
+        "volume"
+      ],
+      "operators": [
+        "RANK",
+        "TS_MEAN",
+        "TS_STD"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-25T13:29:42.854809",
+      "updated_at": "2026-06-25T13:29:42.854809",
+      "generation": 2,
+      "parent_ids": [],
+      "hypothesis": "成交量显著放大同时股价突破关键阻力位时，预示资金系统性流入，中期上涨趋势确立。",
+      "notes": ""
+    },
+    {
+      "id": "678b31208c39",
+      "name": "Round3_Factor2",
+      "expression": "RANK(DELTA(pctChg, 5)) * RANK(-DELTA(volume / TS_MEAN(volume, 20), 5))",
+      "direction": 1,
+      "is_positive": true,
+      "ic_mean": 0.0323944610935219,
+      "ic_std": 0.10713656052503855,
+      "icir": 0.3023660731198393,
+      "ic_abs_weighted": 0.08981221338157605,
+      "ic_positive_ratio": 0.6402116402116402,
+      "ic_negative_ratio": 0.35978835978835977,
+      "monotonicity_score": 0.8999999999999998,
+      "long_short_return": 0.3987246124343482,
+      "turnover_rate": 0.48540123888035025,
+      "variables": [
+        "pctChg",
+        "volume"
+      ],
+      "operators": [
+        "DELTA",
+        "RANK",
+        "TS_MEAN"
+      ],
+      "nesting_depth": 2,
+      "created_at": "2026-06-25T13:31:20.438857",
+      "updated_at": "2026-06-25T13:31:20.438857",
+      "generation": 3,
+      "parent_ids": [],
+      "hypothesis": "股价回调期间成交量持续萎缩，且价格跌幅小于市场平均水平，可能预示短期反弹机会。",
+      "notes": ""
+    }
+  ]
+}
