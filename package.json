@@ -1,0 +1,26 @@
+{
+  "name": "stock-quant-system",
+  "version": "1.0.0",
+  "description": "Stock Quant System Web App",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "cd apps/api && bun run dev",
+    "dev:web": "cd apps/web && bun run dev",
+    "dev:engine": "cd apps/engine && uvicorn main:app --reload --port 8000",
+    "dev": "bun run --parallel dev:api dev:web dev:engine"
+  },
+  "devDependencies": {
+    "bun-types": "^1.3.14"
+  },
+  "dependencies": {
+    "@elysiajs/eden": "^1.4.9",
+    "elysia": "^1.4.29"
+  },
+  "overrides": {
+    "elysia": "1.4.29",
+    "@elysiajs/eden": "1.4.9"
+  }
+}
