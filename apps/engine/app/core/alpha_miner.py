@@ -22,36 +22,18 @@ from typing import Dict, List, Optional, Tuple
 import pandas as pd
 import redis
 
-# Core config — resolve via __file__ so this works regardless of CWD
-_CORE_DIR = os.path.dirname(__file__)
-_APP_DIR = os.path.join(_CORE_DIR, "..")
-if _CORE_DIR not in sys.path:
-    sys.path.insert(0, _CORE_DIR)
-if _APP_DIR not in sys.path:
-    sys.path.insert(0, _APP_DIR)
+# Core config
 
-from config import EvolutionConfig, LLMConfig, FACTORS_DIR  # app/core/config.py
-from data_loader import load_market_data
-from evolution import evolution
-from factor_calculator import calculate_factor
-from factor_evaluator import evaluate_factor, FactorMetrics
-from factor_library import library, FactorRecord
-from factor_parser import parser
-from llm_backend import llm
+from .config import EvolutionConfig, LLMConfig, FACTORS_DIR  # app/core/config.py
+from .data_loader import load_market_data
+from .evolution import evolution
+from .factor_calculator import calculate_factor
+from .factor_evaluator import evaluate_factor, FactorMetrics
+from .factor_library import library, FactorRecord
+from .factor_parser import parser
+from .llm_backend import llm
 
-# pydantic settings from app/config.py (for Redis URL etc.)
-try:
-    from app.config import settings as _app_settings
-except ImportError:
-    # fallback when running from within app/core directly
-    import importlib.util, pathlib
-    _spec = importlib.util.spec_from_file_location(
-        "app_config",
-        pathlib.Path(_APP_DIR) / "config.py"
-    )
-    _mod = importlib.util.module_from_spec(_spec)  # type: ignore
-    _spec.loader.exec_module(_mod)  # type: ignore
-    _app_settings = _mod.settings
+from app.config import settings as _app_settings
 
 _REDIS_URL = _app_settings.redis_url
 
@@ -482,7 +464,7 @@ class AlphaMiner:
         
         # 2. 自动方向调整
         self._log("\n[优化2] 自动方向调整...")
-        from direction_manager import direction_manager
+        from .direction_manager import direction_manager
         direction = direction_manager.get_llm_direction()
         self._log(f"  推荐方向: {direction}")
         
@@ -526,7 +508,7 @@ def main():
     # 自动方向
     direction = args.direction
     if args.auto_direction:
-        from direction_manager import direction_manager
+        from .direction_manager import direction_manager
         direction = direction_manager.get_llm_direction()
     
     # 自我优化（挖掘前）
@@ -543,7 +525,7 @@ def main():
     
     # 记录方向结果
     if args.auto_direction or args.self_optimize:
-        from direction_manager import direction_manager
+        from .direction_manager import direction_manager
         valid_factors_list = list(valid_factors)
         direction_manager.record_result(
             direction=direction,

@@ -8,6 +8,10 @@ const items = computed<NavigationMenuItem[]>(() => [{
   icon: 'i-lucide-layout-dashboard',
   to: '/'
 }, {
+  label: 'Strategy Architect',
+  icon: 'i-lucide-compass',
+  to: '/strategy'
+}, {
   label: 'LLM Analysis',
   icon: 'i-lucide-sparkles',
   to: '/analysis'

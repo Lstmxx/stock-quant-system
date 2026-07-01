@@ -14,7 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from config import FACTORS_DIR
+from .config import FACTORS_DIR
 
 # 方向历史记录路径
 DIRECTION_HISTORY_PATH = FACTORS_DIR / "direction_history.json"
@@ -165,7 +165,7 @@ class DirectionManager:
         Returns:
             推荐的研究方向
         """
-        from llm_backend import llm
+        from .llm_backend import llm
         
         stats = self.get_direction_stats()
         

@@ -15,9 +15,9 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from config import FactorCriteria
+from .config import FactorCriteria
 from factor_dsl import OPERATORS
-from factor_parser import ParsedFactor, parser
+from .factor_parser import ParsedFactor, parser
 
 # 类型别名
 MarketData = Dict[str, pd.DataFrame]
@@ -231,7 +231,7 @@ def calculate_factor(
 
 
 if __name__ == "__main__":
-    from data_loader import load_market_data
+    from .data_loader import load_market_data
     
     print("=" * 60)
     print("因子计算测试")

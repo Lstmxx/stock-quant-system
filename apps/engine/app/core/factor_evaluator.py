@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from config import FactorCriteria
+from .config import FactorCriteria
 
 warnings.filterwarnings("ignore")
 
@@ -382,8 +382,8 @@ def evaluate_factor(
 
 
 if __name__ == "__main__":
-    from data_loader import load_market_data
-    from factor_calculator import calculate_factor
+    from .data_loader import load_market_data
+    from .factor_calculator import calculate_factor
     
     print("=" * 60)
     print("因子评估测试")

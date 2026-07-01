@@ -16,12 +16,8 @@ from typing import Dict, List, Optional, Tuple
 
 import requests
 
-# Ensure app/core/ is on path so `from config import LLMConfig` resolves correctly
-_CORE_DIR = os.path.dirname(__file__)
-if _CORE_DIR not in sys.path:
-    sys.path.insert(0, _CORE_DIR)
-
-from config import LLMConfig
+# Config
+from .config import LLMConfig
 
 
 class LLMBackend:
@@ -116,7 +112,7 @@ class LLMBackend:
         Returns:
             {"hypothesis": str, "observation": str, "knowledge": str}
         """
-        from prompts import build_hypothesis_prompt
+        from .prompts import build_hypothesis_prompt
         
         prompt = build_hypothesis_prompt(direction, history, feedback)
         
@@ -143,7 +139,7 @@ class LLMBackend:
         """
         根据假设生成因子表达式（带重试）
         """
-        from prompts import build_factor_generation_prompt
+        from .prompts import build_factor_generation_prompt
         
         prompt = build_factor_generation_prompt(
             hypothesis, existing_expressions, n_factors
@@ -184,7 +180,7 @@ class LLMBackend:
         Returns:
             {"observation": str, "evaluation": str, "new_direction": str, "decision": str}
         """
-        from prompts import build_feedback_prompt
+        from .prompts import build_feedback_prompt
         
         prompt = build_feedback_prompt(
             hypothesis, metrics_summary, best_factors, failed_factors
@@ -223,7 +219,7 @@ class LLMBackend:
         Returns:
             (fixed_expression, explanation)
         """
-        from prompts import build_debug_prompt
+        from .prompts import build_debug_prompt
         
         prompt = build_debug_prompt(expression, error_message, context)
         

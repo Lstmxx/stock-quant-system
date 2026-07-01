@@ -12,6 +12,7 @@ import SystemConfig from './pages/SystemConfig.vue'
 import WatchlistManager from './pages/WatchlistManager.vue'
 import FactorLibrary from './pages/FactorLibrary.vue'
 import LlmAnalysis from './pages/LlmAnalysis.vue'
+import StrategyArchitect from './pages/StrategyArchitect.vue'
 
 const app = createApp(App)
 const router = createRouter({
@@ -22,7 +23,8 @@ const router = createRouter({
     { path: '/config', component: SystemConfig },
     { path: '/watchlists', component: WatchlistManager },
     { path: '/factors', component: FactorLibrary },
-    { path: '/analysis', component: LlmAnalysis }
+    { path: '/analysis', component: LlmAnalysis },
+    { path: '/strategy', component: StrategyArchitect }
   ]
 })
 

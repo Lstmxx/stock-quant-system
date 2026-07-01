@@ -12,7 +12,7 @@ import re
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 
-from config import FactorCriteria
+from .config import FactorCriteria
 from factor_dsl import OPERATORS
 
 

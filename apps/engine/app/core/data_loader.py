@@ -13,6 +13,59 @@ import pickle
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 
+def _fetch_stock_chunk(args):
+    codes, start_date, end_date, fields, redis_url = args
+    import baostock as bs
+    import redis
+    import json
+    
+    r = redis.Redis.from_url(redis_url)
+    bs.login()
+    all_data = []
+    
+    def handler(signum, frame):
+        raise TimeoutError("Baostock API timeout")
+        
+    signal.signal(signal.SIGALRM, handler)
+    
+    for i, code in enumerate(codes):
+        if i % 20 == 0:
+            print(f"[Worker] 正在拉取 {code} ({i}/{len(codes)})...", flush=True)
+            
+        retries = 0
+        stock_data = []
+        success = False
+        while retries < 3:
+            try:
+                signal.alarm(10)  # 10秒超时
+                rs = bs.query_history_k_data_plus(
+                    code, fields,
+                    start_date=start_date, end_date=end_date,
+                    frequency="d", adjustflag="2"
+                )
+                while rs.next():
+                    stock_data.append(rs.get_row_data())
+                signal.alarm(0)  # 成功则取消超时
+                success = True
+                break
+            except TimeoutError:
+                print(f"[Worker] {code} 拉取超时，正在进行第 {retries + 1} 次重试...", flush=True)
+                retries += 1
+            except Exception as e:
+                print(f"[Worker] {code} 拉取发生异常: {e}", flush=True)
+                signal.alarm(0)
+                break
+                
+        if success:
+            key = f"kline:{code}:{start_date}_{end_date}"
+            r.setex(key, 7 * 24 * 3600, json.dumps(stock_data))
+            all_data.extend(stock_data)
+        elif retries == 3:
+            print(f"[Worker] {code} 连续 3 次拉取超时，已跳过！", flush=True)
+            
+    bs.logout()
+    return all_data
+
 import baostock as bs
 import numpy as np
 import pandas as pd
@@ -22,7 +75,7 @@ import redis
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 try:
-    from config import settings
+    from .config import settings
     REDIS_URL = settings.redis_url
 except ImportError:
     REDIS_URL = "redis://localhost:6379"
@@ -62,7 +115,10 @@ class DataLoader:
             sys.stdout = old_stdout
             self._logged_in = False
 
-    def get_main_board_stocks(self, date: Optional[str] = None) -> list:
+    def get_main_board_stocks(self, date: Optional[str] = None, depth: int = 0) -> list:
+        if depth > 30:
+            raise ValueError(f"已达到最大递归深度 (30)，无法获取有效的股票列表。最后尝试的日期为: {date}")
+        
         self.login()
         if date is None:
             date = datetime.now().strftime('%Y-%m-%d')
@@ -75,57 +131,60 @@ class DataLoader:
 
         stocks = []
         try:
-            old_handler = signal.signal(signal.SIGALRM, lambda *_: (_ for _ in ()).throw(TimeoutError()))
-            signal.alarm(30)
+            print(f"[DataLoader] 正在查询 {date} 的股票列表...", flush=True)
             rs = bs.query_all_stock(day=date)
+            # Cannot use rs.get_data() because baostock uses deprecated pandas .append() internally
             while rs.next():
-                code = rs.get_row_data()[0]
-                if code.startswith(SH_PREFIX) or code.startswith(SZ_PREFIX):
+                row = rs.get_row_data()
+                if not row or len(row) < 2:
+                    continue
+                code, tradeStatus = row[0], row[1]
+                # Filter for normal trading status (1)
+                if tradeStatus != '1':
+                    continue
+                # Filter for Main Board prefixes
+                if code.startswith('sh.60') or code.startswith('sz.00'):
                     stocks.append(code)
-            signal.alarm(0)
-            signal.signal(signal.SIGALRM, old_handler)
         except Exception as e:
-            signal.alarm(0)
-            print(f"[DataLoader] query_all_stock失败: {e}，使用备用范围")
-            stocks = self._generate_stock_codes()
+            print(f"[DataLoader] query_all_stock失败: {e}")
+            stocks = []
 
         if not stocks:
             prev = (datetime.strptime(date, '%Y-%m-%d') - timedelta(days=1)).strftime('%Y-%m-%d')
-            return self.get_main_board_stocks(prev)
+            return self.get_main_board_stocks(prev, depth + 1)
 
         self.r.setex(cache_key, 7 * 24 * 3600, json.dumps(stocks))
-        print(f"[DataLoader] 获取到 {len(stocks)} 只股票")
+        print(f"[DataLoader] 获取到 {len(stocks)} 只主板活跃股票")
         return stocks
-
-    def _generate_stock_codes(self) -> list:
-        codes = []
-        for i in range(600000, 604000):
-            codes.append(f"sh.{i:06d}")
-        for i in range(605000, 606000):
-            codes.append(f"sh.{i:06d}")
-        for i in range(1, 4000):
-            codes.append(f"sz.{i:06d}")
-        return codes
 
     def load_kline_data(self, stocks: list, start_date: str, end_date: str,
                         fields: str = "date,code,open,high,low,close,volume,amount,turn,pctChg") -> pd.DataFrame:
-        self.login()
+        keys = [f"kline:{code}:{start_date}_{end_date}" for code in stocks]
+        cached_values = self.r.mget(keys)
+        
+        missing_stocks = []
         all_data = []
-        total = len(stocks)
+        
+        for code, cached_val in zip(stocks, cached_values):
+            if cached_val is not None:
+                all_data.extend(json.loads(cached_val))
+            else:
+                missing_stocks.append(code)
+                
+        print(f"[DataLoader] Redis单股缓存命中 {len(stocks) - len(missing_stocks)} 只，还需要拉取 {len(missing_stocks)} 只")
 
-        for i, code in enumerate(stocks):
-            if (i + 1) % 200 == 0:
-                print(f"[DataLoader] 进度: {i+1}/{total}")
-            try:
-                rs = bs.query_history_k_data_plus(
-                    code, fields,
-                    start_date=start_date, end_date=end_date,
-                    frequency="d", adjustflag="2"
-                )
-                while rs.next():
-                    all_data.append(rs.get_row_data())
-            except Exception as e:
-                continue
+        if missing_stocks:
+            total = len(missing_stocks)
+            chunk_size = max(1, total // 10)  # max 10 workers
+            chunks = [missing_stocks[i:i + chunk_size] for i in range(0, total, chunk_size)]
+            
+            args_list = [(chunk, start_date, end_date, fields, REDIS_URL) for chunk in chunks]
+            
+            from concurrent.futures import ProcessPoolExecutor
+            print(f"[DataLoader] 开始多进程拉取缺失数据，共 {total} 只股票，分 {len(chunks)} 批次")
+            with ProcessPoolExecutor(max_workers=10) as pool:
+                for result in pool.map(_fetch_stock_chunk, args_list):
+                    all_data.extend(result)
 
         if not all_data:
             raise ValueError("未获取到K线数据")

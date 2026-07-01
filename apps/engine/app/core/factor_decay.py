@@ -16,10 +16,10 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from config import FACTORS_DIR, FactorCriteria
-from factor_calculator import calculate_factor
-from factor_evaluator import evaluator
-from factor_library import library, FactorRecord
+from .config import FACTORS_DIR, FactorCriteria
+from .factor_calculator import calculate_factor
+from .factor_evaluator import evaluator
+from .factor_library import library, FactorRecord
 
 # IC历史记录路径
 IC_HISTORY_PATH = FACTORS_DIR / "ic_history.json"
@@ -244,7 +244,7 @@ decay_monitor = FactorDecayMonitor()
 
 
 if __name__ == "__main__":
-    from data_loader import load_market_data
+    from .data_loader import load_market_data
     
     print("=" * 60)
     print("因子衰减监控测试")

@@ -12,8 +12,8 @@ import random
 import re
 from typing import Dict, List, Optional, Tuple
 
-from config import EvolutionConfig
-from factor_library import FactorRecord
+from .config import EvolutionConfig
+from .factor_library import FactorRecord
 
 
 class EvolutionStrategy:
@@ -339,7 +339,7 @@ if __name__ == "__main__":
     print("=" * 60)
     
     # 创建模拟种群
-    from factor_library import FactorRecord
+    from .factor_library import FactorRecord
     from datetime import datetime
     
     mock_population = [

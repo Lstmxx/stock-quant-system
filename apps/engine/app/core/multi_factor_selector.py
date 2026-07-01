@@ -10,9 +10,9 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from data_loader import load_market_data
-from factor_calculator import calculate_factor
-from factor_library import library, FactorRecord
+from .data_loader import load_market_data
+from .factor_calculator import calculate_factor
+from .factor_library import library, FactorRecord
 
 
 class MultiFactorSelector:

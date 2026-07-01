@@ -8,10 +8,41 @@ from typing import Dict, List, Optional
 from datetime import datetime
 
 from sqlalchemy import create_engine, text
-import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from config import settings
+from app.config import settings
+from dataclasses import dataclass
+
+@dataclass
+class FactorRecord:
+    """因子记录"""
+    id: str                    # MD5哈希ID
+    name: str                  # 因子名称
+    expression: str            # 因子表达式
+    direction: int             # 因子方向: 1=正向, -1=负向
+    is_positive: bool          # 是否为正向因子
+    
+    # 评估指标
+    ic_mean: float
+    ic_std: float
+    ir: float
+    t_stat_mean: float
+    win_rate: float
+    annual_return: float
+    max_drawdown: float
+    turnover: float
+    
+    # 组合指标
+    fitness: float
+    
+    # 元数据
+    variables: List[str]
+    operators: List[str]
+    nesting_depth: int
+    created_at: str
+    
+    # 新增字段: 演化关系
+    parent_ids: List[str]
+    generation: int
+    mutation_type: str
 
 class FactorLibrary:
     """因子库管理器 (DB-backed)"""

@@ -13,11 +13,11 @@ from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 
-from config import FactorCriteria
-from factor_calculator import calculate_factor
-from factor_evaluator import evaluate_factor, FactorMetrics
-from factor_library import library, FactorRecord
-from factor_parser import parser
+from .config import FactorCriteria
+from .factor_calculator import calculate_factor
+from .factor_evaluator import evaluate_factor, FactorMetrics
+from .factor_library import library, FactorRecord
+from .factor_parser import parser
 
 # 候选窗口期
 WINDOW_CANDIDATES = [5, 10, 15, 20, 30, 60]
@@ -218,7 +218,7 @@ param_searcher = ParamSearcher()
 
 
 if __name__ == "__main__":
-    from data_loader import load_market_data
+    from .data_loader import load_market_data
     
     print("=" * 60)
     print("参数搜索测试")

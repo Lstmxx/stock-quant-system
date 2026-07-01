@@ -42,8 +42,11 @@ export const engineClient = {
 	/**
 	 * 通知 Engine 重新加载调度配置（如 Baostock 定时任务的 cron 表达式）
 	 */
-	async reloadConfig(): Promise<void> {
-		const res = await engineFetch("/internal/reload-config", { method: "POST" });
+	async reloadConfig(cron?: string): Promise<void> {
+		const res = await engineFetch("/internal/reload-config", {
+			method: "POST",
+			body: cron ? JSON.stringify({ baostock_cron: cron }) : undefined,
+		});
 		if (!res) return;
 		if (!res.ok) {
 			console.error(`[EngineClient] reloadConfig failed: HTTP ${res.status}`);
