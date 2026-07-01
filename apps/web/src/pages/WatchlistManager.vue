@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import type { TableColumn } from '@nuxt/ui'
 import { api } from '../utils/api'
 
@@ -63,6 +64,12 @@ async function deleteStock(id: string) {
   await fetchWatchlists()
 }
 
+const router = useRouter()
+
+function analyzeStock(symbol: string) {
+  router.push(`/analysis?symbol=${symbol}`)
+}
+
 onMounted(fetchWatchlists)
 </script>
 
@@ -90,13 +97,23 @@ onMounted(fetchWatchlists)
         </template>
 
         <template #actions-cell="{ row }">
-          <UButton
-            icon="i-lucide-trash-2"
-            color="error"
-            variant="ghost"
-            size="xs"
-            @click="deleteStock(row.original.id)"
-          />
+          <div class="flex gap-1">
+            <UButton
+              icon="i-lucide-sparkles"
+              color="primary"
+              variant="ghost"
+              size="xs"
+              label="Analyze"
+              @click="analyzeStock(row.original.symbol)"
+            />
+            <UButton
+              icon="i-lucide-trash-2"
+              color="error"
+              variant="ghost"
+              size="xs"
+              @click="deleteStock(row.original.id)"
+            />
+          </div>
         </template>
 
         <template #empty>

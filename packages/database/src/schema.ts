@@ -78,3 +78,20 @@ export const alphaTasks = pgTable("alpha_tasks", {
 	createdAt: timestamp("createdAt").defaultNow().notNull(),
 	updatedAt: timestamp("updatedAt").defaultNow().notNull()
 });
+
+export const alphaFactors = pgTable("alpha_factors", {
+	id: uuid("id").defaultRandom().primaryKey(),
+	userId: text("userId").notNull().references(() => user.id),
+	name: text("name").notNull(),
+	expression: text("expression").notNull(),
+	hypothesis: text("hypothesis"),
+	icValue: text("icValue"), // numeric value mapped to string/decimal to avoid precision issues
+	icir: text("icir"),
+	monotonicity: text("monotonicity"),
+	direction: text("direction"), // 1 or -1
+	isValid: boolean("isValid").default(false),
+	generation: text("generation").default("0"),
+	createdAt: timestamp("createdAt").defaultNow().notNull(),
+	updatedAt: timestamp("updatedAt").defaultNow().notNull()
+});
+

@@ -17,6 +17,7 @@ const configFields = [
   { key: 'LLM_API_KEY', label: 'LLM API Key', placeholder: 'sk-...', type: 'password' },
   { key: 'LLM_MODEL', label: 'LLM Model', placeholder: 'e.g. gpt-4o', type: 'text' },
   { key: 'LLM_BASE_URL', label: 'LLM Base URL', placeholder: 'https://api.openai.com/v1', type: 'text' },
+  { key: 'BAOSTOCK_CRON', label: 'Baostock Sync Cron', placeholder: '0 12 * * 1-5', type: 'text', description: 'Schedule to sync daily data to Redis.' },
 ]
 
 const formState = ref<Record<string, string>>({})
@@ -92,7 +93,7 @@ onMounted(fetchConfigs)
           </template>
 
           <div class="space-y-4">
-            <UFormField v-for="field in configFields" :key="field.key" :label="field.label">
+            <UFormField v-for="field in configFields" :key="field.key" :label="field.label" :description="field.description">
               <UInput
                 v-model="formState[field.key]"
                 :type="field.type as any"

@@ -10,6 +10,8 @@ import Dashboard from './pages/Dashboard.vue'
 import Login from './pages/Login.vue'
 import SystemConfig from './pages/SystemConfig.vue'
 import WatchlistManager from './pages/WatchlistManager.vue'
+import FactorLibrary from './pages/FactorLibrary.vue'
+import LlmAnalysis from './pages/LlmAnalysis.vue'
 
 const app = createApp(App)
 const router = createRouter({
@@ -18,7 +20,9 @@ const router = createRouter({
     { path: '/', component: Dashboard },
     { path: '/login', component: Login, meta: { guest: true } },
     { path: '/config', component: SystemConfig },
-    { path: '/watchlists', component: WatchlistManager }
+    { path: '/watchlists', component: WatchlistManager },
+    { path: '/factors', component: FactorLibrary },
+    { path: '/analysis', component: LlmAnalysis }
   ]
 })
 

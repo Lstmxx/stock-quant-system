@@ -12,6 +12,7 @@ Alpha Miner 主控循环
 参考QuantaAlpha/RD-Agent的架构，但简化实现。
 """
 import json
+import os
 import sys
 import time
 from datetime import datetime
@@ -19,8 +20,17 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
+import redis
 
-from config import EvolutionConfig, LLMConfig, FACTORS_DIR
+# Core config — resolve via __file__ so this works regardless of CWD
+_CORE_DIR = os.path.dirname(__file__)
+_APP_DIR = os.path.join(_CORE_DIR, "..")
+if _CORE_DIR not in sys.path:
+    sys.path.insert(0, _CORE_DIR)
+if _APP_DIR not in sys.path:
+    sys.path.insert(0, _APP_DIR)
+
+from config import EvolutionConfig, LLMConfig, FACTORS_DIR  # app/core/config.py
 from data_loader import load_market_data
 from evolution import evolution
 from factor_calculator import calculate_factor
@@ -29,18 +39,45 @@ from factor_library import library, FactorRecord
 from factor_parser import parser
 from llm_backend import llm
 
+# pydantic settings from app/config.py (for Redis URL etc.)
+try:
+    from app.config import settings as _app_settings
+except ImportError:
+    # fallback when running from within app/core directly
+    import importlib.util, pathlib
+    _spec = importlib.util.spec_from_file_location(
+        "app_config",
+        pathlib.Path(_APP_DIR) / "config.py"
+    )
+    _mod = importlib.util.module_from_spec(_spec)  # type: ignore
+    _spec.loader.exec_module(_mod)  # type: ignore
+    _app_settings = _mod.settings
+
+_REDIS_URL = _app_settings.redis_url
 
 class AlphaMiner:
     """Alpha因子挖掘主控"""
     
-    def __init__(self):
+    def __init__(self, task_id: str = "default_task", user_id: str = "system"):
         self.market_data = None
         self.history = []  # 历史假设和结果
         self.current_round = 0
+        self.task_id = task_id
+        self.user_id = user_id
+        self.redis_client = redis.Redis.from_url(_REDIS_URL)
+        
+    def _log(self, *args, **kwargs):
+        msg = " ".join(str(a) for a in args)
+        print(msg) # still print locally
+        # publish to redis
+        try:
+            self.redis_client.publish(f"task_log:{self.task_id}", json.dumps({"message": msg}))
+        except Exception:
+            pass
     
     def load_data(self, lookback_days: int = 250):
         """加载市场数据"""
-        print("[AlphaMiner] 加载市场数据...")
+        self._log("[AlphaMiner] 加载市场数据...")
         self.market_data = load_market_data(lookback_days=lookback_days)
         
         # 验证数据
@@ -48,7 +85,7 @@ class AlphaMiner:
             raise ValueError("数据缺少close字段")
         
         close = self.market_data['close']
-        print(f"[AlphaMiner] 数据加载完成: {close.shape[0]}天 x {close.shape[1]}只股票")
+        self._log(f"[AlphaMiner] 数据加载完成: {close.shape[0]}天 x {close.shape[1]}只股票")
     
     def mine(
         self,
@@ -72,10 +109,10 @@ class AlphaMiner:
         if self.market_data is None:
             self.load_data()
         
-        print(f"\n{'='*60}")
-        print(f"开始因子挖掘: {direction}")
-        print(f"最大轮数: {max_rounds}, 每轮因子数: {factors_per_round}")
-        print(f"{'='*60}\n")
+        self._log(f"\n{'='*60}")
+        self._log(f"开始因子挖掘: {direction}")
+        self._log(f"最大轮数: {max_rounds}, 每轮因子数: {factors_per_round}")
+        self._log(f"{'='*60}\n")
         
         all_valid_factors = []
         all_generated_count = 0
@@ -83,15 +120,15 @@ class AlphaMiner:
         
         for round_num in range(1, max_rounds + 1):
             self.current_round = round_num
-            print(f"\n{'='*40}")
-            print(f"第 {round_num}/{max_rounds} 轮")
-            print(f"{'='*40}")
+            self._log(f"\n{'='*40}")
+            self._log(f"第 {round_num}/{max_rounds} 轮")
+            self._log(f"{'='*40}")
             
             try:
                 # 1. 生成假设
                 hypothesis = self._generate_hypothesis(direction, feedback)
                 if not hypothesis:
-                    print("[跳过] 假设生成失败")
+                    self._log("[跳过] 假设生成失败")
                     continue
                 
                 # 2. 生成因子表达式
@@ -133,14 +170,14 @@ class AlphaMiner:
                 self._print_round_summary(round_num, round_results)
                 
             except Exception as e:
-                print(f"[错误] 第{round_num}轮失败: {type(e).__name__}: {e}")
+                self._log(f"[错误] 第{round_num}轮失败: {type(e).__name__}: {e}")
                 continue
         
         # 打印最终结果
         self._print_final_summary(all_valid_factors)
         
         # 自动裁剪垃圾因子
-        print("\n[自动裁剪] 清理垃圾因子...")
+        self._log("\n[自动裁剪] 清理垃圾因子...")
         prune_stats = library.prune()
         
         return all_valid_factors, all_generated_count
@@ -149,7 +186,7 @@ class AlphaMiner:
         self, direction: str, feedback: str
     ) -> Optional[Dict]:
         """生成研究假设"""
-        print("\n[1/5] 生成研究假设...")
+        self._log("\n[1/5] 生成研究假设...")
         
         try:
             hypothesis = llm.generate_hypothesis(
@@ -159,21 +196,21 @@ class AlphaMiner:
             )
             
             if hypothesis and hypothesis.get('hypothesis'):
-                print(f"  假设: {hypothesis['hypothesis']}")
+                self._log(f"  假设: {hypothesis['hypothesis']}")
                 return hypothesis
             else:
-                print("  [警告] 生成的假设为空")
+                self._log("  [警告] 生成的假设为空")
                 return None
                 
         except Exception as e:
-            print(f"  [错误] 假设生成失败: {e}")
+            self._log(f"  [错误] 假设生成失败: {e}")
             return None
     
     def _generate_factors(
         self, hypothesis: Dict, n_factors: int
     ) -> List[str]:
         """生成因子表达式"""
-        print(f"\n[2/5] 生成因子表达式 (目标{n_factors}个)...")
+        self._log(f"\n[2/5] 生成因子表达式 (目标{n_factors}个)...")
         
         # 获取已有表达式（避免重复）
         existing = library.get_expressions()
@@ -187,19 +224,19 @@ class AlphaMiner:
             
             expressions = [f['expression'] for f in factors if f.get('expression')]
             
-            print(f"  生成了 {len(expressions)} 个表达式")
+            self._log(f"  生成了 {len(expressions)} 个表达式")
             for i, expr in enumerate(expressions, 1):
-                print(f"    {i}. {expr}")
+                self._log(f"    {i}. {expr}")
             
             return expressions
             
         except Exception as e:
-            print(f"  [错误] 因子生成失败: {e}")
+            self._log(f"  [错误] 因子生成失败: {e}")
             return []
     
     def _evolve_population(self) -> List[str]:
         """进化种群"""
-        print("\n[2.5/5] 执行进化操作...")
+        self._log("\n[2.5/5] 执行进化操作...")
         
         try:
             population = library.get_valid_factors()
@@ -207,25 +244,25 @@ class AlphaMiner:
                 return []
             
             children = evolution.evolve(population, n_children=5)
-            print(f"  进化生成了 {len(children)} 个子代")
+            self._log(f"  进化生成了 {len(children)} 个子代")
             
             return children
             
         except Exception as e:
-            print(f"  [错误] 进化失败: {e}")
+            self._log(f"  [错误] 进化失败: {e}")
             return []
     
     def _evaluate_expressions(
         self, expressions: List[str], hypothesis: Dict
     ) -> List[Dict]:
         """计算和评估因子表达式"""
-        print(f"\n[3/5] 计算和评估 {len(expressions)} 个因子...")
+        self._log(f"\n[3/5] 计算和评估 {len(expressions)} 个因子...")
         
         results = []
         
         for i, expr in enumerate(expressions, 1):
-            print(f"\n  --- 因子 {i}/{len(expressions)} ---")
-            print(f"  表达式: {expr}")
+            self._log(f"\n  --- 因子 {i}/{len(expressions)} ---")
+            self._log(f"  表达式: {expr}")
             
             result = {
                 'expression': expr,
@@ -239,7 +276,7 @@ class AlphaMiner:
             values, metrics, error = self._calculate_with_debug(expr)
             
             if error:
-                print(f"  [失败] {error}")
+                self._log(f"  [失败] {error}")
                 result['error'] = error
             elif metrics:
                 result['metrics'] = metrics
@@ -256,13 +293,14 @@ class AlphaMiner:
                         nesting_depth=parsed.nesting_depth,
                         hypothesis=hypothesis.get('hypothesis', ''),
                         generation=self.current_round,
+                        user_id=self.user_id
                     )
                     result['record'] = record
-                    print(f"  [PASS 通过] IC={metrics.ic_abs_weighted:.4f}, "
+                    self._log(f"  [PASS 通过] IC={metrics.ic_abs_weighted:.4f}, "
                           f"ICIR={metrics.icir:.4f}, "
                           f"方向={'正向' if metrics.direction == 1 else '负向'}")
                 else:
-                    print(f"  [FAIL 未通过] {metrics.rejection_reason}")
+                    self._log(f"  [FAIL 未通过] {metrics.rejection_reason}")
             
             results.append(result)
         
@@ -288,7 +326,7 @@ class AlphaMiner:
                         current_expr, parsed.error
                     )
                     if fixed_expr != current_expr:
-                        print(f"    [Debug] 尝试修复: {fixed_expr}")
+                        self._log(f"    [Debug] 尝试修复: {fixed_expr}")
                         current_expr = fixed_expr
                         continue
                 return None, None, parsed.error
@@ -305,7 +343,7 @@ class AlphaMiner:
                         current_expr, error
                     )
                     if fixed_expr != current_expr:
-                        print(f"    [Debug] 尝试修复: {fixed_expr}")
+                        self._log(f"    [Debug] 尝试修复: {fixed_expr}")
                         current_expr = fixed_expr
                         continue
                 return None, None, error
@@ -325,7 +363,7 @@ class AlphaMiner:
         self, hypothesis: Dict, results: List[Dict]
     ) -> str:
         """生成反馈"""
-        print(f"\n[4/5] 生成反馈...")
+        self._log(f"\n[4/5] 生成反馈...")
         
         # 构建指标摘要
         metrics_summary = self._build_metrics_summary(results)
@@ -361,13 +399,13 @@ class AlphaMiner:
             observation = feedback_result.get('observation', '')
             new_direction = feedback_result.get('new_direction', '')
             
-            print(f"  观察: {observation}")
-            print(f"  新方向: {new_direction}")
+            self._log(f"  观察: {observation}")
+            self._log(f"  新方向: {new_direction}")
             
             return json.dumps(feedback_result, ensure_ascii=False)
             
         except Exception as e:
-            print(f"  [错误] 反馈生成失败: {e}")
+            self._log(f"  [错误] 反馈生成失败: {e}")
             return ""
     
     def _build_metrics_summary(self, results: List[Dict]) -> str:
@@ -394,16 +432,16 @@ class AlphaMiner:
         n_valid = sum(1 for r in results if r['metrics'] and r['metrics'].is_valid)
         n_failed = sum(1 for r in results if r['error'])
         
-        print(f"\n--- 第{round_num}轮摘要 ---")
-        print(f"  总计: {n_total}, 通过: {n_valid}, 失败: {n_failed}")
+        self._log(f"\n--- 第{round_num}轮摘要 ---")
+        self._log(f"  总计: {n_total}, 通过: {n_valid}, 失败: {n_failed}")
     
     def _print_final_summary(self, valid_factors: List[Dict]):
         """打印最终摘要"""
-        print(f"\n{'='*60}")
-        print("因子挖掘完成")
-        print(f"{'='*60}")
+        self._log(f"\n{'='*60}")
+        self._log("因子挖掘完成")
+        self._log(f"{'='*60}")
         
-        print(f"\n总发现有效因子: {len(valid_factors)}")
+        self._log(f"\n总发现有效因子: {len(valid_factors)}")
         
         if valid_factors:
             # 按IC排序
@@ -413,15 +451,15 @@ class AlphaMiner:
                 reverse=True
             )
             
-            print(f"\nTop 5 因子:")
+            self._log(f"\nTop 5 因子:")
             for i, f in enumerate(sorted_factors[:5], 1):
                 m = f['metrics']
-                print(f"\n  {i}. {f['expression']}")
-                print(f"     IC={m.ic_abs_weighted:.4f}, ICIR={m.icir:.4f}")
-                print(f"     方向={'正向' if m.direction == 1 else '负向'}")
+                self._log(f"\n  {i}. {f['expression']}")
+                self._log(f"     IC={m.ic_abs_weighted:.4f}, ICIR={m.icir:.4f}")
+                self._log(f"     方向={'正向' if m.direction == 1 else '负向'}")
         
         # 打印因子库摘要
-        print(f"\n{library.format_summary()}")
+        self._log(f"\n{library.format_summary()}")
 
 
     def self_optimize(self):
@@ -431,28 +469,28 @@ class AlphaMiner:
         2. 自动方向调整 - 根据历史选择下一个研究方向
         3. 参数搜索 - 对好因子优化窗口参数
         """
-        print("\n" + "=" * 60)
-        print("自我优化流程")
-        print("=" * 60)
+        self._log("\n" + "=" * 60)
+        self._log("自我优化流程")
+        self._log("=" * 60)
         
         # 1. 因子衰减监控
-        print("\n[优化1] 因子衰减监控...")
+        self._log("\n[优化1] 因子衰减监控...")
         from factor_decay import decay_monitor
         decay_monitor.update(self.market_data)
         decay_stats = decay_monitor.cleanup()
-        print(f"  健康: {decay_stats['healthy']}, 衰退: {decay_stats['decayed']}, 失效: {decay_stats['removed']}")
+        self._log(f"  健康: {decay_stats['healthy']}, 衰退: {decay_stats['decayed']}, 失效: {decay_stats['removed']}")
         
         # 2. 自动方向调整
-        print("\n[优化2] 自动方向调整...")
+        self._log("\n[优化2] 自动方向调整...")
         from direction_manager import direction_manager
         direction = direction_manager.get_llm_direction()
-        print(f"  推荐方向: {direction}")
+        self._log(f"  推荐方向: {direction}")
         
         # 3. 参数搜索
-        print("\n[优化3] 参数搜索...")
+        self._log("\n[优化3] 参数搜索...")
         from param_search import param_searcher
         optimized = param_searcher.optimize_all(self.market_data, min_ic=0.05)
-        print(f"  优化了 {len(optimized)} 个因子")
+        self._log(f"  优化了 {len(optimized)} 个因子")
         
         return direction, decay_stats, optimized
 

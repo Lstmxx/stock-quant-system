@@ -1,8 +1,5 @@
 """
 Redis task queue worker.
-
-Listens on the configured queue, processes tasks via the AlphaMinerService,
-and writes results back to the database.
 """
 import asyncio
 import json
@@ -12,19 +9,22 @@ import redis.asyncio as aioredis
 from sqlalchemy import create_engine, text
 
 from .config import settings
-from .services.alpha_miner_service import AlphaMinerService
+
+# Since we are moving alpha_miner logic, let's use the core miner instead of the stub
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), 'core'))
+from .core.alpha_miner import AlphaMiner
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
 
 async def update_task_status(
     task_id: str,
     status: str,
     result: dict | None = None,
 ) -> None:
-    """Update task status in the database via raw SQL (sync, run in thread)."""
-
+    """Update task status in the database via raw SQL."""
     def _update():
         engine = create_engine(settings.database_url)
         with engine.connect() as conn:
@@ -46,26 +46,39 @@ async def update_task_status(
                 )
             conn.commit()
         engine.dispose()
-
     await asyncio.to_thread(_update)
-
 
 async def process_task(task_data: dict) -> None:
     """Process a single task from the queue."""
     task_id = task_data.get("taskId")
     params = task_data.get("params", {})
-    target_symbol = params.get("targetSymbol", "sh.000001")
+    target_symbol = params.get("targetSymbol", "量价关系")
     days = params.get("days", 250)
 
-    logger.info(f"Processing task {task_id} for symbol {target_symbol}")
+    user_id = task_data.get("userId", "system")
 
-    # Mark as RUNNING
+    logger.info(f"Processing task {task_id} for direction {target_symbol}")
     await update_task_status(task_id, "RUNNING")
 
     try:
         # Run the CPU-bound mining logic in a thread pool
-        service = AlphaMinerService(target_symbol=target_symbol, days=days)
-        result = await asyncio.to_thread(service.run)
+        def _run_miner():
+            miner = AlphaMiner(task_id=task_id, user_id=user_id) # pass task_id for redis logging
+            miner.load_data(lookback_days=days)
+            valid_factors, total = miner.mine(
+                direction=target_symbol,
+                max_rounds=3,
+                factors_per_round=3,
+                use_evolution=True
+            )
+            # return summary
+            return {
+                "status": "completed",
+                "factors_discovered": len(valid_factors),
+                "total_generated": total
+            }
+            
+        result = await asyncio.to_thread(_run_miner)
 
         # Mark as COMPLETED with result
         await update_task_status(task_id, "COMPLETED", result)
@@ -74,7 +87,6 @@ async def process_task(task_data: dict) -> None:
     except Exception as e:
         logger.error(f"Task {task_id} failed: {e}")
         await update_task_status(task_id, "FAILED", {"error": str(e)})
-
 
 async def start_worker() -> None:
     """Main worker loop: poll Redis queue and process tasks."""

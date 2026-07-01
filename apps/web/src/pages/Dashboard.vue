@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import type { TableColumn } from '@nuxt/ui'
 import { api } from '../utils/api'
 
@@ -18,6 +18,11 @@ const loading = ref(true)
 const submitting = ref(false)
 const targetSymbol = ref('')
 const showNewTaskModal = ref(false)
+
+const showLogsModal = ref(false)
+const activeTaskId = ref('')
+const logs = ref<string[]>([])
+let eventSource: EventSource | null = null
 
 const columns: TableColumn<Task>[] = [{
   accessorKey: 'type',
@@ -68,11 +73,48 @@ async function submitTask() {
   }
 }
 
-// Auto-refresh every 10s for task status updates
+function viewLogs(taskId: string) {
+  activeTaskId.value = taskId
+  logs.value = []
+  showLogsModal.value = true
+  
+  if (eventSource) {
+    eventSource.close()
+  }
+  
+  eventSource = new EventSource(`http://localhost:3000/tasks/${taskId}/stream`)
+  eventSource.onmessage = (event) => {
+    try {
+      const parsed = JSON.parse(event.data)
+      if (parsed.type !== 'ping') {
+        logs.value.push(parsed.message || JSON.stringify(parsed))
+      }
+    } catch {
+      logs.value.push(event.data)
+    }
+  }
+  eventSource.onerror = () => {
+    eventSource?.close()
+  }
+}
+
+function closeLogs() {
+  showLogsModal.value = false
+  if (eventSource) {
+    eventSource.close()
+    eventSource = null
+  }
+}
+
 let interval: ReturnType<typeof setInterval>
 onMounted(() => {
   fetchTasks()
   interval = setInterval(fetchTasks, 10000)
+})
+
+onUnmounted(() => {
+  clearInterval(interval)
+  if (eventSource) eventSource.close()
 })
 </script>
 
@@ -113,11 +155,12 @@ onMounted(() => {
 
         <template #actions-cell="{ row }">
           <UButton
-            v-if="row.original.status === 'COMPLETED'"
-            icon="i-lucide-eye"
+            v-if="row.original.status === 'RUNNING' || row.original.status === 'COMPLETED'"
+            icon="i-lucide-activity"
             variant="ghost"
             size="xs"
-            label="View"
+            label="Logs"
+            @click="viewLogs(row.original.id)"
           />
         </template>
 
@@ -151,4 +194,14 @@ onMounted(() => {
       </div>
     </template>
   </UModal>
+
+  <!-- Logs Slideover -->
+  <USlideover v-model:open="showLogsModal" :title="`Task Logs: ${activeTaskId}`" @close="closeLogs">
+    <template #body>
+      <div class="bg-gray-950 p-4 h-full overflow-y-auto text-green-400 font-mono text-sm whitespace-pre-wrap rounded-lg">
+        <div v-if="logs.length === 0" class="text-gray-500 italic">Waiting for logs...</div>
+        <div v-for="(log, idx) in logs" :key="idx">{{ log }}</div>
+      </div>
+    </template>
+  </USlideover>
 </template>

@@ -4,7 +4,7 @@ import Redis from "ioredis";
 
 const QUEUE_NAME = "stock:tasks:queue";
 
-function getRedis() {
+export function getRedis() {
 	return new Redis(process.env.REDIS_URL || "redis://localhost:6379");
 }
 
@@ -13,7 +13,8 @@ export abstract class TaskService {
 		return await db
 			.select()
 			.from(alphaTasks)
-			.where(eq(alphaTasks.userId, userId));
+			.where(eq(alphaTasks.userId, userId))
+			.orderBy(alphaTasks.createdAt);
 	}
 
 	static async createMiningTask(

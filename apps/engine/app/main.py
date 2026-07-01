@@ -6,12 +6,15 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .routers import health
+from .routers.internal import router as internal_router
 from .worker import start_worker
+from .scheduler import start_scheduler
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Manage application lifecycle: start worker on startup, cancel on shutdown."""
+    """Manage application lifecycle: start worker and scheduler on startup, cancel on shutdown."""
+    start_scheduler()
     task = asyncio.create_task(start_worker())
     yield
     task.cancel()
@@ -37,6 +40,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(health.router, tags=["health"])
+    app.include_router(internal_router)
 
     return app
 

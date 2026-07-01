@@ -8,9 +8,17 @@ const items = computed<NavigationMenuItem[]>(() => [{
   icon: 'i-lucide-layout-dashboard',
   to: '/'
 }, {
+  label: 'LLM Analysis',
+  icon: 'i-lucide-sparkles',
+  to: '/analysis'
+}, {
   label: 'Watchlists',
   icon: 'i-lucide-list',
   to: '/watchlists'
+}, {
+  label: 'Factor Library',
+  icon: 'i-lucide-library',
+  to: '/factors'
 }, {
   label: 'Settings',
   icon: 'i-lucide-settings',

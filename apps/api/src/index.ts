@@ -4,6 +4,8 @@ import { betterAuthPlugin } from "./plugins/auth";
 import { configModule } from "./modules/config";
 import { watchlistModule } from "./modules/watchlist";
 import { taskModule } from "./modules/task";
+import { factorModule } from "./modules/factor";
+import { analysisModule } from "./modules/analysis";
 
 const app = new Elysia()
 	.use(
@@ -17,6 +19,8 @@ const app = new Elysia()
 	.use(configModule)
 	.use(watchlistModule)
 	.use(taskModule)
+	.use(factorModule)
+	.use(analysisModule)
 	.get("/", () => "Stock Quant System API Gateway is running")
 	.listen(3000);
 

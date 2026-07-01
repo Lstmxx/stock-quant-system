@@ -79,11 +79,23 @@
       "skillPath": "skills/python-patterns/SKILL.md",
       "computedHash": "3f4ccececee9c3144436666aed86417aa03fcfd0f976e606953adcc9c9b420b4"
     },
+    "review": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/in-progress/review/SKILL.md",
+      "computedHash": "a6c596036b399698ec5526aed60bddc134923832582e21ab140bb27f2fc4fff9"
+    },
     "setup-matt-pocock-skills": {
       "source": "mattpocock/skills",
       "sourceType": "github",
       "skillPath": "skills/engineering/setup-matt-pocock-skills/SKILL.md",
       "computedHash": "400da4521ed701c99e8824ae7b71c7859632ee91481b3715890036cf8aec6857"
+    },
+    "tdd": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/tdd/SKILL.md",
+      "computedHash": "e08f6a9f1e64b4054c270f996d9a8c239589ec182856e22672ed08cf91ca0817"
     },
     "two-factor-authentication-best-practices": {
       "source": "better-auth/skills",
@@ -102,6 +114,12 @@
       "sourceType": "github",
       "skillPath": "skills/vue-patterns/SKILL.md",
       "computedHash": "d12453f6e7c25f0ec79f63d5983909c7f2803a93b1ef3ce3ee43868a2f5219c5"
+    },
+    "writing-beats": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/in-progress/writing-beats/SKILL.md",
+      "computedHash": "b2bb74a1e15fcac1fec9aac4fa4c8244e8ed7c4eef1f9096ea3b52b7eb091943"
     }
   }
 }

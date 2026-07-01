@@ -10,10 +10,16 @@ LLM调用后端
 import json
 import os
 import re
+import sys
 import time
 from typing import Dict, List, Optional, Tuple
 
 import requests
+
+# Ensure app/core/ is on path so `from config import LLMConfig` resolves correctly
+_CORE_DIR = os.path.dirname(__file__)
+if _CORE_DIR not in sys.path:
+    sys.path.insert(0, _CORE_DIR)
 
 from config import LLMConfig
 
