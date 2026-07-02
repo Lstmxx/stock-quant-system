@@ -36,7 +36,7 @@ async function fetchWatchlists() {
   loading.value = true
   try {
     const { data } = await api.watchlists.get()
-    if (data) watchlists.value = data as Watchlist[]
+    if (data) watchlists.value = data as unknown as Watchlist[]
   } finally {
     loading.value = false
   }

@@ -1,0 +1,7 @@
+procs:
+  api:
+    shell: bun run dev:api
+  web:
+    shell: bun run dev:web
+  engine:
+    shell: bun run dev:engine

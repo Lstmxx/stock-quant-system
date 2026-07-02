@@ -33,8 +33,7 @@ export const strategyModule = new Elysia({ prefix: "/strategy", name: "strategy"
 		"/generate-report",
 		async ({ body, user }) => {
 			if (!user) throw new Error("Unauthorized");
-			const streamIterable = await StrategyService.generateReportStream(user.id, body);
-			return new Stream(streamIterable);
+			return StrategyService.generateReportStructured(user.id, body);
 		},
 		{
 			auth: true,

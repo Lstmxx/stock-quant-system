@@ -10,10 +10,6 @@ from sqlalchemy import create_engine, text
 
 from .config import settings
 
-# Since we are moving alpha_miner logic, let's use the core miner instead of the stub
-import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), 'core'))
 from .core.alpha_miner import AlphaMiner
 
 logging.basicConfig(level=logging.INFO)
@@ -95,7 +91,7 @@ async def start_worker() -> None:
 
     while True:
         try:
-            result = await r.blpop(settings.queue_name, timeout=0)
+            result = await r.blpop(settings.queue_name, timeout=1)
             if result:
                 _, message = result
                 task_data = json.loads(message)

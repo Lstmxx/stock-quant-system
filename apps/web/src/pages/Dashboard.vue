@@ -2,13 +2,14 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import type { TableColumn } from '@nuxt/ui'
 import { api } from '../utils/api'
+import { useSSELogStream } from '../composables/useSSE'
 
 interface Task {
   id: string
   type: string
   status: string
-  params: any
-  result: any
+  params: Record<string, unknown> | null
+  result: Record<string, unknown> | null
   createdAt: string
   updatedAt: string
 }
@@ -21,8 +22,7 @@ const showNewTaskModal = ref(false)
 
 const showLogsModal = ref(false)
 const activeTaskId = ref('')
-const logs = ref<string[]>([])
-let eventSource: EventSource | null = null
+const { streamLogs: logs, connect: connectLogs, disconnect: disconnectLogs } = useSSELogStream()
 
 const columns: TableColumn<Task>[] = [{
   accessorKey: 'type',
@@ -41,7 +41,9 @@ const columns: TableColumn<Task>[] = [{
   header: ''
 }]
 
-const statusColor: Record<string, string> = {
+type BadgeColor = 'neutral' | 'primary' | 'success' | 'error' | 'warning' | 'info'
+
+const statusColor: Record<string, BadgeColor> = {
   PENDING: 'warning',
   RUNNING: 'info',
   COMPLETED: 'success',
@@ -75,35 +77,13 @@ async function submitTask() {
 
 function viewLogs(taskId: string) {
   activeTaskId.value = taskId
-  logs.value = []
   showLogsModal.value = true
-  
-  if (eventSource) {
-    eventSource.close()
-  }
-  
-  eventSource = new EventSource(`http://localhost:3000/tasks/${taskId}/stream`)
-  eventSource.onmessage = (event) => {
-    try {
-      const parsed = JSON.parse(event.data)
-      if (parsed.type !== 'ping') {
-        logs.value.push(parsed.message || JSON.stringify(parsed))
-      }
-    } catch {
-      logs.value.push(event.data)
-    }
-  }
-  eventSource.onerror = () => {
-    eventSource?.close()
-  }
+  connectLogs(`/tasks/${taskId}/stream`)
 }
 
 function closeLogs() {
   showLogsModal.value = false
-  if (eventSource) {
-    eventSource.close()
-    eventSource = null
-  }
+  disconnectLogs()
 }
 
 let interval: ReturnType<typeof setInterval>
@@ -114,7 +94,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   clearInterval(interval)
-  if (eventSource) eventSource.close()
 })
 </script>
 
@@ -139,7 +118,7 @@ onUnmounted(() => {
       <UTable :data="tasks" :columns="columns" :loading="loading">
         <template #status-cell="{ row }">
           <UBadge
-            :color="(statusColor[row.original.status] || 'neutral') as any"
+            :color="statusColor[row.original.status] || 'neutral'"
             :label="row.original.status"
             variant="subtle"
           />

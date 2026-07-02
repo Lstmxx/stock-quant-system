@@ -65,33 +65,42 @@ class EvolutionStrategy:
         # 1. 精英保留
         n_elite = max(1, int(len(population) * self.elite_ratio))
         elite = sorted(population, key=lambda f: f.ic_abs_weighted, reverse=True)[:n_elite]
+        elite_exprs = []
         
         # 精英直接进入下一代（不变异）
         for e in elite:
             children.append(e.expression)
+            elite_exprs.append(e.expression)
+            
+        # 2. LLM 智能演化 (Semantic Mutation & Crossover)
+        from .llm_backend import llm
+        n_llm_target = n_children - len(children)
         
-        # 2. 变异操作
-        n_mutate = int(n_children * self.mutation_rate)
-        for _ in range(n_mutate):
-            parent = self._select_parent(population)
-            child_expr = self._mutate(parent.expression)
-            if child_expr:
-                children.append(child_expr)
+        if n_llm_target > 0 and elite_exprs:
+            print(f"  [Evolution] 正在使用 LLM 对 {len(elite_exprs)} 个精英因子进行智能演化...")
+            llm_factors = llm.evolve_factors(elite_exprs, n_children=n_llm_target)
+            for factor_info in llm_factors:
+                expr = factor_info.get("expression")
+                if expr and expr not in children:
+                    children.append(expr)
+                    if len(children) >= n_children:
+                        break
         
-        # 3. 交叉操作
-        n_crossover = int(n_children * self.crossover_rate)
-        for _ in range(n_crossover):
-            parent1, parent2 = self._select_parents(population, 2)
-            child_expr = self._crossover(parent1.expression, parent2.expression)
-            if child_expr:
-                children.append(child_expr)
-        
-        # 4. 随机探索（保持多样性）
+        # 3. 随机探索（后备/补充多样性）
         n_random = n_children - len(children)
         for _ in range(max(0, n_random)):
             random_expr = self._generate_random()
-            if random_expr:
+            if random_expr and random_expr not in children:
                 children.append(random_expr)
+                
+        # 补充传统遗传变异，直到满员
+        attempts = 0
+        while len(children) < n_children and attempts < n_children * 2:
+            parent = self._select_parent(population)
+            child_expr = self._mutate(parent.expression)
+            if child_expr and child_expr not in children:
+                children.append(child_expr)
+            attempts += 1
         
         return children[:n_children]
     

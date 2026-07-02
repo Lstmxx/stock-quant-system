@@ -1,5 +1,6 @@
 import { config } from "dotenv";
 config({ path: "../../.env" });
+
 import { Elysia } from "elysia";
 import { db, userConfigs } from "@stock-quant/database";
 import { eq } from "drizzle-orm";
@@ -22,14 +23,17 @@ const app = new Elysia()
 		}),
 	)
 	.use(betterAuthPlugin)
-	.use(configModule)
-	.use(watchlistModule)
-	.use(taskModule)
-	.use(factorModule)
-	.use(analysisModule)
-	.use(strategyModule)
+	.group("/api", (app) =>
+		app
+			.use(configModule)
+			.use(watchlistModule)
+			.use(taskModule)
+			.use(factorModule)
+			.use(analysisModule)
+			.use(strategyModule)
+	)
 	.get("/", () => "Stock Quant System API Gateway is running")
-	.listen(3000);
+	.listen(process.env.PORT_API || 3000);
 
 export type App = typeof app;
 

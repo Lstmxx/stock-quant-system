@@ -5,6 +5,7 @@ import path from 'path'
 
 // https://vite.dev/config/
 export default defineConfig({
+  envDir: '../../',
   plugins: [
     vue(),
     ui()
@@ -15,9 +16,10 @@ export default defineConfig({
     }
   },
   server: {
+    port: process.env.PORT_WEB ? parseInt(process.env.PORT_WEB as string) : 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: `http://localhost:${process.env.PORT_API || 3000}`,
         changeOrigin: true
       }
     }

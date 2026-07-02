@@ -12,8 +12,18 @@ const configs = ref<ConfigItem[]>([])
 const loading = ref(true)
 const saving = ref(false)
 
+type InputType = 'text' | 'password' | 'number' | 'email' | 'url' | 'tel' | 'search' | 'date' | 'time' | 'color' | 'file'
+
+interface ConfigField {
+  key: string
+  label: string
+  placeholder: string
+  type: InputType
+  description?: string
+}
+
 // Config fields we want to manage
-const configFields = [
+const configFields: ConfigField[] = [
   { key: 'LLM_API_KEY', label: 'LLM API Key', placeholder: 'sk-...', type: 'password' },
   { key: 'LLM_MODEL', label: 'LLM Model', placeholder: 'e.g. gpt-4o', type: 'text' },
   { key: 'LLM_BASE_URL', label: 'LLM Base URL', placeholder: 'https://api.openai.com/v1', type: 'text' },
@@ -35,18 +45,6 @@ async function fetchConfigs() {
     }
   } finally {
     loading.value = false
-  }
-}
-
-async function saveConfig(key: string) {
-  const value = formState.value[key]
-  if (value === undefined) return
-
-  saving.value = true
-  try {
-    await api.config.post({ key, value })
-  } finally {
-    saving.value = false
   }
 }
 
@@ -96,7 +94,7 @@ onMounted(fetchConfigs)
             <UFormField v-for="field in configFields" :key="field.key" :label="field.label" :description="field.description">
               <UInput
                 v-model="formState[field.key]"
-                :type="field.type as any"
+                :type="field.type"
                 :placeholder="field.placeholder"
               />
             </UFormField>

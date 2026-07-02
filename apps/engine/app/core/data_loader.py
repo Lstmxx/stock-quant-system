@@ -222,6 +222,28 @@ class DataLoader:
             return pickle.loads(pickled_data)
         return None
 
+    def load_industry_data(self) -> pd.Series:
+        self.login()
+        cache_key = "industry_data_cache"
+        cached = self.r.get(cache_key)
+        if cached:
+            print("[DataLoader] Redis缓存行业数据命中", flush=True)
+            return pd.Series(json.loads(cached))
+            
+        print("[DataLoader] 正在查询全市场行业分类...", flush=True)
+        rs = bs.query_stock_industry()
+        industries = {}
+        while rs.next():
+            row = rs.get_row_data()
+            if not row or len(row) < 4:
+                continue
+            code, industry = row[1], row[3]
+            if code.startswith('sh.60') or code.startswith('sz.00'):
+                industries[code] = industry if industry else 'Unknown'
+                
+        self.r.setex(cache_key, 7 * 24 * 3600, json.dumps(industries))
+        return pd.Series(industries)
+
     def load_latest(self, lookback_days: int = LOOKBACK_DAYS,
                     end_date: Optional[str] = None) -> Dict[str, pd.DataFrame]:
         if end_date is None:
@@ -246,6 +268,13 @@ class DataLoader:
 
         df = self.load_kline_data(stocks, start_date, end_date)
         data = self.pivot_data(df)
+        
+        # 加载并广播行业数据
+        industry_series = self.load_industry_data()
+        close_df = data['close']
+        ind_aligned = industry_series.reindex(close_df.columns).fillna('Unknown')
+        industry_df = pd.DataFrame([ind_aligned] * len(close_df.index), index=close_df.index, columns=close_df.columns)
+        data['industry'] = industry_df
 
         # 3. 缓存
         self._save_cache(date_key, data)

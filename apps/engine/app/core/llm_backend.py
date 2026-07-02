@@ -28,9 +28,42 @@ class LLMBackend:
         self.base_url = LLMConfig.BASE_URL or os.environ.get("XIAOMI_BASE_URL", "https://token-plan-cn.xiaomimimo.com/v1")
         self.model = LLMConfig.MODEL
         self.timeout = LLMConfig.TIMEOUT
+        self.user_id = "system"
         
+    def set_user_config(self, user_id: str):
+        """
+        根据用户ID从数据库加载大模型配置
+        如果未找到，则保留环境变量默认配置
+        """
+        self.user_id = user_id
+        if not user_id or user_id == "system":
+            return
+            
+        try:
+            from sqlalchemy import create_engine, text
+            from app.config import settings
+            
+            engine = create_engine(settings.database_url)
+            with engine.connect() as conn:
+                query = text('SELECT key, value FROM user_configs WHERE "userId" = :uid')
+                result = conn.execute(query, {"uid": user_id}).fetchall()
+                
+                configs = {row[0]: row[1] for row in result}
+                
+                if configs.get("LLM_API_KEY"):
+                    self.api_key = configs["LLM_API_KEY"]
+                if configs.get("LLM_BASE_URL"):
+                    self.base_url = configs["LLM_BASE_URL"]
+                if configs.get("LLM_MODEL"):
+                    self.model = configs["LLM_MODEL"]
+                    
+                print(f"[LLMBackend] 已成功加载用户 {user_id} 的专属大模型配置 (Model: {self.model})", flush=True)
+        except Exception as e:
+            print(f"[LLMBackend] 从数据库加载用户配置失败: {e}，将使用环境变量默认配置", flush=True)
+            
+    def _check_api_key(self):
         if not self.api_key:
-            raise ValueError("未配置XIAOMI_API_KEY")
+            raise ValueError("未配置LLM API KEY (数据库与环境变量均未配置)")
     
     def chat(
         self,
@@ -51,6 +84,8 @@ class LLMBackend:
         Returns:
             LLM回复文本
         """
+        self._check_api_key()
+        
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
@@ -103,21 +138,13 @@ class LLMBackend:
     ) -> Dict:
         """
         生成研究假设
-        
-        Args:
-            direction: 研究方向（如"量价关系"、"动量反转"）
-            history: 历史假设和结果
-            feedback: 上一轮反馈
-            
-        Returns:
-            {"hypothesis": str, "observation": str, "knowledge": str}
         """
-        from .prompts import build_hypothesis_prompt
+        from .prompts import build_hypothesis_prompt, get_system_prompt
         
         prompt = build_hypothesis_prompt(direction, history, feedback)
         
         messages = [
-            {"role": "system", "content": "你是一个专业的量化研究员，专注于A股市场的因子挖掘。"},
+            {"role": "system", "content": get_system_prompt("hypothesis")},
             {"role": "user", "content": prompt}
         ]
         
@@ -139,14 +166,14 @@ class LLMBackend:
         """
         根据假设生成因子表达式（带重试）
         """
-        from .prompts import build_factor_generation_prompt
+        from .prompts import build_factor_generation_prompt, get_system_prompt
         
         prompt = build_factor_generation_prompt(
             hypothesis, existing_expressions, n_factors
         )
         
         messages = [
-            {"role": "system", "content": "你是一个量化因子设计专家。"},
+            {"role": "system", "content": get_system_prompt("factor_generation")},
             {"role": "user", "content": prompt}
         ]
         
@@ -160,6 +187,33 @@ class LLMBackend:
             print(f"  [LLM] 第{attempt+1}次返回空，重试...", flush=True)
         
         return []
+        
+    def evolve_factors(
+        self,
+        elite_expressions: List[str],
+        n_children: int = 5
+    ) -> List[Dict]:
+        """
+        通过LLM演化（变异/交叉）生成新因子
+        """
+        from .prompts import build_evolution_prompt, get_system_prompt
+        
+        prompt = build_evolution_prompt(elite_expressions, n_children)
+        
+        messages = [
+            {"role": "system", "content": get_system_prompt("evolution")},
+            {"role": "user", "content": prompt}
+        ]
+        
+        for attempt in range(3):
+            response = self.chat(messages, temperature=0.7, max_tokens=3000)
+            if response and len(response.strip()) > 10:
+                factors = self._parse_factor_list(response)
+                if factors:
+                    return factors
+            print(f"  [LLM] 第{attempt+1}次演化返回空，重试...", flush=True)
+            
+        return []
     
     def generate_feedback(
         self,
@@ -170,24 +224,15 @@ class LLMBackend:
     ) -> Dict:
         """
         生成反馈和新假设方向
-        
-        Args:
-            hypothesis: 原始假设
-            metrics_summary: 评估指标摘要
-            best_factors: 表现好的因子
-            failed_factors: 失败的因子
-            
-        Returns:
-            {"observation": str, "evaluation": str, "new_direction": str, "decision": str}
         """
-        from .prompts import build_feedback_prompt
+        from .prompts import build_feedback_prompt, get_system_prompt
         
         prompt = build_feedback_prompt(
             hypothesis, metrics_summary, best_factors, failed_factors
         )
         
         messages = [
-            {"role": "system", "content": "你是一个量化研究分析师。"},
+            {"role": "system", "content": get_system_prompt("feedback")},
             {"role": "user", "content": prompt}
         ]
         
@@ -204,27 +249,18 @@ class LLMBackend:
         self,
         expression: str,
         error_message: str,
-        context: str = ""
+        context: str = "",
+        history: Optional[List[Dict[str, str]]] = None
     ) -> Tuple[str, str]:
         """
-        调试因子代码（参考RD-Agent的CoSTEER）
-        
-        当因子表达式执行失败时，让LLM分析错误并提供修复方案
-        
-        Args:
-            expression: 原始表达式
-            error_message: 错误信息
-            context: 额外上下文
-            
-        Returns:
-            (fixed_expression, explanation)
+        调试因子代码
         """
-        from .prompts import build_debug_prompt
+        from .prompts import build_debug_prompt, get_system_prompt
         
-        prompt = build_debug_prompt(expression, error_message, context)
+        prompt = build_debug_prompt(expression, error_message, context, history)
         
         messages = [
-            {"role": "system", "content": "你是一个Python调试专家，擅长修复量化因子表达式的错误。"},
+            {"role": "system", "content": get_system_prompt("debug")},
             {"role": "user", "content": prompt}
         ]
         

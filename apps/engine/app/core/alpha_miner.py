@@ -46,6 +46,7 @@ class AlphaMiner:
         self.current_round = 0
         self.task_id = task_id
         self.user_id = user_id
+        llm.set_user_config(self.user_id)
         self.redis_client = redis.Redis.from_url(_REDIS_URL)
         
     def _log(self, *args, **kwargs):
@@ -297,6 +298,7 @@ class AlphaMiner:
         参考RD-Agent的CoSTEER，当计算失败时让LLM调试并重试
         """
         current_expr = expression
+        debug_history = []
         
         for attempt in range(max_attempts):
             # 1. 解析表达式
@@ -304,13 +306,18 @@ class AlphaMiner:
             if not parsed.is_valid:
                 # 语法错误，尝试debug
                 if attempt < max_attempts - 1:
+                    debug_history.append({"expression": current_expr, "error": parsed.error})
                     fixed_expr, _ = llm.debug_factor_code(
-                        current_expr, parsed.error
+                        current_expr, parsed.error, history=debug_history
                     )
-                    if fixed_expr != current_expr:
-                        self._log(f"    [Debug] 尝试修复: {fixed_expr}")
-                        current_expr = fixed_expr
-                        continue
+                    # 死循环断路器
+                    if fixed_expr == current_expr or any(h["expression"] == fixed_expr for h in debug_history):
+                        self._log(f"    [Debug断路器] LLM返回了重复的表达式 {fixed_expr}，终止重试。")
+                        return None, None, parsed.error
+                        
+                    self._log(f"    [Debug] 尝试修复: {fixed_expr}")
+                    current_expr = fixed_expr
+                    continue
                 return None, None, parsed.error
             
             # 2. 计算因子值
@@ -321,13 +328,18 @@ class AlphaMiner:
             if error:
                 # 计算错误，尝试debug
                 if attempt < max_attempts - 1:
+                    debug_history.append({"expression": current_expr, "error": error})
                     fixed_expr, _ = llm.debug_factor_code(
-                        current_expr, error
+                        current_expr, error, history=debug_history
                     )
-                    if fixed_expr != current_expr:
-                        self._log(f"    [Debug] 尝试修复: {fixed_expr}")
-                        current_expr = fixed_expr
-                        continue
+                    # 死循环断路器
+                    if fixed_expr == current_expr or any(h["expression"] == fixed_expr for h in debug_history):
+                        self._log(f"    [Debug断路器] LLM返回了重复的表达式 {fixed_expr}，终止重试。")
+                        return None, None, error
+                        
+                    self._log(f"    [Debug] 尝试修复: {fixed_expr}")
+                    current_expr = fixed_expr
+                    continue
                 return None, None, error
             
             # 3. 评估因子
@@ -457,7 +469,7 @@ class AlphaMiner:
         
         # 1. 因子衰减监控
         self._log("\n[优化1] 因子衰减监控...")
-        from factor_decay import decay_monitor
+        from .factor_decay import decay_monitor
         decay_monitor.update(self.market_data)
         decay_stats = decay_monitor.cleanup()
         self._log(f"  健康: {decay_stats['healthy']}, 衰退: {decay_stats['decayed']}, 失效: {decay_stats['removed']}")
@@ -470,7 +482,7 @@ class AlphaMiner:
         
         # 3. 参数搜索
         self._log("\n[优化3] 参数搜索...")
-        from param_search import param_searcher
+        from .param_search import param_searcher
         optimized = param_searcher.optimize_all(self.market_data, min_ic=0.05)
         self._log(f"  优化了 {len(optimized)} 个因子")
         

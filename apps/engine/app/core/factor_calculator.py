@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 
 from .config import FactorCriteria
-from factor_dsl import OPERATORS
+from .factor_dsl import OPERATORS
 from .factor_parser import ParsedFactor, parser
 
 # 类型别名
@@ -95,6 +95,9 @@ class FactorCalculator:
             # 8. 极端值处理
             factor_values = self._winsorize(factor_values)
             
+            # 9. 市值与行业中性化
+            factor_values = self._neutralize(factor_values, market_data)
+            
             return factor_values, None
             
         except Exception as e:
@@ -157,14 +160,84 @@ class FactorCalculator:
     
     def _winsorize(self, df: pd.DataFrame, n_std: float = 5.0) -> pd.DataFrame:
         """
-        极端值处理（缩尾）
-        将超过 n_std 个标准差的值截断
+        截面去极值（缩尾）
+        每天在所有股票的截面上计算均值和标准差，将超过 n_std 个标准差的值截断
         """
-        mean = df.mean()
-        std = df.std()
+        mean = df.mean(axis=1)
+        std = df.std(axis=1)
         lower = mean - n_std * std
         upper = mean + n_std * std
-        return df.clip(lower=lower, upper=upper, axis=1)
+        # clip(axis=0) 表示用按行（日期）对应的标量去截断该行的所有列（股票）
+        return df.clip(lower=lower, upper=upper, axis=0)
+
+    def _neutralize(self, factor_values: pd.DataFrame, market_data: MarketData) -> pd.DataFrame:
+        """
+        市值与行业双重中性化
+        使用OLS进行截面正交化回归
+        """
+        # 确保存在所需的数据
+        if 'amount' not in market_data or 'turn' not in market_data:
+            return factor_values
+        
+        # 近似流通市值 = 成交额 / 换手率
+        # 注意：turn 通常是百分比（如 2.5 表示 2.5%），所以除以 100
+        # 加 1e-8 防止除以 0
+        turn_rate = market_data['turn'] / 100.0 + 1e-8
+        size_df = np.log(market_data['amount'] / turn_rate)
+        industry_df = market_data.get('industry')
+        
+        neutralized_values = pd.DataFrame(np.nan, index=factor_values.index, columns=factor_values.columns)
+        
+        # 逐日进行截面回归
+        for date in factor_values.index:
+            y_series = factor_values.loc[date].astype(float)
+            size_series = size_df.loc[date].astype(float)
+            
+            # 合并数据以过滤NaN
+            df_cross = pd.DataFrame({
+                'y': y_series,
+                'size': size_series
+            })
+            
+            if industry_df is not None:
+                df_cross['industry'] = industry_df.loc[date]
+                
+            # 去除包含NaN的股票
+            df_cross = df_cross.replace([np.inf, -np.inf], np.nan).dropna()
+            
+            if len(df_cross) < 10: # 数据太少，跳过
+                continue
+            
+            # 构建自变量矩阵 X
+            # 必须使用独立的特征，所以对于类别变量使用 pd.get_dummies 并 drop_first
+            X = pd.DataFrame({'size': df_cross['size']})
+            if 'industry' in df_cross.columns:
+                ind_dummies = pd.get_dummies(df_cross['industry'], drop_first=True)
+                X = pd.concat([X, ind_dummies], axis=1)
+            
+            X = X.astype(float)
+            # 增加常数项
+            X.insert(0, 'const', 1.0)
+            
+            y = df_cross['y'].values
+            
+            try:
+                # OLS 最小二乘法求回归系数 beta
+                # np.linalg.lstsq 返回：系数、残差平方和、秩、奇异值
+                beta, _, _, _ = np.linalg.lstsq(X.values, y, rcond=None)
+                
+                # 计算预测值和残差（纯化后的Alpha）
+                y_pred = X.values.dot(beta)
+                residuals = y - y_pred
+                
+                # 填回
+                neutralized_values.loc[date, df_cross.index] = residuals
+                
+            except Exception as e:
+                # 回归失败时不作处理
+                pass
+                
+        return neutralized_values
     
     def validate_output(self, factor_values: pd.DataFrame) -> Tuple[bool, str]:
         """

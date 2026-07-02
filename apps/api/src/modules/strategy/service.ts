@@ -1,5 +1,6 @@
 import { db, alphaFactors, quantStrategies, userConfigs } from "@stock-quant/database";
 import { eq, desc } from "drizzle-orm";
+import { engineClient } from "../../lib/engine-client";
 
 function getLlmConfig(configs: { key: string; value: string }[]) {
 	const get = (key: string, fallback: string) =>
@@ -30,26 +31,32 @@ export class StrategyService {
 		return factors.slice(0, 3);
 	}
 
-	/**
-	 * Beat 2: Simulate the factor
-	 * (In a full implementation, this calls Engine to do a real backtest)
-	 */
 	static async simulateFactor(userId: string, factorId: string, constraints: any) {
-		// Just a mock response for the beat flow
+		const factor = await db
+			.select()
+			.from(alphaFactors)
+			.where(eq(alphaFactors.id, factorId))
+			.limit(1)
+			.then((res) => res[0]);
+
+		if (!factor) throw new Error("Factor not found");
+
+		const result = await engineClient.simulateFactor(factor.expression, 250);
+
+		if (result.status !== "ok") {
+			throw new Error(result.message || "Simulation failed");
+		}
+
 		return {
 			factorId,
-			annualReturn: 0.25 + Math.random() * 0.1,
-			maxDrawdown: -0.15 + Math.random() * 0.05,
-			sharpeRatio: 1.5 + Math.random(),
-			winRate: 0.55 + Math.random() * 0.1
+			...result.data
 		};
 	}
 
 	/**
-	 * Beat 3: Generate the final Markdown report via LLM and save it
-	 * Uses @elysiajs/stream to stream the response
+	 * Beat 3: Generate structured JSON report via LLM and save it
 	 */
-	static async generateReportStream(userId: string, body: any) {
+	static async generateReportStructured(userId: string, body: any) {
 		const userCfgs = await db
 			.select()
 			.from(userConfigs)
@@ -60,19 +67,33 @@ export class StrategyService {
 			throw new Error("LLM API Key not configured");
 		}
 
-		const prompt = `You are a quantitative finance expert.
-The user has gone through an interactive strategy building session.
-Style: ${body.style}
-Chosen Factor ID: ${body.factorId}
-Simulation Results: ${JSON.stringify(body.simulationResult)}
-Constraints applied: ${JSON.stringify(body.constraints)}
+		const prompt = `你是一个资深的量化金融分析师。
+用户经过交互式策略构建选择了以下因子：
+投资风格：${body.style}
+因子ID：${body.factorId}
+真实回测表现：${JSON.stringify(body.simulationResult)}
+约束条件：${JSON.stringify(body.constraints)}
 
-Write a professional, comprehensive Markdown report detailing this trading strategy.
-Include an introduction, the mathematical/financial intuition behind the style, the backtest results, and risk warnings.`;
+请基于上述回测结果和因子逻辑，生成一份结构化的策略分析报告。
+【强制要求】
+请必须返回合法的 JSON 格式，不要包含任何 Markdown 标记或多余文字，格式如下：
+{
+  "summary": "一句话核心总结（50字以内）",
+  "intuition": "该因子背后的经济学直觉和逻辑深入剖析",
+  "performanceAnalysis": "结合给出的年化收益、最大回撤、夏普等指标，评价该因子的表现优劣",
+  "riskWarning": "该因子在极端市场下可能面临的风险与失效场景",
+  "radarData": [
+    { "name": "收益能力", "value": 85 },
+    { "name": "抗风险", "value": 70 },
+    { "name": "稳定性", "value": 60 },
+    { "name": "胜率", "value": 75 },
+    { "name": "动量捕捉", "value": 80 }
+  ]
+}
+注意：radarData 的 value 请根据回测表现主观打分（0-100）。`;
 
-		// Return an async iterable or a ReadableStream
-		// Elysia's Stream takes an async iterable
-		const resp = await fetch(config.baseUrl, {
+		const endpoint = config.baseUrl.replace(/\/$/, '') + '/chat/completions';
+		const resp = await fetch(endpoint, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -82,7 +103,7 @@ Include an introduction, the mathematical/financial intuition behind the style, 
 				model: config.modelName,
 				messages: [{ role: "user", content: prompt }],
 				temperature: 0.7,
-				stream: true,
+				response_format: { type: "json_object" }
 			}),
 		});
 
@@ -90,53 +111,26 @@ Include an introduction, the mathematical/financial intuition behind the style, 
 			throw new Error(`LLM Error: HTTP ${resp.status}`);
 		}
 
-		// Read the SSE chunks and yield text
-		// In Elysia, we can just return a Stream and yield chunks
-		return {
-			async *[Symbol.asyncIterator]() {
-				const reader = resp.body?.getReader();
-				const decoder = new TextDecoder("utf-8");
-				let fullReport = "";
+		const llmResult = await resp.json();
+		const reportContent = llmResult.choices[0]?.message?.content || "{}";
+		let structuredReport;
+		try {
+			structuredReport = JSON.parse(reportContent);
+		} catch (e) {
+			structuredReport = { summary: "解析大模型返回结果失败", error: reportContent };
+		}
 
-				if (!reader) return;
+		// Save the strategy to the database
+		await db.insert(quantStrategies).values({
+			userId,
+			name: `${body.style} Strategy based on Factor ${body.factorId.slice(0, 6)}`,
+			style: body.style,
+			factors: [body.factorId],
+			constraints: body.constraints,
+			reportMarkdown: reportContent,
+			performance: body.simulationResult
+		}).catch(console.error);
 
-				try {
-					while (true) {
-						const { done, value } = await reader.read();
-						if (done) break;
-
-						const chunk = decoder.decode(value, { stream: true });
-						const lines = chunk.split("\n");
-						for (const line of lines) {
-							if (line.startsWith("data: ") && line !== "data: [DONE]") {
-								try {
-									const data = JSON.parse(line.slice(6));
-									const text = data.choices[0]?.delta?.content || "";
-									if (text) {
-										fullReport += text;
-										yield text;
-									}
-								} catch (e) {
-									// ignore parse error for incomplete chunks
-								}
-							}
-						}
-					}
-				} finally {
-					reader.releaseLock();
-					
-					// Save the strategy to the database
-					await db.insert(quantStrategies).values({
-						userId,
-						name: `${body.style} Strategy based on Factor ${body.factorId.slice(0, 6)}`,
-						style: body.style,
-						factors: [body.factorId],
-						constraints: body.constraints,
-						reportMarkdown: fullReport,
-						performance: body.simulationResult
-					}).catch(console.error);
-				}
-			}
-		};
+		return structuredReport;
 	}
 }

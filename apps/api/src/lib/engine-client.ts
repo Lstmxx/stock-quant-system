@@ -5,7 +5,7 @@
  * - 错误处理策略：Fail-soft，记录日志但不抛出（避免影响 API 主流程）
  */
 
-const ENGINE_BASE_URL = process.env.ENGINE_URL ?? "http://localhost:8000";
+const ENGINE_BASE_URL = process.env.ENGINE_URL ?? `http://localhost:${process.env.PORT_ENGINE || "8000"}`;
 const TIMEOUT_MS = 5000;
 
 async function engineFetch(
@@ -75,6 +75,20 @@ export const engineClient = {
 	async getHealth(): Promise<{ status: string; version?: string } | null> {
 		const res = await engineFetch("/health");
 		if (!res || !res.ok) return null;
+		return res.json();
+	},
+
+	/**
+	 * 请求 Engine 模拟执行因子
+	 */
+	async simulateFactor(expression: string, days = 250): Promise<any> {
+		const res = await engineFetch("/internal/simulate-factor", {
+			method: "POST",
+			body: JSON.stringify({ expression, days }),
+		});
+		if (!res || !res.ok) {
+			throw new Error("Factor simulation failed");
+		}
 		return res.json();
 	},
 } as const;

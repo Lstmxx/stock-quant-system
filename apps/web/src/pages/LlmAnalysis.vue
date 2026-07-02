@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import type { TableColumn } from '@nuxt/ui'
 import { api } from '../utils/api'
+import { useSSELogStream } from '../composables/useSSE'
 
 // ─── Types ───
 
@@ -39,8 +40,7 @@ const symbol = ref('')
 
 const activeReport = ref<AnalysisReport | null>(null)
 const activeTaskId = ref('')
-const streamLogs = ref<string[]>([])
-let eventSource: EventSource | null = null
+const { streamLogs, connect: connectLogs, disconnect: disconnectLogs } = useSSELogStream()
 
 // ─── Table ───
 
@@ -52,7 +52,9 @@ const columns: TableColumn<AnalysisTask>[] = [
   { id: 'actions', header: '' },
 ]
 
-const statusColor: Record<string, string> = {
+type BadgeColor = 'neutral' | 'primary' | 'success' | 'error' | 'warning' | 'info'
+
+const statusColor: Record<string, BadgeColor> = {
   PENDING: 'warning',
   PENDING_DATA: 'warning',
   RUNNING: 'info',
@@ -66,7 +68,7 @@ const scoreColor = (score: number) => {
   return 'text-red-400'
 }
 
-const recommendationBadge: Record<string, string> = {
+const recommendationBadge: Record<string, BadgeColor> = {
   BUY: 'success',
   HOLD: 'warning',
   SELL: 'error',
@@ -135,30 +137,12 @@ function viewReport(task: AnalysisTask) {
 function viewLogs(taskId: string) {
   activeReport.value = null
   activeTaskId.value = taskId
-  streamLogs.value = []
-
-  if (eventSource) eventSource.close()
-
-  eventSource = new EventSource(`http://localhost:3000/analysis/${taskId}/stream`)
-  eventSource.onmessage = (event) => {
-    try {
-      const parsed = JSON.parse(event.data)
-      if (parsed.type !== 'ping' && parsed.type !== 'connected') {
-        streamLogs.value.push(parsed.message ?? JSON.stringify(parsed))
-      }
-    } catch {
-      streamLogs.value.push(event.data)
-    }
-  }
-  eventSource.onerror = () => eventSource?.close()
+  connectLogs(`/analysis/${taskId}/stream`)
 }
 
 function closeLogs() {
   activeTaskId.value = ''
-  if (eventSource) {
-    eventSource.close()
-    eventSource = null
-  }
+  disconnectLogs()
 }
 
 function closeReport() {
@@ -183,7 +167,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   clearInterval(interval)
-  if (eventSource) eventSource.close()
 })
 </script>
 
@@ -262,7 +245,7 @@ onUnmounted(() => {
                   {{ activeReport.overallScore }}
                 </div>
                 <UBadge
-                  :color="(recommendationBadge[activeReport.recommendation] || 'neutral') as any"
+                  :color="recommendationBadge[activeReport.recommendation] || 'neutral'"
                   :label="activeReport.recommendation"
                   size="lg"
                   class="px-3 py-1 text-sm"
@@ -385,7 +368,7 @@ onUnmounted(() => {
                     class="animate-spin size-4 text-info"
                   />
                   <UBadge
-                    :color="(statusColor[row.original.status] || 'neutral') as any"
+                    :color="statusColor[row.original.status] || 'neutral'"
                     :label="row.original.status"
                     variant="subtle"
                   />
@@ -418,7 +401,7 @@ onUnmounted(() => {
                     v-if="row.original.status === 'FAILED' && row.original.result && 'error' in row.original.result"
                     color="error"
                     variant="subtle"
-                    :label="(row.original.result as any).error?.slice(0, 40)"
+                    :label="row.original.result && typeof row.original.result === 'object' && 'error' in row.original.result ? String(row.original.result.error).slice(0, 40) : 'Error'"
                   />
                 </div>
               </template>

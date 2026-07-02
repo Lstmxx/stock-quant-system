@@ -14,7 +14,7 @@
 """
 from typing import Dict, List, Optional
 
-from factor_dsl import get_operator_docs
+from .factor_dsl import get_operator_docs
 
 
 # ============================================================
@@ -165,6 +165,49 @@ FEEDBACK_PROMPT = """请分析以下因子挖掘结果，并给出下一步建�
 
 
 # ============================================================
+# 因子演化提示词 (LLM Evolution)
+# ============================================================
+
+EVOLUTION_SYSTEM = """你是一个量化因子设计专家，擅长通过对表现优秀的“精英因子”进行逻辑变异和交叉，从而演化出更强大的新因子。
+
+可用的变量（DataFrame格式，行=日期，列=股票代码）：
+- open: 开盘价
+- high: 最高价
+- low: 最低价
+- close: 收盘价
+- volume: 成交量
+- amount: 成交额
+- turn: 换手率
+- pctChg: 涨跌幅
+
+{operator_docs}
+
+演化规则：
+1. **理解语义**：请分析提供的“精英因子”在表达什么经济学含义（例如是动量、反转还是量价背离）。
+2. **逻辑变异**：基于该含义进行合理的变体（例如将收盘价改为均价，或改变时间窗口）。
+3. **逻辑交叉**：如果提供了多个因子，可以尝试将其背后的逻辑合并（例如用均线算子包裹动量算子）。
+4. **必须使用DSL**：新生成的因子必须严格使用上述列出的算子，禁止使用pandas语法。
+5. **深度限制**：嵌套深度不超过3层。"""
+
+
+EVOLUTION_PROMPT = """以下是在上一轮挖掘中表现优秀的“精英因子”：
+
+{elite_section}
+
+请基于上述因子的内在逻辑，演化（变异或交叉）生成 {n_children} 个新的衍生因子。
+【重要】新因子必须与原来的精英因子有所不同，不要直接原样复制！
+
+请用JSON数组格式回答，每个新因子包含：
+[
+    {{
+        "name": "新衍生因子名称（简洁）",
+        "expression": "因子表达式（只用DSL算子）",
+        "description": "这是从哪个精英因子演化来的，以及演化的思路（30字以内）",
+        "direction": "positive/negative"
+    }}
+]"""
+
+# ============================================================
 # 代码调试提示词
 # ============================================================
 
@@ -193,6 +236,8 @@ DEBUG_PROMPT = """请修复以下因子表达式的错误。
 {error_message}
 
 {context}
+
+{history_section}
 
 请提供修复后的表达式，格式如下：
 ```python
@@ -299,20 +344,43 @@ def build_feedback_prompt(
 def build_debug_prompt(
     expression: str,
     error_message: str,
-    context: str = ""
+    context: str = "",
+    history: Optional[List[Dict[str, str]]] = None
 ) -> str:
     """构建代码调试提示词"""
     
     context_section = ""
     if context:
         context_section = f"上下文信息：\n{context}\n"
+        
+    history_section = ""
+    if history:
+        history_section = "【注意】你之前已经尝试过以下修复，但都失败了。请仔细分析原因，务必提出一个与以下历史记录中截然不同的新表达式：\n"
+        for i, h in enumerate(history, 1):
+            history_section += f"{i}. 尝试的表达式: `{h['expression']}`\n   导致的错误: {h['error']}\n"
     
     return DEBUG_PROMPT.format(
         expression=expression,
         error_message=error_message,
-        context=context_section
+        context=context_section,
+        history_section=history_section
     )
 
+
+def build_evolution_prompt(
+    elite_expressions: List[str],
+    n_children: int = 5
+) -> str:
+    """构建因子演化提示词"""
+    
+    elite_section = ""
+    for i, expr in enumerate(elite_expressions, 1):
+        elite_section += f"{i}. {expr}\n"
+        
+    return EVOLUTION_PROMPT.format(
+        elite_section=elite_section,
+        n_children=n_children
+    )
 
 def get_system_prompt(prompt_type: str, **kwargs) -> str:
     """获取系统提示词"""
@@ -323,6 +391,9 @@ def get_system_prompt(prompt_type: str, **kwargs) -> str:
         ),
         "feedback": FEEDBACK_SYSTEM,
         "debug": DEBUG_SYSTEM,
+        "evolution": EVOLUTION_SYSTEM.format(
+            operator_docs=get_operator_docs()
+        ),
     }
     return prompts.get(prompt_type, "")
 
