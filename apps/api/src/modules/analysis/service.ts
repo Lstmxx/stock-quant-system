@@ -83,7 +83,7 @@ async function callLlm(
 
 // ─── Market Data Helpers ───
 
-async function getMarketDataFromRedis(symbol: string, days: number): Promise<object | null> {
+async function getMarketDataFromRedis(_symbol: string, days: number): Promise<object | null> {
 	const today = new Date().toISOString().slice(0, 10);
 	const key = `market_data:${today}_${days}`;
 	const raw = await redis.get(key);

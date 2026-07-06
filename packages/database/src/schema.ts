@@ -60,3 +60,16 @@ export const quantStrategies = pgTable("quant_strategies", {
 	createdAt: timestamp("createdAt").defaultNow().notNull(),
 	updatedAt: timestamp("updatedAt").defaultNow().notNull()
 });
+
+export const llmModels = pgTable("llm_models", {
+	id: uuid("id").defaultRandom().primaryKey(),
+	userId: text("userId").notNull().references(() => user.id),
+	provider: text("provider").notNull(), // 'openai', 'anthropic', 'ollama', etc.
+	modelName: text("modelName").notNull(), // 'gpt-4o', etc.
+	name: text("name").notNull(), // User-friendly name
+	baseUrl: text("baseUrl"), // Optional custom base URL
+	apiKey: text("apiKey"), // Encrypted API key
+	isDefault: boolean("isDefault").default(false),
+	createdAt: timestamp("createdAt").defaultNow().notNull(),
+	updatedAt: timestamp("updatedAt").defaultNow().notNull()
+});

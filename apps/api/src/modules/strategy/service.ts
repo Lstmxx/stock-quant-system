@@ -17,7 +17,7 @@ export class StrategyService {
 	/**
 	 * Beat 1: Recommend factors based on investment style
 	 */
-	static async recommendFactors(userId: string, style: string) {
+	static async recommendFactors(userId: string, _style: string) {
 		// Mock logic: Fetch valid factors, sort by IC, maybe filter by some heuristic
 		// In a real scenario, LLM might pick the best factors or filter by formula text
 		const factors = await db
@@ -31,7 +31,7 @@ export class StrategyService {
 		return factors.slice(0, 3);
 	}
 
-	static async simulateFactor(userId: string, factorId: string, constraints: any) {
+	static async simulateFactor(_userId: string, factorId: string, _constraints: any) {
 		const factor = await db
 			.select()
 			.from(alphaFactors)

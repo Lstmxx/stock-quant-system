@@ -18,7 +18,7 @@ export abstract class WatchlistService {
 	}
 
 	static async remove(userId: string, id: string) {
-		const result = await db
+		await db
 			.delete(watchlists)
 			.where(and(eq(watchlists.id, id), eq(watchlists.userId, userId)));
 		return { success: true };

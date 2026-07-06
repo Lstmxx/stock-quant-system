@@ -13,6 +13,7 @@ import { taskModule } from "./modules/task";
 import { factorModule } from "./modules/factor";
 import { analysisModule } from "./modules/analysis";
 import { strategyModule } from "./modules/strategy";
+import { llmModule } from "./modules/llm";
 
 const app = new Elysia()
 	.use(
@@ -31,6 +32,7 @@ const app = new Elysia()
 			.use(factorModule)
 			.use(analysisModule)
 			.use(strategyModule)
+			.use(llmModule)
 	)
 	.get("/", () => "Stock Quant System API Gateway is running")
 	.listen(process.env.PORT_API || 3000);

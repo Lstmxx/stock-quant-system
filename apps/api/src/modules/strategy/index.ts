@@ -1,5 +1,5 @@
 import { Elysia } from "elysia";
-import { Stream } from "@elysiajs/stream";
+
 import { strategyModel } from "./model";
 import { StrategyService } from "./service";
 import { betterAuthPlugin } from "../../plugins/auth";
