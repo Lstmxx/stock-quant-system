@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Layout, Menu, Button, Typography, Avatar, Flex, Dropdown } from 'antd';
+import { Layout, Menu, Typography, Avatar, Dropdown } from 'antd';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { 
   DashboardOutlined, 
   LogoutOutlined, 
   StockOutlined,
-  RobotOutlined
+  RobotOutlined,
+  DatabaseOutlined
 } from '@ant-design/icons';
 import { authClient } from '../../api/auth-client';
 import { useAuthStore } from '../../features/auth/store';
@@ -35,6 +36,11 @@ const AppLayout: React.FC = () => {
       key: '/llm',
       icon: <RobotOutlined />,
       label: '大模型管理',
+    },
+    {
+      key: '/data',
+      icon: <DatabaseOutlined />,
+      label: '股票数据管理',
     }
   ];
 

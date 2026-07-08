@@ -7,6 +7,7 @@ const Dashboard = React.lazy(() => import('../features/dashboard/Dashboard'));
 const AuthLayout = React.lazy(() => import('../features/auth/AuthLayout'));
 const AppLayout = React.lazy(() => import('../components/layout/AppLayout'));
 const LlmManagement = React.lazy(() => import('../features/llm/LlmManagement'));
+const DataManagement = React.lazy(() => import('../features/data/DataManagement'));
 
 export const router = createBrowserRouter([
   {
@@ -42,6 +43,10 @@ export const router = createBrowserRouter([
       {
         path: 'llm',
         element: <Suspense fallback={<div>Loading...</div>}><LlmManagement /></Suspense>,
+      },
+      {
+        path: 'data',
+        element: <Suspense fallback={<div>Loading...</div>}><DataManagement /></Suspense>,
       },
     ],
   },

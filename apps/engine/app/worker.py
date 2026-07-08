@@ -4,6 +4,7 @@ Redis task queue worker.
 import asyncio
 import json
 import logging
+from datetime import datetime
 
 import redis.asyncio as aioredis
 from sqlalchemy import create_engine, text
@@ -11,6 +12,7 @@ from sqlalchemy import create_engine, text
 from .config import settings
 
 from .core.alpha_miner import AlphaMiner
+from .core.data_loader import preload_market_data
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -53,36 +55,109 @@ async def process_task(task_data: dict) -> None:
 
     user_id = task_data.get("userId", "system")
 
-    logger.info(f"Processing task {task_id} for direction {target_symbol}")
+    task_type = task_data.get("type", "FACTOR_MINING")
+    days = task_data.get("params", {}).get("days", 250)
+    force_update = task_data.get("params", {}).get("force", False)
+
+    logger.info(f"Processing task {task_id} of type {task_type}")
+    
+    r_client = aioredis.from_url(settings.redis_url)
+    
+    # Do not set to RUNNING if already cancelled in queue
+    is_cancelled_early = await r_client.get(f"task_cancelled:{task_id}")
+    if is_cancelled_early:
+        logger.warning(f"Task {task_id} cancelled before starting.")
+        await r_client.aclose()
+        return
+
     await update_task_status(task_id, "RUNNING")
 
     try:
-        # Run the CPU-bound mining logic in a thread pool
-        def _run_miner():
-            miner = AlphaMiner(task_id=task_id, user_id=user_id) # pass task_id for redis logging
-            miner.load_data(lookback_days=days)
-            valid_factors, total = miner.mine(
-                direction=target_symbol,
-                max_rounds=3,
-                factors_per_round=3,
-                use_evolution=True
-            )
-            # return summary
-            return {
-                "status": "completed",
-                "factors_discovered": len(valid_factors),
-                "total_generated": total
-            }
+        if task_type == "DATA_COLLECTION":
+            def _run_collection():
+                from .core.data_loader import DataLoader
+                print(f"[Worker] Starting _run_collection for task {task_id} (force={force_update})", flush=True)
+                
+                target_stocks = params.get("stocks")  # None means full collection
+                
+                if target_stocks:
+                    # Retry mode: only fetch the specified stocks
+                    print(f"[Worker] Retry mode: fetching {len(target_stocks)} specified stocks", flush=True)
+                    loader = DataLoader()
+                    from datetime import datetime, timedelta
+                    end_date = datetime.now().strftime("%Y-%m-%d")
+                    start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+                    loader.load_kline_data(
+                        stocks=target_stocks,
+                        start_date=start_date,
+                        end_date=end_date,
+                        task_id=task_id,
+                        force_update=True,
+                    )
+                    stocks_count = len(target_stocks)
+                else:
+                    data = preload_market_data(lookback_days=days, task_id=task_id, force_update=force_update)
+                    stocks_count = len(data.get('close', {}).columns) if data and 'close' in data else 0
+                
+                print(f"[Worker] Finished _run_collection for task {task_id}", flush=True)
+                retry_of = params.get("retryOf")
+                result = {
+                    "总计股票数": stocks_count,
+                    "追溯交易日": days,
+                    "完成时间": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                }
+                if retry_of:
+                    result["重试来源任务"] = retry_of
+                return result
             
-        result = await asyncio.to_thread(_run_miner)
-
-        # Mark as COMPLETED with result
-        await update_task_status(task_id, "COMPLETED", result)
-        logger.info(f"Task {task_id} completed successfully")
+            result = await asyncio.to_thread(_run_collection)
+            
+            is_cancelled = await r_client.get(f"task_cancelled:{task_id}")
+            if is_cancelled:
+                await update_task_status(task_id, "CANCELLED", {"message": "用户手动终止了任务", "部分结果": result})
+                logger.info(f"Data Collection Task {task_id} cancelled by user")
+            else:
+                await update_task_status(task_id, "COMPLETED", result)
+                logger.info(f"Data Collection Task {task_id} completed successfully")
+        
+        else:
+            # Run the CPU-bound mining logic in a thread pool
+            def _run_miner():
+                miner = AlphaMiner(task_id=task_id, user_id=user_id) # pass task_id for redis logging
+                miner.load_data(lookback_days=days)
+                valid_factors, total = miner.mine(
+                    direction=target_symbol,
+                    max_rounds=3,
+                    factors_per_round=3,
+                    use_evolution=True
+                )
+                # return summary
+                return {
+                    "有效因子数": len(valid_factors),
+                    "总生成策略": total,
+                    "目标挖掘方向": target_symbol,
+                    "完成时间": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+                
+            result = await asyncio.to_thread(_run_miner)
+            
+            is_cancelled = await r_client.get(f"task_cancelled:{task_id}")
+            if is_cancelled:
+                await update_task_status(task_id, "CANCELLED", {"message": "用户手动终止了任务", "部分结果": result})
+            else:
+                await update_task_status(task_id, "COMPLETED", result)
+                logger.info(f"Task {task_id} completed successfully")
 
     except Exception as e:
-        logger.error(f"Task {task_id} failed: {e}")
-        await update_task_status(task_id, "FAILED", {"error": str(e)})
+        if "Cancelled" in str(e) or "cancelled" in str(e).lower():
+            logger.warning(f"Task {task_id} was cancelled.")
+            await update_task_status(task_id, "CANCELLED", {"message": "Task was manually cancelled"})
+        else:
+            logger.error(f"Task {task_id} failed: {e}")
+            await update_task_status(task_id, "FAILED", {"error": str(e)})
+            
+    finally:
+        await r_client.aclose()
 
 async def start_worker() -> None:
     """Main worker loop: poll Redis queue and process tasks."""

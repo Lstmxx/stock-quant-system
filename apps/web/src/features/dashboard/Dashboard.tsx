@@ -20,28 +20,7 @@ const statusColor: Record<string, string> = {
   FAILED: 'error'
 };
 
-export const useSSELogStream = () => {
-  const [streamLogs, setStreamLogs] = useState<string[]>([]);
-  const [es, setEs] = useState<EventSource | null>(null);
-
-  const connect = (url: string) => {
-    setStreamLogs([]);
-    const eventSource = new EventSource(import.meta.env.VITE_API_URL + url);
-    eventSource.onmessage = (e) => {
-      setStreamLogs(prev => [...prev, e.data]);
-    };
-    setEs(eventSource);
-  };
-
-  const disconnect = () => {
-    if (es) {
-      es.close();
-      setEs(null);
-    }
-  };
-
-  return { streamLogs, connect, disconnect };
-};
+import { useSSELogStream } from '../../hooks/useSSE';
 
 const Dashboard: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);

@@ -1,0 +1,1066 @@
+diff --git a/apps/api/src/modules/task/index.ts b/apps/api/src/modules/task/index.ts
+index 7f67bc3..8f72fe3 100644
+--- a/apps/api/src/modules/task/index.ts
++++ b/apps/api/src/modules/task/index.ts
+@@ -1,4 +1,4 @@
+-import { Elysia } from "elysia";
++import { Elysia, t } from "elysia";
+ import { Stream } from "@elysiajs/stream";
+ import { betterAuthPlugin } from "../../plugins/auth";
+ import { TaskService, getRedis } from "./service";
+@@ -13,6 +13,16 @@ export const taskModule = new Elysia({ prefix: "/tasks", name: "task" })
+ 		auth: true,
+ 		body: CreateTaskBody,
+ 	})
++	.get("/data-collection/config", ({ user }) => TaskService.getDataCollectionConfig(user.id), {
++		auth: true,
++	})
++	.put("/data-collection/config", ({ user, body }) => TaskService.setDataCollectionConfig(user.id, body.lookbackDays), {
++		auth: true,
++		body: t.Object({ lookbackDays: t.Number() })
++	})
++	.post("/data-collection/run", ({ user }) => TaskService.runDataCollectionTask(user.id), {
++		auth: true,
++	})
+ 	.get("/:id/status", async ({ user, params, status }) => {
+ 		const task = await TaskService.getTaskStatus(user.id, params.id);
+ 		if (!task) return status(404);
+@@ -20,7 +30,14 @@ export const taskModule = new Elysia({ prefix: "/tasks", name: "task" })
+ 	}, {
+ 		auth: true,
+ 	})
+-	.get("/:id/stream", async ({ user, params, status }) => {
++	.post("/:id/cancel", async ({ user, params, status }) => {
++		const res = await TaskService.cancelTask(user.id, params.id);
++		if (!res.success) return status(404);
++		return res;
++	}, {
++		auth: true,
++	})
++	.get("/:id/stream", async ({ user, params, status, request }) => {
+ 		// Verify user owns task
+ 		const task = await TaskService.getTaskStatus(user.id, params.id);
+ 		if (!task) return status(404);
+@@ -29,7 +46,6 @@ export const taskModule = new Elysia({ prefix: "/tasks", name: "task" })
+ 			const redis = getRedis();
+ 			const channel = `task_log:${params.id}`;
+ 			
+-			// Start listening
+ 			await redis.subscribe(channel);
+ 			
+ 			stream.send(JSON.stringify({ type: "connected", message: `Subscribed to task ${params.id}` }));
+@@ -40,20 +56,18 @@ export const taskModule = new Elysia({ prefix: "/tasks", name: "task" })
+ 				}
+ 			});
+ 
+-			// If client disconnects, stream is closed but we need to quit redis connection.
+-			// Elysia stream doesn't easily expose onClose inside the handler, but we can catch errors or wait for GC?
+-			// Actually Elysia Stream exposes .close event? Let's just keep the connection open for now and timeout, 
+-			// or better we check for stream.send throwing error.
+-			
+-			// We can poll every 5 seconds to send a ping to check if still connected
+-			const interval = setInterval(() => {
+-				try {
+-					stream.send(JSON.stringify({ type: "ping" }));
+-				} catch (e) {
+-					clearInterval(interval);
+-					redis.quit();
+-				}
+-			}, 5000);
++			stream.event = "ping";
++			const pingInterval = setInterval(() => {
++				stream.send(JSON.stringify({ type: "ping" }));
++			}, 15000);
++
++			const cleanup = () => {
++				clearInterval(pingInterval);
++				redis.unsubscribe(channel);
++				redis.quit();
++			};
++
++			request.signal.addEventListener('abort', cleanup);
+ 		});
+ 	}, {
+ 		auth: true,
+diff --git a/apps/api/src/modules/task/service.ts b/apps/api/src/modules/task/service.ts
+index d3cd29b..663c5d2 100644
+--- a/apps/api/src/modules/task/service.ts
++++ b/apps/api/src/modules/task/service.ts
+@@ -1,4 +1,4 @@
+-import { db, alphaTasks } from "@stock-quant/database";
++import { db, alphaTasks, userConfigs } from "@stock-quant/database";
+ import { eq, and } from "drizzle-orm";
+ import Redis from "ioredis";
+ 
+@@ -47,6 +47,91 @@ export abstract class TaskService {
+ 		return { success: true, taskId: task.id };
+ 	}
+ 
++	static async getDataCollectionConfig(userId: string) {
++		const [config] = await db
++			.select()
++			.from(userConfigs)
++			.where(and(eq(userConfigs.userId, userId), eq(userConfigs.key, "DATA_COLLECTION_CONFIG")));
++		
++		if (config) {
++			return JSON.parse(config.value);
++		}
++		return { lookbackDays: 250 };
++	}
++
++	static async setDataCollectionConfig(userId: string, lookbackDays: number) {
++		const configValue = JSON.stringify({ lookbackDays });
++		const [config] = await db
++			.select()
++			.from(userConfigs)
++			.where(and(eq(userConfigs.userId, userId), eq(userConfigs.key, "DATA_COLLECTION_CONFIG")));
++
++		if (config) {
++			await db
++				.update(userConfigs)
++				.set({ value: configValue, updatedAt: new Date() })
++				.where(eq(userConfigs.id, config.id));
++		} else {
++			await db.insert(userConfigs).values({
++				userId,
++				key: "DATA_COLLECTION_CONFIG",
++				value: configValue,
++			});
++		}
++		return { success: true };
++	}
++
++	static async runDataCollectionTask(userId: string) {
++		// Find currently running tasks
++		const runningTasks = await db
++			.select()
++			.from(alphaTasks)
++			.where(
++				and(
++					eq(alphaTasks.type, "DATA_COLLECTION"),
++					// Or status IN ('PENDING', 'RUNNING') - assuming eq is fine, let's use OR or just filter in memory for simplicity if OR is not imported
++				)
++			);
++		
++		const activeTasks = runningTasks.filter(t => t.status === 'PENDING' || t.status === 'RUNNING');
++		
++		const redis = getRedis();
++		
++		// Cancel active tasks
++		for (const task of activeTasks) {
++			await redis.setex(`task_cancelled:${task.id}`, 3600, "1");
++			await db
++				.update(alphaTasks)
++				.set({ status: "CANCELLED", updatedAt: new Date() })
++				.where(eq(alphaTasks.id, task.id));
++		}
++
++		const config = await this.getDataCollectionConfig(userId);
++
++		const [newTask] = await db
++			.insert(alphaTasks)
++			.values({
++				userId,
++				type: "DATA_COLLECTION",
++				status: "PENDING",
++				params: { days: config.lookbackDays, force: true },
++			})
++			.returning();
++
++		await redis.lpush(
++			QUEUE_NAME,
++			JSON.stringify({
++				taskId: newTask.id,
++				userId,
++				type: "DATA_COLLECTION",
++				params: { days: config.lookbackDays, force: true },
++			})
++		);
++		await redis.quit();
++
++		return { success: true, taskId: newTask.id };
++	}
++
+ 	static async getTaskStatus(userId: string, taskId: string) {
+ 		const [task] = await db
+ 			.select()
+@@ -55,4 +140,23 @@ export abstract class TaskService {
+ 		if (!task) return null;
+ 		return task;
+ 	}
++
++	static async cancelTask(userId: string, taskId: string) {
++		const [task] = await db
++			.select()
++			.from(alphaTasks)
++			.where(and(eq(alphaTasks.id, taskId), eq(alphaTasks.userId, userId)));
++		if (!task) return { success: false, error: "Task not found" };
++
++		if (task.status === "PENDING" || task.status === "RUNNING") {
++			const redis = getRedis();
++			await redis.setex(`task_cancelled:${task.id}`, 3600, "1");
++			await db
++				.update(alphaTasks)
++				.set({ status: "CANCELLED", updatedAt: new Date() })
++				.where(eq(alphaTasks.id, task.id));
++			await redis.quit();
++		}
++		return { success: true };
++	}
+ }
+diff --git a/apps/api/tsconfig.tsbuildinfo b/apps/api/tsconfig.tsbuildinfo
+index b5a1974..67ac75c 100644
+--- a/apps/api/tsconfig.tsbuildinfo
++++ b/apps/api/tsconfig.tsbuildinfo
+@@ -1 +1 @@
+-{"root":["./src/index.ts","./src/lib/engine-client.test.ts","./src/lib/engine-client.ts","./src/modules/analysis/index.ts","./src/modules/analysis/model.ts","./src/modules/analysis/service.test.ts","./src/modules/analysis/service.ts","./src/modules/config/index.ts","./src/modules/config/model.ts","./src/modules/config/service.ts","./src/modules/factor/index.ts","./src/modules/factor/model.ts","./src/modules/factor/service.ts","./src/modules/strategy/index.ts","./src/modules/strategy/model.ts","./src/modules/strategy/service.ts","./src/modules/task/index.ts","./src/modules/task/model.ts","./src/modules/task/service.ts","./src/modules/watchlist/index.ts","./src/modules/watchlist/model.ts","./src/modules/watchlist/service.ts","./src/plugins/auth.ts"],"version":"5.9.3"}
+\ No newline at end of file
++{"root":["./src/index.ts","./src/lib/crypto.ts","./src/lib/engine-client.test.ts","./src/lib/engine-client.ts","./src/modules/analysis/index.ts","./src/modules/analysis/model.ts","./src/modules/analysis/service.test.ts","./src/modules/analysis/service.ts","./src/modules/config/index.ts","./src/modules/config/model.ts","./src/modules/config/service.ts","./src/modules/factor/index.ts","./src/modules/factor/model.ts","./src/modules/factor/service.ts","./src/modules/llm/index.ts","./src/modules/llm/model.ts","./src/modules/llm/service.ts","./src/modules/strategy/index.ts","./src/modules/strategy/model.ts","./src/modules/strategy/service.ts","./src/modules/task/index.ts","./src/modules/task/model.ts","./src/modules/task/service.test.ts","./src/modules/task/service.ts","./src/modules/watchlist/index.ts","./src/modules/watchlist/model.ts","./src/modules/watchlist/service.ts","./src/plugins/auth.ts"],"version":"5.9.3"}
+\ No newline at end of file
+diff --git a/apps/engine/app/core/data_loader.py b/apps/engine/app/core/data_loader.py
+index ed797db..c885c61 100644
+--- a/apps/engine/app/core/data_loader.py
++++ b/apps/engine/app/core/data_loader.py
+@@ -14,21 +14,76 @@ from datetime import datetime, timedelta
+ from typing import Dict, Optional
+ 
+ def _fetch_stock_chunk(args):
+-    codes, start_date, end_date, fields, redis_url = args
++    worker_id, codes, start_date, end_date, fields, redis_url, task_id = args
+     import baostock as bs
+     import redis
+     import json
+     
+     r = redis.Redis.from_url(redis_url)
+-    bs.login()
+-    all_data = []
+     
++    class BaostockTimeout(BaseException):
++        pass
++
+     def handler(signum, frame):
+-        raise TimeoutError("Baostock API timeout")
++        raise BaostockTimeout("Baostock API timeout")
+         
+     signal.signal(signal.SIGALRM, handler)
++
++    import random
++    import time
++    
++    # Stagger logins to avoid overloading Baostock server
++    time.sleep(random.uniform(0.5, 3.0))
++    
++    login_success = False
++    for _ in range(3):
++        try:
++            signal.alarm(10)
++            res = bs.login()
++            signal.alarm(0)
++            if res.error_code == '0':
++                login_success = True
++                break
++        except BaostockTimeout:
++            pass
++        except Exception:
++            signal.alarm(0)
++        time.sleep(1)
++        
++    if not login_success:
++        print(f"[Worker {worker_id}] bs.login error after 3 retries", flush=True)
++        if task_id:
++            for code in codes:
++                r.publish(f"task_log:{task_id}", json.dumps({
++                    "type": "progress", "worker_id": worker_id, "total": len(codes),
++                    "success": 0, "failed": len(codes), "code": code, "status": "failed", "reason": "login_failed"
++                }))
++        return []
++        
++    all_data = []
++    
++    total = len(codes)
++    success_count = 0
++    failed_count = 0
+     
+     for i, code in enumerate(codes):
++        if task_id:
++            # Check for cancellation
++            cancelled = r.get(f"task_cancelled:{task_id}")
++            if cancelled:
++                print(f"[Worker] Task {task_id} cancelled, stopping chunk fetch.", flush=True)
++                break
++                
++            r.publish(f"task_log:{task_id}", json.dumps({
++                "type": "progress",
++                "worker_id": worker_id,
++                "total": total,
++                "success": success_count,
++                "failed": failed_count,
++                "code": code,
++                "status": "running"
++            }))
++                
+         if i % 20 == 0:
+             print(f"[Worker] 正在拉取 {code} ({i}/{len(codes)})...", flush=True)
+             
+@@ -43,25 +98,49 @@ def _fetch_stock_chunk(args):
+                     start_date=start_date, end_date=end_date,
+                     frequency="d", adjustflag="2"
+                 )
++                if rs.error_code != '0':
++                    print(f"[Worker] {code} error {rs.error_code}: {rs.error_msg}", flush=True)
++                    raise Exception(rs.error_msg)
++                    
+                 while rs.next():
+                     stock_data.append(rs.get_row_data())
+                 signal.alarm(0)  # 成功则取消超时
+                 success = True
+                 break
+-            except TimeoutError:
++            except BaostockTimeout:
+                 print(f"[Worker] {code} 拉取超时，正在进行第 {retries + 1} 次重试...", flush=True)
+                 retries += 1
+             except Exception as e:
+                 print(f"[Worker] {code} 拉取发生异常: {e}", flush=True)
+                 signal.alarm(0)
+-                break
++                retries += 1
++                time.sleep(1)
+                 
+         if success:
+             key = f"kline:{code}:{start_date}_{end_date}"
+             r.setex(key, 7 * 24 * 3600, json.dumps(stock_data))
+             all_data.extend(stock_data)
++            success_count += 1
++            if task_id:
++                r.publish(f"task_log:{task_id}", json.dumps({
++                    "type": "progress", "worker_id": worker_id, "total": total,
++                    "success": success_count, "failed": failed_count, "code": code, "status": "success"
++                }))
+         elif retries == 3:
+             print(f"[Worker] {code} 连续 3 次拉取超时，已跳过！", flush=True)
++            failed_count += 1
++            if task_id:
++                r.publish(f"task_log:{task_id}", json.dumps({
++                    "type": "progress", "worker_id": worker_id, "total": total,
++                    "success": success_count, "failed": failed_count, "code": code, "status": "failed", "reason": "timeout"
++                }))
++        else:
++            failed_count += 1
++            if task_id:
++                r.publish(f"task_log:{task_id}", json.dumps({
++                    "type": "progress", "worker_id": worker_id, "total": total,
++                    "success": success_count, "failed": failed_count, "code": code, "status": "failed", "reason": "error"
++                }))
+             
+     bs.logout()
+     return all_data
+@@ -158,9 +237,10 @@ class DataLoader:
+         return stocks
+ 
+     def load_kline_data(self, stocks: list, start_date: str, end_date: str,
+-                        fields: str = "date,code,open,high,low,close,volume,amount,turn,pctChg") -> pd.DataFrame:
++                        fields: str = "date,code,open,high,low,close,volume,amount,turn,pctChg",
++                        task_id: Optional[str] = None, force_update: bool = False) -> pd.DataFrame:
+         keys = [f"kline:{code}:{start_date}_{end_date}" for code in stocks]
+-        cached_values = self.r.mget(keys)
++        cached_values = [None] * len(stocks) if force_update else self.r.mget(keys)
+         
+         missing_stocks = []
+         all_data = []
+@@ -175,14 +255,22 @@ class DataLoader:
+ 
+         if missing_stocks:
+             total = len(missing_stocks)
+-            chunk_size = max(1, total // 10)  # max 10 workers
++            chunk_size = max(1, total // 3)  # max 3 workers
+             chunks = [missing_stocks[i:i + chunk_size] for i in range(0, total, chunk_size)]
+             
+-            args_list = [(chunk, start_date, end_date, fields, REDIS_URL) for chunk in chunks]
++            if task_id:
++                for i, chunk in enumerate(chunks):
++                    self.r.publish(f"task_log:{task_id}", json.dumps({
++                        "type": "init",
++                        "worker_id": i + 1,
++                        "total": len(chunk)
++                    }))
++            
++            args_list = [(i + 1, chunk, start_date, end_date, fields, REDIS_URL, task_id) for i, chunk in enumerate(chunks)]
+             
+             from concurrent.futures import ProcessPoolExecutor
+             print(f"[DataLoader] 开始多进程拉取缺失数据，共 {total} 只股票，分 {len(chunks)} 批次")
+-            with ProcessPoolExecutor(max_workers=10) as pool:
++            with ProcessPoolExecutor(max_workers=3) as pool:
+                 for result in pool.map(_fetch_stock_chunk, args_list):
+                     all_data.extend(result)
+ 
+@@ -245,17 +333,21 @@ class DataLoader:
+         return pd.Series(industries)
+ 
+     def load_latest(self, lookback_days: int = LOOKBACK_DAYS,
+-                    end_date: Optional[str] = None) -> Dict[str, pd.DataFrame]:
++                    end_date: Optional[str] = None,
++                    task_id: Optional[str] = None,
++                    force_update: bool = False) -> Dict[str, pd.DataFrame]:
++        self.login()
+         if end_date is None:
+-            end_date = datetime.now().strftime('%Y-%m-%d')
++            end_date = datetime.now().strftime("%Y-%m-%d")
+             
+         date_key = f"{end_date}_{lookback_days}"
+         
+         # 1. 尝试Redis缓存
+-        cached = self._load_cache(date_key)
+-        if cached is not None:
+-            self.logout()
+-            return cached
++        if not force_update:
++            cached = self._load_cache(date_key)
++            if cached is not None:
++                self.logout()
++                return cached
+ 
+         # 2. 从baostock加载
+         start_dt = datetime.strptime(end_date, '%Y-%m-%d') - timedelta(days=lookback_days + 60)
+@@ -266,7 +358,7 @@ class DataLoader:
+         if not stocks:
+             raise ValueError("未获取到股票列表")
+ 
+-        df = self.load_kline_data(stocks, start_date, end_date)
++        df = self.load_kline_data(stocks, start_date, end_date, task_id=task_id, force_update=force_update)
+         data = self.pivot_data(df)
+         
+         # 加载并广播行业数据
+@@ -280,10 +372,10 @@ class DataLoader:
+         self._save_cache(date_key, data)
+         return data
+ 
+-    def preload(self, lookback_days: int = LOOKBACK_DAYS):
++    def preload(self, lookback_days: int = LOOKBACK_DAYS, task_id: Optional[str] = None, force_update: bool = False):
+         """预加载并缓存数据"""
+-        print("[DataLoader] 开始预加载...")
+-        data = self.load_latest(lookback_days)
++        print(f"[DataLoader] 开始预加载... force_update={force_update}")
++        data = self.load_latest(lookback_days, task_id=task_id, force_update=force_update)
+         self.logout()
+         print("[DataLoader] 预加载完成")
+         return data
+@@ -297,6 +389,6 @@ def load_market_data(lookback_days: int = LOOKBACK_DAYS,
+     finally:
+         _loader.logout()
+ 
+-def preload_market_data(lookback_days: int = LOOKBACK_DAYS):
+-    return _loader.preload(lookback_days)
++def preload_market_data(lookback_days: int = LOOKBACK_DAYS, task_id: Optional[str] = None, force_update: bool = False):
++    return _loader.preload(lookback_days, task_id=task_id, force_update=force_update)
+ 
+diff --git a/apps/engine/app/scheduler.py b/apps/engine/app/scheduler.py
+index 1a35d4b..54d250e 100644
+--- a/apps/engine/app/scheduler.py
++++ b/apps/engine/app/scheduler.py
+@@ -8,12 +8,55 @@ logger = logging.getLogger(__name__)
+ 
+ scheduler = AsyncIOScheduler()
+ 
++import json
++import uuid
++import redis.asyncio as aioredis
++from sqlalchemy import create_engine, text
++from .config import settings
++
+ async def fetch_daily_data():
+     logger.info("Executing scheduled task: fetch_daily_data")
+     try:
+-        # Run synchronous baostock calls in thread
+-        await asyncio.to_thread(preload_market_data, 250)
+-        logger.info("Daily data fetch completed successfully")
++        def _create_task():
++            engine = create_engine(settings.database_url)
++            with engine.connect() as conn:
++                # Get config
++                result = conn.execute(
++                    text("SELECT value FROM user_configs WHERE key = 'DATA_COLLECTION_CONFIG' LIMIT 1")
++                ).fetchone()
++                lookback_days = 250
++                if result:
++                    config_val = json.loads(result[0])
++                    lookback_days = config_val.get("lookbackDays", 250)
++                
++                # Insert task
++                task_id = str(uuid.uuid4())
++                user_id = "system" # system task
++                conn.execute(
++                    text("""
++                        INSERT INTO alpha_tasks (id, "userId", type, status, params, "createdAt", "updatedAt")
++                        VALUES (:id, :user_id, 'DATA_COLLECTION', 'PENDING', :params, NOW(), NOW())
++                    """),
++                    {"id": task_id, "user_id": user_id, "params": json.dumps({"days": lookback_days})}
++                )
++                conn.commit()
++                return task_id, user_id, lookback_days
++        
++        task_id, user_id, lookback_days = await asyncio.to_thread(_create_task)
++        
++        # Push to Redis
++        r = aioredis.from_url(settings.redis_url)
++        await r.lpush(
++            settings.queue_name,
++            json.dumps({
++                "taskId": task_id,
++                "userId": user_id,
++                "type": "DATA_COLLECTION",
++                "params": {"days": lookback_days}
++            })
++        )
++        await r.aclose()
++        logger.info(f"Daily data fetch task created successfully: {task_id}")
+     except Exception as e:
+         logger.error(f"Failed to fetch daily data: {e}")
+ 
+diff --git a/apps/engine/app/worker.py b/apps/engine/app/worker.py
+index 0b6ea9f..b754862 100644
+--- a/apps/engine/app/worker.py
++++ b/apps/engine/app/worker.py
+@@ -4,6 +4,7 @@ Redis task queue worker.
+ import asyncio
+ import json
+ import logging
++from datetime import datetime
+ 
+ import redis.asyncio as aioredis
+ from sqlalchemy import create_engine, text
+@@ -11,6 +12,7 @@ from sqlalchemy import create_engine, text
+ from .config import settings
+ 
+ from .core.alpha_miner import AlphaMiner
++from .core.data_loader import preload_market_data
+ 
+ logging.basicConfig(level=logging.INFO)
+ logger = logging.getLogger(__name__)
+@@ -53,36 +55,85 @@ async def process_task(task_data: dict) -> None:
+ 
+     user_id = task_data.get("userId", "system")
+ 
+-    logger.info(f"Processing task {task_id} for direction {target_symbol}")
++    task_type = task_data.get("type", "FACTOR_MINING")
++    days = task_data.get("params", {}).get("days", 250)
++    force_update = task_data.get("params", {}).get("force", False)
++
++    logger.info(f"Processing task {task_id} of type {task_type}")
++    
++    r_client = aioredis.from_url(settings.redis_url)
++    
++    # Do not set to RUNNING if already cancelled in queue
++    is_cancelled_early = await r_client.get(f"task_cancelled:{task_id}")
++    if is_cancelled_early:
++        logger.warning(f"Task {task_id} cancelled before starting.")
++        await r_client.aclose()
++        return
++
+     await update_task_status(task_id, "RUNNING")
+ 
+     try:
+-        # Run the CPU-bound mining logic in a thread pool
+-        def _run_miner():
+-            miner = AlphaMiner(task_id=task_id, user_id=user_id) # pass task_id for redis logging
+-            miner.load_data(lookback_days=days)
+-            valid_factors, total = miner.mine(
+-                direction=target_symbol,
+-                max_rounds=3,
+-                factors_per_round=3,
+-                use_evolution=True
+-            )
+-            # return summary
+-            return {
+-                "status": "completed",
+-                "factors_discovered": len(valid_factors),
+-                "total_generated": total
+-            }
++        if task_type == "DATA_COLLECTION":
++            def _run_collection():
++                print(f"[Worker] Starting _run_collection for task {task_id} (force={force_update})", flush=True)
++                data = preload_market_data(lookback_days=days, task_id=task_id, force_update=force_update)
++                print(f"[Worker] Finished _run_collection for task {task_id}", flush=True)
++                
++                stocks_count = len(data.get('close', {}).columns) if data and 'close' in data else 0
++                return {
++                    "总计股票数": stocks_count,
++                    "追溯交易日": days,
++                    "完成时间": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
++                }
+             
+-        result = await asyncio.to_thread(_run_miner)
+-
+-        # Mark as COMPLETED with result
+-        await update_task_status(task_id, "COMPLETED", result)
+-        logger.info(f"Task {task_id} completed successfully")
++            result = await asyncio.to_thread(_run_collection)
++            
++            is_cancelled = await r_client.get(f"task_cancelled:{task_id}")
++            if is_cancelled:
++                await update_task_status(task_id, "CANCELLED", {"message": "用户手动终止了任务", "部分结果": result})
++                logger.info(f"Data Collection Task {task_id} cancelled by user")
++            else:
++                await update_task_status(task_id, "COMPLETED", result)
++                logger.info(f"Data Collection Task {task_id} completed successfully")
++        
++        else:
++            # Run the CPU-bound mining logic in a thread pool
++            def _run_miner():
++                miner = AlphaMiner(task_id=task_id, user_id=user_id) # pass task_id for redis logging
++                miner.load_data(lookback_days=days)
++                valid_factors, total = miner.mine(
++                    direction=target_symbol,
++                    max_rounds=3,
++                    factors_per_round=3,
++                    use_evolution=True
++                )
++                # return summary
++                return {
++                    "有效因子数": len(valid_factors),
++                    "总生成策略": total,
++                    "目标挖掘方向": target_symbol,
++                    "完成时间": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
++                }
++                
++            result = await asyncio.to_thread(_run_miner)
++            
++            is_cancelled = await r_client.get(f"task_cancelled:{task_id}")
++            if is_cancelled:
++                await update_task_status(task_id, "CANCELLED", {"message": "用户手动终止了任务", "部分结果": result})
++            else:
++                await update_task_status(task_id, "COMPLETED", result)
++                logger.info(f"Task {task_id} completed successfully")
+ 
+     except Exception as e:
+-        logger.error(f"Task {task_id} failed: {e}")
+-        await update_task_status(task_id, "FAILED", {"error": str(e)})
++        if "Cancelled" in str(e) or "cancelled" in str(e).lower():
++            logger.warning(f"Task {task_id} was cancelled.")
++            await update_task_status(task_id, "CANCELLED", {"message": "Task was manually cancelled"})
++        else:
++            logger.error(f"Task {task_id} failed: {e}")
++            await update_task_status(task_id, "FAILED", {"error": str(e)})
++            
++    finally:
++        await r_client.aclose()
+ 
+ async def start_worker() -> None:
+     """Main worker loop: poll Redis queue and process tasks."""
+diff --git a/apps/web/package.json b/apps/web/package.json
+index 3193bc4..4439435 100644
+--- a/apps/web/package.json
++++ b/apps/web/package.json
+@@ -13,6 +13,7 @@
+     "@elysiajs/eden": "^1.4.9",
+     "antd": "^6.5.0",
+     "better-auth": "^1.6.23",
++    "dayjs": "^1.11.21",
+     "elysia": "^1.4.29",
+     "lucide-react": "^1.23.0",
+     "marked": "^18.0.5",
+diff --git a/apps/web/src/app/router.tsx b/apps/web/src/app/router.tsx
+index c2332fa..e794347 100644
+--- a/apps/web/src/app/router.tsx
++++ b/apps/web/src/app/router.tsx
+@@ -7,6 +7,7 @@ const Dashboard = React.lazy(() => import('../features/dashboard/Dashboard'));
+ const AuthLayout = React.lazy(() => import('../features/auth/AuthLayout'));
+ const AppLayout = React.lazy(() => import('../components/layout/AppLayout'));
+ const LlmManagement = React.lazy(() => import('../features/llm/LlmManagement'));
++const DataManagement = React.lazy(() => import('../features/data/DataManagement'));
+ 
+ export const router = createBrowserRouter([
+   {
+@@ -43,6 +44,10 @@ export const router = createBrowserRouter([
+         path: 'llm',
+         element: <Suspense fallback={<div>Loading...</div>}><LlmManagement /></Suspense>,
+       },
++      {
++        path: 'data',
++        element: <Suspense fallback={<div>Loading...</div>}><DataManagement /></Suspense>,
++      },
+     ],
+   },
+   {
+diff --git a/apps/web/src/components/layout/AppLayout.tsx b/apps/web/src/components/layout/AppLayout.tsx
+index a64a595..06438a1 100644
+--- a/apps/web/src/components/layout/AppLayout.tsx
++++ b/apps/web/src/components/layout/AppLayout.tsx
+@@ -1,11 +1,12 @@
+ import React, { useState } from 'react';
+-import { Layout, Menu, Button, Typography, Avatar, Flex, Dropdown } from 'antd';
++import { Layout, Menu, Typography, Avatar, Dropdown } from 'antd';
+ import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+ import { 
+   DashboardOutlined, 
+   LogoutOutlined, 
+   StockOutlined,
+-  RobotOutlined
++  RobotOutlined,
++  DatabaseOutlined
+ } from '@ant-design/icons';
+ import { authClient } from '../../api/auth-client';
+ import { useAuthStore } from '../../features/auth/store';
+@@ -35,6 +36,11 @@ const AppLayout: React.FC = () => {
+       key: '/llm',
+       icon: <RobotOutlined />,
+       label: '大模型管理',
++    },
++    {
++      key: '/data',
++      icon: <DatabaseOutlined />,
++      label: '股票数据管理',
+     }
+   ];
+ 
+diff --git a/apps/web/src/composables/useSSE.ts b/apps/web/src/composables/useSSE.ts
+deleted file mode 100644
+index 9675e2f..0000000
+--- a/apps/web/src/composables/useSSE.ts
++++ /dev/null
+@@ -1,49 +0,0 @@
+-import { ref, onUnmounted } from 'vue'
+-import { API_BASE_URL } from '../constant/config'
+-
+-export function useSSELogStream() {
+-  const streamLogs = ref<string[]>([])
+-  let eventSource: EventSource | null = null
+-
+-  function connect(path: string) {
+-    disconnect()
+-    streamLogs.value = []
+-    
+-    eventSource = new EventSource(`${API_BASE_URL}${path}`)
+-    
+-    eventSource.onmessage = (event) => {
+-      try {
+-        const parsed = JSON.parse(event.data)
+-        // Filter out heartbeat/connection events
+-        if (parsed.type !== 'ping' && parsed.type !== 'connected') {
+-          streamLogs.value.push(parsed.message ?? JSON.stringify(parsed))
+-        }
+-      } catch {
+-        streamLogs.value.push(event.data)
+-      }
+-    }
+-    
+-    eventSource.onerror = (error) => {
+-      console.error('SSE Connection Error:', error)
+-      disconnect()
+-    }
+-  }
+-
+-  function disconnect() {
+-    if (eventSource) {
+-      eventSource.close()
+-      eventSource = null
+-    }
+-  }
+-
+-  // Automatically clean up when the component is unmounted
+-  onUnmounted(() => {
+-    disconnect()
+-  })
+-
+-  return {
+-    streamLogs,
+-    connect,
+-    disconnect
+-  }
+-}
+diff --git a/apps/web/src/features/dashboard/Dashboard.tsx b/apps/web/src/features/dashboard/Dashboard.tsx
+index c33888f..f5a7933 100644
+--- a/apps/web/src/features/dashboard/Dashboard.tsx
++++ b/apps/web/src/features/dashboard/Dashboard.tsx
+@@ -20,28 +20,7 @@ const statusColor: Record<string, string> = {
+   FAILED: 'error'
+ };
+ 
+-export const useSSELogStream = () => {
+-  const [streamLogs, setStreamLogs] = useState<string[]>([]);
+-  const [es, setEs] = useState<EventSource | null>(null);
+-
+-  const connect = (url: string) => {
+-    setStreamLogs([]);
+-    const eventSource = new EventSource(import.meta.env.VITE_API_URL + url);
+-    eventSource.onmessage = (e) => {
+-      setStreamLogs(prev => [...prev, e.data]);
+-    };
+-    setEs(eventSource);
+-  };
+-
+-  const disconnect = () => {
+-    if (es) {
+-      es.close();
+-      setEs(null);
+-    }
+-  };
+-
+-  return { streamLogs, connect, disconnect };
+-};
++import { useSSELogStream } from '../../hooks/useSSE';
+ 
+ const Dashboard: React.FC = () => {
+   const [tasks, setTasks] = useState<Task[]>([]);
+diff --git a/apps/web/src/features/llm/LlmManagement.tsx b/apps/web/src/features/llm/LlmManagement.tsx
+index e333e85..3fae530 100644
+--- a/apps/web/src/features/llm/LlmManagement.tsx
++++ b/apps/web/src/features/llm/LlmManagement.tsx
+@@ -1,164 +1,27 @@
+-import React, { useEffect, useState } from 'react';
+-import { Table, Button, Modal, Form, Input, Switch, Space, message, Popconfirm, Tag } from 'antd';
+-import { PlusOutlined, EditOutlined, DeleteOutlined, StarOutlined, StarFilled } from '@ant-design/icons';
+-
+-interface LlmModel {
+-  id: string;
+-  provider: string;
+-  modelName: string;
+-  name: string;
+-  baseUrl?: string;
+-  apiKey?: string;
+-  isDefault: boolean;
+-}
++import React, { useState } from 'react';
++import { Button } from 'antd';
++import { PlusOutlined } from '@ant-design/icons';
++import { useLlmModels } from './hooks/useLlmModels';
++import { LlmModelTable } from './components/LlmModelTable';
++import { LlmModelFormModal } from './components/LlmModelFormModal';
++import { LlmModel } from './types';
+ 
+ const LlmManagement: React.FC = () => {
+-  const [data, setData] = useState<LlmModel[]>([]);
+-  const [loading, setLoading] = useState(false);
++  const { data, loading, fetchData, handleDelete, handleSetDefault } = useLlmModels();
++  
+   const [isModalVisible, setIsModalVisible] = useState(false);
+-  const [editingId, setEditingId] = useState<string | null>(null);
+-  const [form] = Form.useForm();
+-
+-  const fetchData = async () => {
+-    setLoading(true);
+-    try {
+-      const res = await fetch('http://localhost:3000/api/llm', {
+-        credentials: 'include'
+-      });
+-      if (res.ok) {
+-        const json = await res.json();
+-        setData(json);
+-      } else {
+-        message.error('获取配置失败');
+-      }
+-    } catch (e) {
+-      message.error('网络错误');
+-    } finally {
+-      setLoading(false);
+-    }
+-  };
+-
+-  useEffect(() => {
+-    fetchData();
+-  }, []);
++  const [editingConfig, setEditingConfig] = useState<LlmModel | null>(null);
+ 
+   const handleAdd = () => {
+-    setEditingId(null);
+-    form.resetFields();
++    setEditingConfig(null);
+     setIsModalVisible(true);
+   };
+ 
+   const handleEdit = (record: LlmModel) => {
+-    setEditingId(record.id);
+-    form.setFieldsValue(record);
++    setEditingConfig(record);
+     setIsModalVisible(true);
+   };
+ 
+-  const handleDelete = async (id: string) => {
+-    try {
+-      const res = await fetch(`http://localhost:3000/api/llm/${id}`, {
+-        method: 'DELETE',
+-        credentials: 'include'
+-      });
+-      if (res.ok) {
+-        message.success('删除成功');
+-        fetchData();
+-      } else {
+-        message.error('删除失败');
+-      }
+-    } catch (e) {
+-      message.error('网络错误');
+-    }
+-  };
+-
+-  const handleSetDefault = async (id: string) => {
+-    try {
+-      const res = await fetch(`http://localhost:3000/api/llm/${id}/default`, {
+-        method: 'POST',
+-        credentials: 'include'
+-      });
+-      if (res.ok) {
+-        message.success('设置默认成功');
+-        fetchData();
+-      } else {
+-        message.error('设置默认失败');
+-      }
+-    } catch (e) {
+-      message.error('网络错误');
+-    }
+-  };
+-
+-  const handleModalOk = async () => {
+-    try {
+-      const values = await form.validateFields();
+-      const isEdit = !!editingId;
+-      const url = isEdit ? `http://localhost:3000/api/llm/${editingId}` : 'http://localhost:3000/api/llm';
+-      const method = isEdit ? 'PUT' : 'POST';
+-
+-      const res = await fetch(url, {
+-        method,
+-        credentials: 'include',
+-        headers: {
+-          'Content-Type': 'application/json'
+-        },
+-        body: JSON.stringify(values)
+-      });
+-
+-      if (res.ok) {
+-        message.success(isEdit ? '更新成功' : '创建成功');
+-        setIsModalVisible(false);
+-        fetchData();
+-      } else {
+-        message.error('保存失败');
+-      }
+-    } catch (e) {
+-      console.log('Validate Failed:', e);
+-    }
+-  };
+-
+-  const columns = [
+-    {
+-      title: '配置名称',
+-      dataIndex: 'name',
+-      key: 'name',
+-    },
+-    {
+-      title: '提供商',
+-      dataIndex: 'provider',
+-      key: 'provider',
+-    },
+-    {
+-      title: '模型名称',
+-      dataIndex: 'modelName',
+-      key: 'modelName',
+-    },
+-    {
+-      title: '默认',
+-      key: 'isDefault',
+-      render: (_: any, record: LlmModel) => (
+-        record.isDefault ? <Tag color="green">是</Tag> : <Tag>否</Tag>
+-      ),
+-    },
+-    {
+-      title: '操作',
+-      key: 'action',
+-      render: (_: any, record: LlmModel) => (
+-        <Space size="middle">
+-          <Button 
+-            type="text" 
+-            icon={record.isDefault ? <StarFilled style={{color: '#faad14'}} /> : <StarOutlined />} 
+-            onClick={() => handleSetDefault(record.id)}
+-            title="设为默认"
+-          />
+-          <Button type="text" icon={<EditOutlined />} onClick={() => handleEdit(record)} />
+-          <Popconfirm title="确定删除吗?" onConfirm={() => handleDelete(record.id)}>
+-            <Button type="text" danger icon={<DeleteOutlined />} />
+-          </Popconfirm>
+-        </Space>
+-      ),
+-    },
+-  ];
+-
+   return (
+     <div>
+       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+@@ -167,41 +30,21 @@ const LlmManagement: React.FC = () => {
+           新增配置
+         </Button>
+       </div>
+-      <Table 
+-        columns={columns} 
+-        dataSource={data} 
+-        rowKey="id" 
+-        loading={loading}
++      
++      <LlmModelTable 
++        data={data} 
++        loading={loading} 
++        onEdit={handleEdit} 
++        onDelete={handleDelete} 
++        onSetDefault={handleSetDefault} 
+       />
+ 
+-      <Modal
+-        title={editingId ? '编辑配置' : '新增配置'}
++      <LlmModelFormModal
+         open={isModalVisible}
+-        onOk={handleModalOk}
+         onCancel={() => setIsModalVisible(false)}
+-        destroyOnClose
+-      >
+-        <Form form={form} layout="vertical">
+-          <Form.Item name="name" label="配置名称" rules={[{ required: true }]}>
+-            <Input placeholder="例如：我的GPT-4配置" />
+-          </Form.Item>
+-          <Form.Item name="provider" label="提供商" rules={[{ required: true }]}>
+-            <Input placeholder="例如：openai, anthropic, ollama" />
+-          </Form.Item>
+-          <Form.Item name="modelName" label="模型名称" rules={[{ required: true }]}>
+-            <Input placeholder="例如：gpt-4o, claude-3-5-sonnet" />
+-          </Form.Item>
+-          <Form.Item name="baseUrl" label="API Base URL">
+-            <Input placeholder="自定义请求基础URL（可选）" />
+-          </Form.Item>
+-          <Form.Item name="apiKey" label="API Key">
+-            <Input.Password placeholder="输入 API 密钥 (默认隐藏)" />
+-          </Form.Item>
+-          <Form.Item name="isDefault" label="设为默认模型" valuePropName="checked">
+-            <Switch />
+-          </Form.Item>
+-        </Form>
+-      </Modal>
++        onSuccess={fetchData}
++        initialValues={editingConfig}
++      />
+     </div>
+   );
+ };
+diff --git a/bun.lock b/bun.lock
+index c9bb814..ba33290 100644
+--- a/bun.lock
++++ b/bun.lock
+@@ -39,6 +39,7 @@
+         "@elysiajs/eden": "^1.4.9",
+         "antd": "^6.5.0",
+         "better-auth": "^1.6.23",
++        "dayjs": "^1.11.21",
+         "elysia": "^1.4.29",
+         "lucide-react": "^1.23.0",
+         "marked": "^18.0.5",
+diff --git a/skills-lock.json b/skills-lock.json
+index b95c9d8..cd683ca 100644
+--- a/skills-lock.json
++++ b/skills-lock.json
+@@ -25,6 +25,12 @@
+       "skillPath": "skills/bun-runtime/SKILL.md",
+       "computedHash": "73b3c91579ddd2f2dd7ebcf215774ea0de07823c1fe8de4b88b3225833bfa5cd"
+     },
++    "code-review": {
++      "source": "mattpocock/skills",
++      "sourceType": "github",
++      "skillPath": "skills/engineering/code-review/SKILL.md",
++      "computedHash": "4a17d9d3e0fc87ae48544d371a820fac5a4a78f4c05e7e6b3229094fbf8a7e26"
++    },
+     "create-auth-skill": {
+       "source": "better-auth/skills",
+       "sourceType": "github",

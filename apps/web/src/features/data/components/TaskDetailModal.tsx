@@ -1,0 +1,226 @@
+import React, { useEffect, useState, useCallback } from 'react';
+import { Button, Typography, Tag, Row, Col, Card, Progress, Table, message, Alert } from 'antd';
+import { ReloadOutlined, WarningOutlined } from '@ant-design/icons';
+import { BaseModal } from '../../../components/Base/BaseModal';
+import { Task, FailedStocksResponse } from '../types';
+import { useTaskStream } from '../hooks/useTaskStream';
+import { API_BASE_URL } from '../../../constant/config';
+
+const { Text } = Typography;
+
+interface Props {
+  task: Task | null;
+  activeTaskId: string | null;
+  open: boolean;
+  onCancel: () => void;
+  onRetryCreated?: (newTaskId: string) => void;
+}
+
+export const TaskDetailModal: React.FC<Props> = ({ task, activeTaskId, open, onCancel, onRetryCreated }) => {
+  // Only poll stream if the modal is open and the selected task is active
+  const isActive = task && (task.status === 'RUNNING' || task.status === 'PENDING') && task.id === activeTaskId;
+  const streamTaskId = open && isActive ? activeTaskId : null;
+
+  const { workers } = useTaskStream(streamTaskId);
+
+  // Failed stocks state
+  const [failedStocks, setFailedStocks] = useState<FailedStocksResponse | null>(null);
+  const [failedLoading, setFailedLoading] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+
+  const isFinished = task && ['COMPLETED', 'FAILED', 'CANCELLED'].includes(task.status);
+
+  const fetchFailedStocks = useCallback(async () => {
+    if (!task || !isFinished) return;
+    setFailedLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/tasks/${task.id}/failed-stocks`, {
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const data: FailedStocksResponse = await res.json();
+        setFailedStocks(data);
+      }
+    } catch (e) {
+      console.error('Failed to fetch failed stocks', e);
+    } finally {
+      setFailedLoading(false);
+    }
+  }, [task, isFinished]);
+
+  useEffect(() => {
+    if (open && isFinished) {
+      fetchFailedStocks();
+    } else {
+      setFailedStocks(null);
+    }
+  }, [open, isFinished, fetchFailedStocks]);
+
+  const handleRetryFailed = async () => {
+    if (!task) return;
+    setRetrying(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/tasks/${task.id}/retry-failed`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        message.success(`已创建重试任务，共 ${data.stockCount} 只股票`);
+        onRetryCreated?.(data.taskId);
+        onCancel();
+      } else {
+        message.error(data.error || '创建重试任务失败');
+      }
+    } catch (e) {
+      message.error('网络错误');
+    } finally {
+      setRetrying(false);
+    }
+  };
+
+  const flashingStyle = {
+    animation: 'flash 1s infinite alternate',
+  };
+
+  const failedColumns = [
+    {
+      title: '股票代码',
+      dataIndex: 'code',
+      key: 'code',
+      render: (code: string) => <Tag color="red">{code}</Tag>,
+    },
+  ];
+
+  const failedDataSource = failedStocks?.stocks.map(code => ({ code, key: code })) ?? [];
+
+  return (
+    <>
+      <style>
+        {`
+          @keyframes flash {
+            0% { opacity: 1; }
+            100% { opacity: 0.3; }
+          }
+        `}
+      </style>
+      <BaseModal
+        title={`任务明细 - ${task?.id || ''}`}
+        open={open}
+        onCancel={onCancel}
+        width={800}
+        footer={[
+          <Button key="close" onClick={onCancel}>
+            关闭
+          </Button>
+        ]}
+      >
+        {task ? (
+          <div>
+            {/* Active task: show per-worker progress */}
+            {isActive && (
+              <div style={{ maxHeight: '40vh', overflowY: 'auto', padding: '10px 0', marginBottom: 16 }}>
+                <Row gutter={[16, 16]}>
+                  {Object.values(workers).map((worker) => {
+                    const percent = worker.total > 0 ? Math.round(((worker.success + worker.failed) / worker.total) * 100) : 0;
+                    return (
+                      <Col span={12} key={worker.workerId}>
+                        <Card size="small" title={`批次号: Worker ${worker.workerId}`}>
+                          <div style={{ marginBottom: 8 }}>
+                            <Text type="secondary">进度: </Text>
+                            <Text>{worker.success + worker.failed} / {worker.total}</Text>
+                          </div>
+                          <Progress percent={percent} status={worker.status === 'running' ? 'active' : worker.status === 'completed' ? 'success' : 'normal'} />
+                          <div style={{ marginTop: 8, height: 24 }}>
+                            {worker.status === 'running' && worker.currentCode && (
+                              <Tag color="processing" style={flashingStyle}>
+                                正在拉取: {worker.currentCode}
+                              </Tag>
+                            )}
+                            {worker.status === 'completed' && (
+                              <Tag color="success">完成</Tag>
+                            )}
+                            {worker.status === 'idle' && (
+                              <Tag color="default">等待中</Tag>
+                            )}
+                          </div>
+                        </Card>
+                      </Col>
+                    );
+                  })}
+                  {Object.keys(workers).length === 0 && (
+                    <Col span={24}>
+                      <div style={{ textAlign: 'center', color: '#999', padding: 20 }}>
+                        {task.type === 'DATA_COLLECTION' ? '等待 Engine 分配 Worker...' : '此任务类型暂不支持详细进度展示，后台正在执行中...'}
+                      </div>
+                    </Col>
+                  )}
+                </Row>
+              </div>
+            )}
+
+            {/* Non-active task: show summary */}
+            {!isActive && (
+              <div style={{ padding: '12px 0', color: '#666', marginBottom: 16 }}>
+                <p>该任务当前状态: <Tag>{task.status}</Tag></p>
+                {task.result && (
+                  <div style={{ marginTop: 12 }}>
+                    <Text strong>执行总结: </Text>
+                    <div style={{ background: '#f5f5f5', padding: 12, marginTop: 8, borderRadius: 4 }}>
+                      {Object.entries(task.result).map(([key, value]) => (
+                        <div key={key} style={{ marginBottom: 4 }}>
+                          <Text type="secondary">{key}: </Text>
+                          <Text strong>{String(value)}</Text>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Failed stocks section — only show for finished DATA_COLLECTION tasks */}
+            {isFinished && task.type === 'DATA_COLLECTION' && (
+              <div style={{ marginTop: 8 }}>
+                {failedDataSource.length > 0 ? (
+                  <>
+                    <Alert
+                      message={`发现 ${failedDataSource.length} 只股票因网络/超时原因采集失败`}
+                      type="warning"
+                      icon={<WarningOutlined />}
+                      showIcon
+                      style={{ marginBottom: 12 }}
+                      action={
+                        <Button
+                          size="small"
+                          type="primary"
+                          danger
+                          icon={<ReloadOutlined />}
+                          loading={retrying}
+                          onClick={handleRetryFailed}
+                        >
+                          一键重试
+                        </Button>
+                      }
+                    />
+                    <Table
+                      size="small"
+                      columns={failedColumns}
+                      dataSource={failedDataSource}
+                      pagination={{ pageSize: 10, size: 'small' }}
+                      scroll={{ y: 200 }}
+                    />
+                  </>
+                ) : (
+                  !failedLoading && (
+                    <Alert message="所有股票均已成功采集，无失败记录" type="success" showIcon />
+                  )
+                )}
+              </div>
+            )}
+          </div>
+        ) : null}
+      </BaseModal>
+    </>
+  );
+};

@@ -8,12 +8,55 @@ logger = logging.getLogger(__name__)
 
 scheduler = AsyncIOScheduler()
 
+import json
+import uuid
+import redis.asyncio as aioredis
+from sqlalchemy import create_engine, text
+from .config import settings
+
 async def fetch_daily_data():
     logger.info("Executing scheduled task: fetch_daily_data")
     try:
-        # Run synchronous baostock calls in thread
-        await asyncio.to_thread(preload_market_data, 250)
-        logger.info("Daily data fetch completed successfully")
+        def _create_task():
+            engine = create_engine(settings.database_url)
+            with engine.connect() as conn:
+                # Get config
+                result = conn.execute(
+                    text("SELECT value FROM user_configs WHERE key = 'DATA_COLLECTION_CONFIG' LIMIT 1")
+                ).fetchone()
+                lookback_days = 250
+                if result:
+                    config_val = json.loads(result[0])
+                    lookback_days = config_val.get("lookbackDays", 250)
+                
+                # Insert task
+                task_id = str(uuid.uuid4())
+                user_id = "system" # system task
+                conn.execute(
+                    text("""
+                        INSERT INTO alpha_tasks (id, "userId", type, status, params, "createdAt", "updatedAt")
+                        VALUES (:id, :user_id, 'DATA_COLLECTION', 'PENDING', :params, NOW(), NOW())
+                    """),
+                    {"id": task_id, "user_id": user_id, "params": json.dumps({"days": lookback_days})}
+                )
+                conn.commit()
+                return task_id, user_id, lookback_days
+        
+        task_id, user_id, lookback_days = await asyncio.to_thread(_create_task)
+        
+        # Push to Redis
+        r = aioredis.from_url(settings.redis_url)
+        await r.lpush(
+            settings.queue_name,
+            json.dumps({
+                "taskId": task_id,
+                "userId": user_id,
+                "type": "DATA_COLLECTION",
+                "params": {"days": lookback_days}
+            })
+        )
+        await r.aclose()
+        logger.info(f"Daily data fetch task created successfully: {task_id}")
     except Exception as e:
         logger.error(f"Failed to fetch daily data: {e}")
 

@@ -1,5 +1,4 @@
-import { Elysia } from "elysia";
-import { Stream } from "@elysiajs/stream";
+import { Elysia, t } from "elysia";
 import { betterAuthPlugin } from "../../plugins/auth";
 import { TaskService, getRedis } from "./service";
 import { CreateTaskBody } from "./model";
@@ -13,48 +12,77 @@ export const taskModule = new Elysia({ prefix: "/tasks", name: "task" })
 		auth: true,
 		body: CreateTaskBody,
 	})
-	.get("/:id/status", async ({ user, params, status }) => {
+	.get("/data-collection/config", ({ user }) => TaskService.getDataCollectionConfig(user.id), {
+		auth: true,
+	})
+	.put("/data-collection/config", ({ user, body }) => TaskService.setDataCollectionConfig(user.id, body.lookbackDays), {
+		auth: true,
+		body: t.Object({ lookbackDays: t.Number() })
+	})
+	.post("/data-collection/run", ({ user }) => TaskService.runDataCollectionTask(user.id), {
+		auth: true,
+	})
+	// Returns full code->name mapping from Redis (populated during data collection)
+	.get("/data-collection/stock-names", async ({ user, query }) => {
+		const redis = getRedis();
+		const { codes } = query;
+		let names: Record<string, string>;
+		if (codes) {
+			// Selective lookup: ?codes=sh.600036,sz.000001
+			const codeList = codes.split(",").map((c: string) => c.trim()).filter(Boolean);
+			const values = await redis.hmget("stock_names", ...codeList);
+			names = Object.fromEntries(codeList.map((c: string, i: number) => [c, values[i] ?? ""]));
+		} else {
+			const raw = await redis.hgetall("stock_names");
+			names = raw || {};
+		}
+		await redis.quit();
+		return names;
+	}, {
+		auth: true,
+		query: t.Object({ codes: t.Optional(t.String()) }),
+	})
+	.get("/:id/status", async ({ user, params, set }) => {
 		const task = await TaskService.getTaskStatus(user.id, params.id);
-		if (!task) return status(404);
+		if (!task) { set.status = 404; return "Not Found"; }
 		return task;
 	}, {
 		auth: true,
 	})
-	.get("/:id/stream", async ({ user, params, status }) => {
-		// Verify user owns task
+	.post("/:id/cancel", async ({ user, params, set }) => {
+		const res = await TaskService.cancelTask(user.id, params.id);
+		if (!res.success) { set.status = 404; return res; }
+		return res;
+	}, {
+		auth: true,
+	})
+	// Polling endpoint: returns current per-worker progress snapshot from Redis
+	.get("/:id/progress", async ({ user, params, set }) => {
 		const task = await TaskService.getTaskStatus(user.id, params.id);
-		if (!task) return status(404);
+		if (!task) { set.status = 404; return "Not Found"; }
 
-		return new Stream(async (stream) => {
-			const redis = getRedis();
-			const channel = `task_log:${params.id}`;
-			
-			// Start listening
-			await redis.subscribe(channel);
-			
-			stream.send(JSON.stringify({ type: "connected", message: `Subscribed to task ${params.id}` }));
+		const redis = getRedis();
+		const raw = await redis.hgetall(`task_progress:${params.id}`);
+		await redis.quit();
 
-			redis.on("message", (ch, message) => {
-				if (ch === channel) {
-					stream.send(message);
-				}
-			});
-
-			// If client disconnects, stream is closed but we need to quit redis connection.
-			// Elysia stream doesn't easily expose onClose inside the handler, but we can catch errors or wait for GC?
-			// Actually Elysia Stream exposes .close event? Let's just keep the connection open for now and timeout, 
-			// or better we check for stream.send throwing error.
-			
-			// We can poll every 5 seconds to send a ping to check if still connected
-			const interval = setInterval(() => {
-				try {
-					stream.send(JSON.stringify({ type: "ping" }));
-				} catch (e) {
-					clearInterval(interval);
-					redis.quit();
-				}
-			}, 5000);
-		});
+		const workers = Object.values(raw || {}).map(v => JSON.parse(v));
+		return { taskId: params.id, status: task.status, workers };
+	}, {
+		auth: true,
+	})
+	// Get list of failed stocks for a completed task
+	.get("/:id/failed-stocks", async ({ user, params, set }) => {
+		const result = await TaskService.getFailedStocks(user.id, params.id);
+		if (!result) { set.status = 404; return "Not Found"; }
+		return result;
+	}, {
+		auth: true,
+	})
+	// Retry all failed stocks from a given task
+	.post("/:id/retry-failed", async ({ user, params, set }) => {
+		const result = await TaskService.retryFailedStocks(user.id, params.id);
+		if (!result.success) { set.status = 400; return result; }
+		return result;
 	}, {
 		auth: true,
 	});
