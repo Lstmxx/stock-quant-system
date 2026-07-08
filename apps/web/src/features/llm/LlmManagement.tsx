@@ -24,8 +24,6 @@ const LlmManagement: React.FC = () => {
 
   return (
     <Card
-      bordered={false}
-      title="模型列表"
       extra={
         <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
           新增配置

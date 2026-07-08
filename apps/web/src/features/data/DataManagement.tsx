@@ -22,8 +22,7 @@ const DataManagement: React.FC = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <Card
-        bordered={false}
-        title="历史记录"
+        title=""
         extra={
           <Space>
             <Button icon={<SettingOutlined />} onClick={() => setIsConfigModalVisible(true)}>设置</Button>
