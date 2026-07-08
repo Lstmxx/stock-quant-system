@@ -14,6 +14,12 @@ import { useAuthStore } from '../../features/auth/store';
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
 
+const pageMap: Record<string, { icon: React.ReactNode; title: string }> = {
+  '/dashboard': { icon: <DashboardOutlined />, title: 'Dashboard' },
+  '/llm': { icon: <RobotOutlined />, title: '大模型管理' },
+  '/data': { icon: <DatabaseOutlined />, title: '股票数据管理' },
+};
+
 const AppLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
@@ -44,8 +50,10 @@ const AppLayout: React.FC = () => {
     }
   ];
 
+  const currentPage = pageMap[location.pathname];
+
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ height: '100vh', overflow: 'hidden' }}>
       <Sider 
         collapsible 
         collapsed={collapsed} 
@@ -64,8 +72,18 @@ const AppLayout: React.FC = () => {
           onClick={({ key }) => navigate(key)}
         />
       </Sider>
-      <Layout>
-        <Header style={{ padding: '0 24px', background: '#fff', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', boxShadow: '0 1px 4px rgba(0,21,41,0.08)', zIndex: 1 }}>
+      <Layout style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <Header style={{ padding: '0 24px', background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 1px 4px rgba(0,21,41,0.08)', zIndex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {currentPage && (
+              <>
+                <span style={{ fontSize: 18, color: '#1677ff', display: 'flex', alignItems: 'center' }}>
+                  {currentPage.icon}
+                </span>
+                <Text strong style={{ fontSize: 16 }}>{currentPage.title}</Text>
+              </>
+            )}
+          </div>
           {user && (
             <Dropdown 
               menu={{ 
@@ -88,7 +106,7 @@ const AppLayout: React.FC = () => {
             </Dropdown>
           )}
         </Header>
-        <Content style={{ margin: '16px', padding: 24, background: '#fff', borderRadius: 8 }}>
+        <Content style={{ margin: '24px', flex: 1, minHeight: 0, overflow: 'auto' }}>
           <Outlet />
         </Content>
       </Layout>

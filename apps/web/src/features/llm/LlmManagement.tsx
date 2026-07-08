@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Button } from 'antd';
+import { Button, Card } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { useLlmModels } from './hooks/useLlmModels';
 import { LlmModelTable } from './components/LlmModelTable';
@@ -23,14 +23,15 @@ const LlmManagement: React.FC = () => {
   };
 
   return (
-    <div>
-      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
-        <h2>大模型管理</h2>
+    <Card
+      bordered={false}
+      title="模型列表"
+      extra={
         <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
           新增配置
         </Button>
-      </div>
-      
+      }
+    >
       <LlmModelTable 
         data={data} 
         loading={loading} 
@@ -45,7 +46,7 @@ const LlmManagement: React.FC = () => {
         onSuccess={fetchData}
         initialValues={editingConfig}
       />
-    </div>
+    </Card>
   );
 };
 
