@@ -55,12 +55,24 @@ class AlphaMiner:
         # publish to redis
         try:
             self.redis_client.publish(f"task_log:{self.task_id}", json.dumps({"message": msg}))
+            # persist to list for polling
+            self.redis_client.rpush(f"task_log_list:{self.task_id}", json.dumps({"message": msg}))
+            self.redis_client.expire(f"task_log_list:{self.task_id}", 7200)
         except Exception:
             pass
     
     def load_data(self, lookback_days: int = 250):
         """加载市场数据"""
-        self._log("[AlphaMiner] 加载市场数据...")
+        self._log("[AlphaMiner] 检查市场数据缓存...")
+        
+        end_date = datetime.now().strftime("%Y-%m-%d")
+        cache_key = f"market_data:{end_date}_{lookback_days}"
+        
+        if not self.redis_client.exists(cache_key):
+            error_msg = f"缺少 {end_date} (回溯 {lookback_days} 天) 的市场数据。请先在数据管理模块执行数据采集任务。"
+            self._log(f"[错误] {error_msg}")
+            raise ValueError(error_msg)
+            
         self.market_data = load_market_data(lookback_days=lookback_days)
         
         # 验证数据

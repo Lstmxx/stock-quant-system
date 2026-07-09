@@ -1,4 +1,4 @@
-import { db, alphaTasks, userConfigs } from "@stock-quant/database";
+import { db, alphaTasks, userConfigs, dataCollectionConfigs } from "@stock-quant/database";
 import { eq, and } from "drizzle-orm";
 import Redis from "ioredis";
 
@@ -50,34 +50,28 @@ export abstract class TaskService {
 	static async getDataCollectionConfig(userId: string) {
 		const [config] = await db
 			.select()
-			.from(userConfigs)
-			.where(and(eq(userConfigs.userId, userId), eq(userConfigs.key, "DATA_COLLECTION_CONFIG")));
+			.from(dataCollectionConfigs)
+			.where(eq(dataCollectionConfigs.userId, userId));
 		
 		if (config) {
-			return JSON.parse(config.value);
+			return { lookbackDays: config.lookbackDays, workerCount: config.workerCount };
 		}
-		return { lookbackDays: 250 };
+		return { lookbackDays: 250, workerCount: 4 };
 	}
 
-	static async setDataCollectionConfig(userId: string, lookbackDays: number) {
-		const configValue = JSON.stringify({ lookbackDays });
-		const [config] = await db
-			.select()
-			.from(userConfigs)
-			.where(and(eq(userConfigs.userId, userId), eq(userConfigs.key, "DATA_COLLECTION_CONFIG")));
-
-		if (config) {
-			await db
-				.update(userConfigs)
-				.set({ value: configValue, updatedAt: new Date() })
-				.where(eq(userConfigs.id, config.id));
-		} else {
-			await db.insert(userConfigs).values({
+	static async setDataCollectionConfig(userId: string, lookbackDays: number, workerCount: number) {
+		await db
+			.insert(dataCollectionConfigs)
+			.values({
 				userId,
-				key: "DATA_COLLECTION_CONFIG",
-				value: configValue,
+				lookbackDays,
+				workerCount,
+			})
+			.onConflictDoUpdate({
+				target: dataCollectionConfigs.userId,
+				set: { lookbackDays, workerCount, updatedAt: new Date() },
 			});
-		}
+
 		return { success: true };
 	}
 
@@ -114,7 +108,7 @@ export abstract class TaskService {
 				userId,
 				type: "DATA_COLLECTION",
 				status: "PENDING",
-				params: { days: config.lookbackDays, force: true },
+				params: { days: config.lookbackDays, force: true, workerCount: config.workerCount },
 			})
 			.returning();
 
@@ -124,7 +118,7 @@ export abstract class TaskService {
 				taskId: newTask.id,
 				userId,
 				type: "DATA_COLLECTION",
-				params: { days: config.lookbackDays, force: true },
+				params: { days: config.lookbackDays, force: true, workerCount: config.workerCount },
 			})
 		);
 		await redis.quit();
@@ -185,7 +179,7 @@ export abstract class TaskService {
 				userId,
 				type: "DATA_COLLECTION",
 				status: "PENDING",
-				params: { stocks: failed.stocks, days: config.lookbackDays, force: true, retryOf: taskId },
+				params: { stocks: failed.stocks, days: config.lookbackDays, force: true, retryOf: taskId, workerCount: config.workerCount },
 			})
 			.returning();
 
@@ -195,12 +189,27 @@ export abstract class TaskService {
 				taskId: newTask.id,
 				userId,
 				type: "DATA_COLLECTION",
-				params: { stocks: failed.stocks, days: config.lookbackDays, force: true, retryOf: taskId },
+				params: { stocks: failed.stocks, days: config.lookbackDays, force: true, retryOf: taskId, workerCount: config.workerCount },
 			})
 		);
 		await redis.quit();
 
 		return { success: true, taskId: newTask.id, stockCount: failed.stocks.length };
+	}
+
+	static async getTaskLogs(userId: string, taskId: string, offset: number) {
+		// Verify ownership
+		const task = await this.getTaskStatus(userId, taskId);
+		if (!task) return null;
+
+		const redis = getRedis();
+		const logs = await redis.lrange(`task_log_list:${taskId}`, offset, -1);
+		await redis.quit();
+
+		return {
+			logs,
+			nextOffset: offset + logs.length,
+		};
 	}
 }
 

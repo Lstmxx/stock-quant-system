@@ -122,6 +122,7 @@ describe("TaskService", () => {
 			});
 
 			const updateSpy = spyOn(db, "update");
+			updateSpy.mockClear();
 			const insertSpy = spyOn(db, "insert");
 
 			const result = await TaskService.runDataCollectionTask("user-1");
@@ -139,6 +140,25 @@ describe("TaskService", () => {
 			expect(Redis.prototype.lpush).toHaveBeenCalledWith("stock:tasks:queue", expect.stringContaining('"days":120'));
 
 			expect(result).toEqual({ success: true, taskId: "task-999" });
+		});
+	});
+
+	describe("getTaskLogs", () => {
+		it("should fetch logs from redis list with lrange", async () => {
+			const lrangeSpy = mock().mockResolvedValue([
+				'{"message": "log1"}',
+				'{"message": "log2"}',
+			]);
+			Redis.prototype.lrange = lrangeSpy;
+
+			const result = await TaskService.getTaskLogs("user-1", "task-abc", 0);
+			expect(lrangeSpy).toHaveBeenCalledWith("task_log_list:task-abc", 0, -1);
+			
+			// The next offset is start_offset + length_of_fetched_logs
+			expect(result).toEqual({
+				logs: ['{"message": "log1"}', '{"message": "log2"}'],
+				nextOffset: 2,
+			});
 		});
 	});
 });

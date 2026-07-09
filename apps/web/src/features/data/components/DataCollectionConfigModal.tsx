@@ -17,11 +17,16 @@ export const DataCollectionConfigModal: React.FC<Props> = ({ open, onCancel, onS
     if (open) {
       const fetchConfig = async () => {
         try {
-          const { data } = await api.tasks['data-collection'].config.get();
-          if (data) {
-            form.setFieldsValue(data);
+          const { data, error } = await api.tasks['data-collection'].config.get();
+          if (!error && data) {
+            form.setFieldsValue({ 
+              lookbackDays: data.lookbackDays ?? 250,
+              workerCount: data.workerCount ?? 4 
+            });
           }
-        } catch (e) {}
+        } catch (e) {
+          console.error('Failed to fetch config', e);
+        }
       };
       fetchConfig();
     }
@@ -31,7 +36,10 @@ export const DataCollectionConfigModal: React.FC<Props> = ({ open, onCancel, onS
     try {
       const values = await form.validateFields();
       setLoading(true);
-      const { error } = await api.tasks['data-collection'].config.put({ lookbackDays: values.lookbackDays });
+      const { error } = await api.tasks['data-collection'].config.put({ 
+        lookbackDays: values.lookbackDays,
+        workerCount: values.workerCount
+      });
       if (!error) {
         message.success('保存配置成功');
         onSuccess();
@@ -62,6 +70,14 @@ export const DataCollectionConfigModal: React.FC<Props> = ({ open, onCancel, onS
           tooltip="设置每次拉取的默认K线历史长度"
         >
           <InputNumber min={1} max={5000} style={{ width: '100%' }} />
+        </Form.Item>
+        <Form.Item
+          name="workerCount"
+          label="并发进程数 (默认4)"
+          rules={[{ required: true, message: '请输入并发进程数' }]}
+          tooltip="设置数据采集时启动的并发 Worker 数量，设置过高可能导致网络超时"
+        >
+          <InputNumber min={1} max={16} style={{ width: '100%' }} />
         </Form.Item>
       </Form>
     </BaseModal>

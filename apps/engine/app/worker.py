@@ -58,6 +58,7 @@ async def process_task(task_data: dict) -> None:
     task_type = task_data.get("type", "FACTOR_MINING")
     days = task_data.get("params", {}).get("days", 250)
     force_update = task_data.get("params", {}).get("force", False)
+    worker_count = task_data.get("params", {}).get("workerCount", 4)
 
     logger.info(f"Processing task {task_id} of type {task_type}")
     
@@ -93,10 +94,11 @@ async def process_task(task_data: dict) -> None:
                         end_date=end_date,
                         task_id=task_id,
                         force_update=True,
+                        worker_count=worker_count,
                     )
                     stocks_count = len(target_stocks)
                 else:
-                    data = preload_market_data(lookback_days=days, task_id=task_id, force_update=force_update)
+                    data = preload_market_data(lookback_days=days, task_id=task_id, force_update=force_update, worker_count=worker_count)
                     stocks_count = len(data.get('close', {}).columns) if data and 'close' in data else 0
                 
                 print(f"[Worker] Finished _run_collection for task {task_id}", flush=True)

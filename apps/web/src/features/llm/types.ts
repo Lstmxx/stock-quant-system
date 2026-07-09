@@ -1,9 +1,4 @@
-export interface LlmModel {
-  id: string;
-  provider: string;
-  modelName: string;
-  name: string;
-  baseUrl?: string | null;
-  apiKey?: string | null;
-  isDefault: boolean | null;
-}
+import { api } from '../../api/api';
+
+type LlmResponse = NonNullable<Awaited<ReturnType<typeof api.llm.get>>['data']>;
+export type LlmModel = LlmResponse[number];

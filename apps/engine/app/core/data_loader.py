@@ -286,7 +286,8 @@ class DataLoader:
 
     def load_kline_data(self, stocks: list, start_date: str, end_date: str,
                         fields: str = "date,code,open,high,low,close,volume,amount,turn,pctChg",
-                        task_id: Optional[str] = None, force_update: bool = False) -> pd.DataFrame:
+                        task_id: Optional[str] = None, force_update: bool = False,
+                        worker_count: int = 4) -> pd.DataFrame:
         keys = [f"kline:{code}:{start_date}_{end_date}" for code in stocks]
         cached_values = [None] * len(stocks) if force_update else self.r.mget(keys)
         
@@ -303,7 +304,7 @@ class DataLoader:
 
         if missing_stocks:
             total = len(missing_stocks)
-            chunk_size = max(1, total // 4)  # max 4 workers
+            chunk_size = max(1, total // worker_count)
             chunks = [missing_stocks[i:i + chunk_size] for i in range(0, total, chunk_size)]
             
             if task_id:
@@ -317,8 +318,8 @@ class DataLoader:
             args_list = [(i + 1, chunk, start_date, end_date, fields, REDIS_URL, task_id) for i, chunk in enumerate(chunks)]
             
             from concurrent.futures import ProcessPoolExecutor
-            print(f"[DataLoader] 开始多进程拉取缺失数据，共 {total} 只股票，分 {len(chunks)} 批次")
-            with ProcessPoolExecutor(max_workers=4) as pool:
+            print(f"[DataLoader] 开始多进程拉取缺失数据，共 {total} 只股票，分 {len(chunks)} 批次 (worker_count={worker_count})")
+            with ProcessPoolExecutor(max_workers=worker_count) as pool:
                 for result in pool.map(_fetch_stock_chunk, args_list):
                     all_data.extend(result)
 
@@ -383,7 +384,8 @@ class DataLoader:
     def load_latest(self, lookback_days: int = LOOKBACK_DAYS,
                     end_date: Optional[str] = None,
                     task_id: Optional[str] = None,
-                    force_update: bool = False) -> Dict[str, pd.DataFrame]:
+                    force_update: bool = False,
+                    worker_count: int = 4) -> Dict[str, pd.DataFrame]:
         self.login()
         if end_date is None:
             end_date = datetime.now().strftime("%Y-%m-%d")
@@ -401,12 +403,12 @@ class DataLoader:
         start_dt = datetime.strptime(end_date, '%Y-%m-%d') - timedelta(days=lookback_days + 60)
         start_date = start_dt.strftime('%Y-%m-%d')
 
-        print(f"[DataLoader] 加载数据: {start_date} ~ {end_date}")
+        print(f"[DataLoader] 加载数据: {start_date} ~ {end_date} (worker_count={worker_count})")
         stocks = self.get_main_board_stocks(end_date)
         if not stocks:
             raise ValueError("未获取到股票列表")
 
-        df = self.load_kline_data(stocks, start_date, end_date, task_id=task_id, force_update=force_update)
+        df = self.load_kline_data(stocks, start_date, end_date, task_id=task_id, force_update=force_update, worker_count=worker_count)
         data = self.pivot_data(df)
         
         # 加载并广播行业数据
@@ -425,10 +427,10 @@ class DataLoader:
         self._save_cache(date_key, data)
         return data
 
-    def preload(self, lookback_days: int = LOOKBACK_DAYS, task_id: Optional[str] = None, force_update: bool = False):
+    def preload(self, lookback_days: int = LOOKBACK_DAYS, task_id: Optional[str] = None, force_update: bool = False, worker_count: int = 4):
         """预加载并缓存数据"""
-        print(f"[DataLoader] 开始预加载... force_update={force_update}")
-        data = self.load_latest(lookback_days, task_id=task_id, force_update=force_update)
+        print(f"[DataLoader] 开始预加载... force_update={force_update}, worker_count={worker_count}")
+        data = self.load_latest(lookback_days, task_id=task_id, force_update=force_update, worker_count=worker_count)
         self.logout()
         print("[DataLoader] 预加载完成")
         return data
@@ -436,12 +438,13 @@ class DataLoader:
 _loader = DataLoader()
 
 def load_market_data(lookback_days: int = LOOKBACK_DAYS,
-                     end_date: Optional[str] = None) -> Dict[str, pd.DataFrame]:
+                     end_date: Optional[str] = None,
+                     worker_count: int = 4) -> Dict[str, pd.DataFrame]:
     try:
-        return _loader.load_latest(lookback_days, end_date)
+        return _loader.load_latest(lookback_days, end_date, worker_count=worker_count)
     finally:
         _loader.logout()
 
-def preload_market_data(lookback_days: int = LOOKBACK_DAYS, task_id: Optional[str] = None, force_update: bool = False):
-    return _loader.preload(lookback_days, task_id=task_id, force_update=force_update)
+def preload_market_data(lookback_days: int = LOOKBACK_DAYS, task_id: Optional[str] = None, force_update: bool = False, worker_count: int = 4):
+    return _loader.preload(lookback_days, task_id=task_id, force_update=force_update, worker_count=worker_count)
 

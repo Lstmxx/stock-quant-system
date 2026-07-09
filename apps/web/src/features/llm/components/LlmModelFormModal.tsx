@@ -39,7 +39,8 @@ export const LlmModelFormModal: React.FC<Props> = ({ open, onCancel, onSuccess, 
         onSuccess();
         onCancel();
       } else {
-        message.error((error?.value as any)?.message || '保存失败');
+        const errorMsg = error?.value && typeof error.value === 'object' && 'message' in error.value ? String(error.value.message) : '保存失败';
+        message.error(errorMsg);
       }
     } catch (e) {
       console.log('Validate Failed:', e);

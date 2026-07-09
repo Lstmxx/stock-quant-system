@@ -22,12 +22,13 @@ async def fetch_daily_data():
             with engine.connect() as conn:
                 # Get config
                 result = conn.execute(
-                    text("SELECT value FROM user_configs WHERE key = 'DATA_COLLECTION_CONFIG' LIMIT 1")
+                    text('SELECT "lookbackDays", "workerCount" FROM data_collection_configs LIMIT 1')
                 ).fetchone()
                 lookback_days = 250
+                worker_count = 4
                 if result:
-                    config_val = json.loads(result[0])
-                    lookback_days = config_val.get("lookbackDays", 250)
+                    lookback_days = result[0]
+                    worker_count = result[1]
                 
                 # Insert task
                 task_id = str(uuid.uuid4())
@@ -37,12 +38,12 @@ async def fetch_daily_data():
                         INSERT INTO alpha_tasks (id, "userId", type, status, params, "createdAt", "updatedAt")
                         VALUES (:id, :user_id, 'DATA_COLLECTION', 'PENDING', :params, NOW(), NOW())
                     """),
-                    {"id": task_id, "user_id": user_id, "params": json.dumps({"days": lookback_days})}
+                    {"id": task_id, "user_id": user_id, "params": json.dumps({"days": lookback_days, "workerCount": worker_count})}
                 )
                 conn.commit()
-                return task_id, user_id, lookback_days
+                return task_id, user_id, lookback_days, worker_count
         
-        task_id, user_id, lookback_days = await asyncio.to_thread(_create_task)
+        task_id, user_id, lookback_days, worker_count = await asyncio.to_thread(_create_task)
         
         # Push to Redis
         r = aioredis.from_url(settings.redis_url)
@@ -52,7 +53,7 @@ async def fetch_daily_data():
                 "taskId": task_id,
                 "userId": user_id,
                 "type": "DATA_COLLECTION",
-                "params": {"days": lookback_days}
+                "params": {"days": lookback_days, "workerCount": worker_count}
             })
         )
         await r.aclose()

@@ -12,9 +12,10 @@ export const useLlmModels = () => {
     try {
       const { data: resData, error } = await api.llm.get();
       if (resData) {
-        setData(resData as LlmModel[]);
-      } else if (error) {
-        message.error((error?.value as any)?.message || '获取配置失败');
+        setData(resData);
+      } else {
+        const errorMsg = error?.value && typeof error.value === 'object' && 'message' in error.value ? String(error.value) : '获取配置失败';
+        message.error(errorMsg);
       }
     } catch (e) {
       // The custom fetcher will emit api-error
@@ -31,10 +32,11 @@ export const useLlmModels = () => {
     try {
       const { error } = await api.llm({ id }).delete();
       if (!error) {
-        message.success('删除成功');
+        message.success('已删除');
         fetchData();
       } else {
-        message.error((error?.value as any)?.message || '删除失败');
+        const errorMsg = error?.value && typeof error.value === 'object' && 'message' in error.value ? String(error.value.message) : '删除失败';
+        message.error(errorMsg);
       }
     } catch (e) {}
   };
@@ -43,10 +45,11 @@ export const useLlmModels = () => {
     try {
       const { error } = await api.llm({ id }).default.post();
       if (!error) {
-        message.success('设置默认成功');
+        message.success('已设置为默认模型');
         fetchData();
       } else {
-        message.error((error?.value as any)?.message || '设置默认失败');
+        const errorMsg = error?.value && typeof error.value === 'object' && 'message' in error.value ? String(error.value.message) : '设置默认失败';
+        message.error(errorMsg);
       }
     } catch (e) {}
   };

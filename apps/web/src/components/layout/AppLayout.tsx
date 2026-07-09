@@ -6,7 +6,10 @@ import {
   LogoutOutlined, 
   StockOutlined,
   RobotOutlined,
-  DatabaseOutlined
+  DatabaseOutlined,
+  FunctionOutlined,
+  AppstoreOutlined,
+  UnorderedListOutlined
 } from '@ant-design/icons';
 import { authClient } from '../../api/auth-client';
 import { useAuthStore } from '../../features/auth/store';
@@ -18,6 +21,8 @@ const pageMap: Record<string, { icon: React.ReactNode; title: string }> = {
   '/dashboard': { icon: <DashboardOutlined />, title: 'Dashboard' },
   '/llm': { icon: <RobotOutlined />, title: '大模型管理' },
   '/data': { icon: <DatabaseOutlined />, title: '股票数据管理' },
+  '/factor/tasks': { icon: <AppstoreOutlined />, title: '因子任务' },
+  '/factor/list': { icon: <UnorderedListOutlined />, title: '因子列表' },
 };
 
 const AppLayout: React.FC = () => {
@@ -47,6 +52,23 @@ const AppLayout: React.FC = () => {
       key: '/data',
       icon: <DatabaseOutlined />,
       label: '股票数据管理',
+    },
+    {
+      key: '/factor',
+      icon: <FunctionOutlined />,
+      label: '因子管理',
+      children: [
+        {
+          key: '/factor/tasks',
+          icon: <AppstoreOutlined />,
+          label: '因子任务',
+        },
+        {
+          key: '/factor/list',
+          icon: <UnorderedListOutlined />,
+          label: '因子列表',
+        },
+      ]
     }
   ];
 

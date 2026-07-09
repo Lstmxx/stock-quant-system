@@ -10,7 +10,7 @@ export const factorModule = new Elysia({ prefix: "/factors", name: "factor" })
 		({ user, query }) => {
 			const limit = query.limit ? parseInt(query.limit, 10) : 50;
 			const offset = query.offset ? parseInt(query.offset, 10) : 0;
-			return FactorService.listByUser(user.id, limit, offset);
+			return FactorService.listByUser(user.id, limit, offset, query.keyword);
 		},
 		{
 			auth: true,

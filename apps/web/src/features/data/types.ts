@@ -1,13 +1,7 @@
-export interface Task {
-  id: string;
-  userId: string;
-  type: string;
-  status: string;
-  params: any;
-  result: any;
-  createdAt: string | Date;
-  updatedAt: string | Date;
-}
+import { api } from '../../api/api';
+
+type TaskResponse = NonNullable<Awaited<ReturnType<typeof api.tasks.get>>['data']>;
+export type Task = TaskResponse[number];
 
 export interface WorkerState {
   workerId: number;

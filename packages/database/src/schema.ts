@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, uuid, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, uuid, jsonb, integer } from "drizzle-orm/pg-core";
 import { user } from "./auth-schema";
 
 // --- Business Tables ---
@@ -17,6 +17,15 @@ export const userConfigs = pgTable("user_configs", {
 	userId: text("userId").notNull().references(() => user.id),
 	key: text("key").notNull(), // e.g. "LLM_API_KEY", "LLM_MODEL_NAME"
 	value: text("value").notNull(), // encrypted or plain depending on impl
+	createdAt: timestamp("createdAt").defaultNow().notNull(),
+	updatedAt: timestamp("updatedAt").defaultNow().notNull()
+});
+
+export const dataCollectionConfigs = pgTable("data_collection_configs", {
+	id: uuid("id").defaultRandom().primaryKey(),
+	userId: text("userId").notNull().unique().references(() => user.id),
+	lookbackDays: integer("lookbackDays").default(250).notNull(),
+	workerCount: integer("workerCount").default(4).notNull(),
 	createdAt: timestamp("createdAt").defaultNow().notNull(),
 	updatedAt: timestamp("updatedAt").defaultNow().notNull()
 });

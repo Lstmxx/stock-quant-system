@@ -13,7 +13,7 @@ export const useTasks = () => {
     try {
       const { data, error } = await api.tasks.get();
       if (data) {
-        const dataTasks = (data as Task[])
+        const dataTasks = data
           .filter((t) => t.type === 'DATA_COLLECTION')
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         setTasks(dataTasks);

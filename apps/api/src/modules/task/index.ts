@@ -15,9 +15,9 @@ export const taskModule = new Elysia({ prefix: "/tasks", name: "task" })
 	.get("/data-collection/config", ({ user }) => TaskService.getDataCollectionConfig(user.id), {
 		auth: true,
 	})
-	.put("/data-collection/config", ({ user, body }) => TaskService.setDataCollectionConfig(user.id, body.lookbackDays), {
+	.put("/data-collection/config", ({ user, body }) => TaskService.setDataCollectionConfig(user.id, body.lookbackDays, body.workerCount), {
 		auth: true,
-		body: t.Object({ lookbackDays: t.Number() })
+		body: t.Object({ lookbackDays: t.Number(), workerCount: t.Number() })
 	})
 	.post("/data-collection/run", ({ user }) => TaskService.runDataCollectionTask(user.id), {
 		auth: true,
@@ -85,4 +85,13 @@ export const taskModule = new Elysia({ prefix: "/tasks", name: "task" })
 		return result;
 	}, {
 		auth: true,
+	})
+	// Polling endpoint for logs
+	.get("/:id/logs", async ({ user, params, query, set }) => {
+		const result = await TaskService.getTaskLogs(user.id, params.id, query.offset);
+		if (!result) { set.status = 404; return "Not Found"; }
+		return result;
+	}, {
+		auth: true,
+		query: t.Object({ offset: t.Numeric() }),
 	});

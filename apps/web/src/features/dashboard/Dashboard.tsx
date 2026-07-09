@@ -13,7 +13,7 @@ interface Task {
   updatedAt: string;
 }
 
-const statusColor: Record<string, string> = {
+const statusColor: Record<string, 'success' | 'processing' | 'default' | 'error' | 'warning'> = {
   PENDING: 'warning',
   RUNNING: 'processing',
   COMPLETED: 'success',
@@ -85,7 +85,7 @@ const Dashboard: React.FC = () => {
       dataIndex: 'status',
       key: 'status',
       render: (status: string) => (
-        <Badge status={statusColor[status] as any || 'default'} text={status} />
+        <Badge status={statusColor[status] || 'default'} text={status} />
       ),
     },
     {
