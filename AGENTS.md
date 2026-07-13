@@ -1,13 +1,21 @@
-## Agent skills
+<!-- TRELLIS:START -->
+# Trellis Instructions
 
-### Issue tracker
+These instructions are for AI assistants working in this project.
 
-Issues and PRDs for this repo live as GitHub issues. External PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
+This project is managed by Trellis. The working knowledge you need lives under `.trellis/`:
 
-### Triage labels
+- `.trellis/workflow.md` — development phases, when to create tasks, skill routing
+- `.trellis/spec/` — package- and layer-scoped coding guidelines (read before writing code in a given layer)
+- `.trellis/workspace/` — per-developer journals and session traces
+- `.trellis/tasks/` — active and archived tasks (PRDs, research, jsonl context)
 
-Using default canonical triage labels. See `docs/agents/triage-labels.md`.
+If a Trellis command is available on your platform (e.g. `/trellis:finish-work`, `/trellis:continue`), prefer it over manual steps. Not every platform exposes every command.
 
-### Domain docs
+If you're using Codex or another agent-capable tool, additional project-scoped helpers may live in:
+- `.agents/skills/` — reusable Trellis skills
+- `.codex/agents/` — optional custom subagents
 
-Multi-context layout using `CONTEXT-MAP.md`. See `docs/agents/domain.md`.
+Managed by Trellis. Edits outside this block are preserved; edits inside may be overwritten by a future `trellis update`.
+
+<!-- TRELLIS:END -->

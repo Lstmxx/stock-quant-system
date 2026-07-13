@@ -59,6 +59,7 @@ async def process_task(task_data: dict) -> None:
     days = task_data.get("params", {}).get("days", 250)
     force_update = task_data.get("params", {}).get("force", False)
     worker_count = task_data.get("params", {}).get("workerCount", 4)
+    llm_model_id = task_data.get("params", {}).get("llmModelId")
 
     logger.info(f"Processing task {task_id} of type {task_type}")
     
@@ -125,7 +126,7 @@ async def process_task(task_data: dict) -> None:
         else:
             # Run the CPU-bound mining logic in a thread pool
             def _run_miner():
-                miner = AlphaMiner(task_id=task_id, user_id=user_id) # pass task_id for redis logging
+                miner = AlphaMiner(task_id=task_id, user_id=user_id, llm_model_id=llm_model_id)
                 miner.load_data(lookback_days=days)
                 valid_factors, total = miner.mine(
                     direction=target_symbol,

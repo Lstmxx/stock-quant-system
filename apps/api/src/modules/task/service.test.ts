@@ -28,6 +28,7 @@ mock.module("@stock-quant/database", () => ({
 	},
 	alphaTasks: { id: "alphaTasks.id", userId: "alphaTasks.userId", type: "alphaTasks.type", status: "alphaTasks.status" },
 	userConfigs: { id: "userConfigs.id", userId: "userConfigs.userId", key: "userConfigs.key", value: "userConfigs.value" },
+	llmModels: { id: "llmModels.id", userId: "llmModels.userId" },
 }));
 
 import Redis from "ioredis";
@@ -63,7 +64,7 @@ describe("TaskService", () => {
 			selectMock.from().where.mockResolvedValue([]);
 
 			const config = await TaskService.getDataCollectionConfig("user-1");
-			expect(config).toEqual({ lookbackDays: 250 });
+			expect(config).toEqual({ lookbackDays: 250, workerCount: 4 });
 		});
 
 		it("should return parsed config if found", async () => {
@@ -71,7 +72,7 @@ describe("TaskService", () => {
 			selectMock.from().where.mockResolvedValue([{ value: '{"lookbackDays": 100}' }]);
 
 			const config = await TaskService.getDataCollectionConfig("user-1");
-			expect(config).toEqual({ lookbackDays: 100 });
+			expect(config).toEqual({ lookbackDays: 100, workerCount: 4 });
 		});
 	});
 
@@ -82,7 +83,7 @@ describe("TaskService", () => {
 			
 			const insertSpy = spyOn(db, "insert");
 
-			const result = await TaskService.setDataCollectionConfig("user-1", 150);
+			const result = await TaskService.setDataCollectionConfig("user-1", 150, 2);
 			
 			expect(insertSpy).toHaveBeenCalled();
 			expect(result).toEqual({ success: true });
@@ -95,7 +96,7 @@ describe("TaskService", () => {
 			
 			const updateSpy = spyOn(db, "update");
 
-			const result = await TaskService.setDataCollectionConfig("user-1", 150);
+			const result = await TaskService.setDataCollectionConfig("user-1", 150, 4);
 			
 			expect(updateSpy).toHaveBeenCalled();
 			expect(result).toEqual({ success: true });
@@ -159,6 +160,61 @@ describe("TaskService", () => {
 				logs: ['{"message": "log1"}', '{"message": "log2"}'],
 				nextOffset: 2,
 			});
+		});
+	});
+
+	describe("createMiningTask", () => {
+		it("should return failure when no LLM model is configured", async () => {
+			const selectMock = db.select() as any;
+			// userConfigs returns empty — no FACTOR_TASK_LLM_MODEL key
+			selectMock.from().where.mockResolvedValue([]);
+
+			const result = await TaskService.createMiningTask("user-1", { targetSymbol: "sh.000300" });
+
+			expect(result.success).toBe(false);
+			expect((result as any).error).toContain("未选择");
+		});
+
+		it("should return failure when the configured LLM model has been deleted", async () => {
+			const selectMock = db.select() as any;
+			let callCount = 0;
+			selectMock.from().where.mockImplementation(() => {
+				callCount++;
+				if (callCount === 1) {
+					// First call: userConfigs — FACTOR_TASK_LLM_MODEL exists
+					return Promise.resolve([{ value: "model-uuid-123" }]);
+				}
+				// Second call: llmModels — model has been deleted
+				return Promise.resolve([]);
+			});
+
+			const result = await TaskService.createMiningTask("user-1", { targetSymbol: "sh.000300" });
+
+			expect(result.success).toBe(false);
+			expect((result as any).error).toContain("已不存在");
+		});
+
+		it("should push llmModelId into Redis queue params when model is configured", async () => {
+			const selectMock = db.select() as any;
+			let callCount = 0;
+			selectMock.from().where.mockImplementation(() => {
+				callCount++;
+				if (callCount === 1) {
+					// First call: userConfigs — FACTOR_TASK_LLM_MODEL exists
+					return Promise.resolve([{ value: "model-uuid-123" }]);
+				}
+				// Second call: llmModels — model exists
+				return Promise.resolve([{ id: "model-uuid-123" }]);
+			});
+
+			const result = await TaskService.createMiningTask("user-1", { targetSymbol: "sh.000300" });
+
+			expect(result.success).toBe(true);
+			// llmModelId should be present in the Redis payload
+			expect(Redis.prototype.lpush).toHaveBeenCalledWith(
+				"stock:tasks:queue",
+				expect.stringContaining('"llmModelId":"model-uuid-123"')
+			);
 		});
 	});
 });

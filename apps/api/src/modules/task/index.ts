@@ -8,7 +8,14 @@ export const taskModule = new Elysia({ prefix: "/tasks", name: "task" })
 	.get("/", ({ user }) => TaskService.listByUser(user.id), {
 		auth: true,
 	})
-	.post("/mining", ({ user, body }) => TaskService.createMiningTask(user.id, body), {
+	.post("/mining", async ({ user, body, set }) => {
+		const res = await TaskService.createMiningTask(user.id, body);
+		if (!res.success) {
+			set.status = 400;
+			return res;
+		}
+		return res;
+	}, {
 		auth: true,
 		body: CreateTaskBody,
 	})

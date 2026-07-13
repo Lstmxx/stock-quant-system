@@ -39,7 +39,11 @@ export const useFactorTasks = () => {
         message.success('已触发挖掘任务');
         fetchTasks();
       } else {
-        message.error('触发失败');
+        const errorMsg =
+          error?.value && typeof error.value === 'object' && 'error' in error.value
+            ? String(error.value.error)
+            : '触发失败，请重试';
+        message.error(errorMsg);
       }
     } catch (e) {
       console.error(e);

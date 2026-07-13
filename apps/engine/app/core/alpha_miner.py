@@ -31,7 +31,7 @@ from .factor_calculator import calculate_factor
 from .factor_evaluator import evaluate_factor, FactorMetrics
 from .factor_library import library, FactorRecord
 from .factor_parser import parser
-from .llm_backend import llm
+from .llm_backend import llm, get_llm
 
 from app.config import settings as _app_settings
 
@@ -40,7 +40,7 @@ _REDIS_URL = _app_settings.redis_url
 class AlphaMiner:
     """Alpha因子挖掘主控"""
     
-    def __init__(self, task_id: str = "default_task", user_id: str = "system"):
+    def __init__(self, task_id: str = "default_task", user_id: str = "system", llm_model_id: str | None = None):
         self.market_data = None
         self.history = []  # 历史假设和结果
         self.current_round = 0
@@ -48,6 +48,15 @@ class AlphaMiner:
         self.user_id = user_id
         llm.set_user_config(self.user_id)
         self.redis_client = redis.Redis.from_url(_REDIS_URL)
+
+        # Load per-task LLM config if a model ID was provided
+        self.llm_config: dict | None = None
+        if llm_model_id:
+            try:
+                self.llm_config = get_llm()._load_model_config(llm_model_id)
+                print(f"[AlphaMiner] 已加载任务专属模型配置: {self.llm_config.get('model')}", flush=True)
+            except ValueError as e:
+                print(f"[AlphaMiner] 加载模型配置失败: {e}，回退到默认配置", flush=True)
         
     def _log(self, *args, **kwargs):
         msg = " ".join(str(a) for a in args)
@@ -187,7 +196,8 @@ class AlphaMiner:
             hypothesis = llm.generate_hypothesis(
                 direction=direction,
                 history=self.history,
-                feedback=feedback
+                feedback=feedback,
+                llm_config=self.llm_config,
             )
             
             if hypothesis and hypothesis.get('hypothesis'):
@@ -214,7 +224,8 @@ class AlphaMiner:
             factors = llm.generate_factors(
                 hypothesis=hypothesis.get('hypothesis', ''),
                 existing_expressions=existing,
-                n_factors=n_factors
+                n_factors=n_factors,
+                llm_config=self.llm_config,
             )
             
             expressions = [f['expression'] for f in factors if f.get('expression')]
@@ -238,7 +249,7 @@ class AlphaMiner:
             if len(population) < 2:
                 return []
             
-            children = evolution.evolve(population, n_children=5)
+            children = evolution.evolve(population, n_children=5, llm_config=self.llm_config)
             self._log(f"  进化生成了 {len(children)} 个子代")
             
             return children
@@ -320,7 +331,7 @@ class AlphaMiner:
                 if attempt < max_attempts - 1:
                     debug_history.append({"expression": current_expr, "error": parsed.error})
                     fixed_expr, _ = llm.debug_factor_code(
-                        current_expr, parsed.error, history=debug_history
+                        current_expr, parsed.error, history=debug_history, llm_config=self.llm_config
                     )
                     # 死循环断路器
                     if fixed_expr == current_expr or any(h["expression"] == fixed_expr for h in debug_history):
@@ -342,7 +353,7 @@ class AlphaMiner:
                 if attempt < max_attempts - 1:
                     debug_history.append({"expression": current_expr, "error": error})
                     fixed_expr, _ = llm.debug_factor_code(
-                        current_expr, error, history=debug_history
+                        current_expr, error, history=debug_history, llm_config=self.llm_config
                     )
                     # 死循环断路器
                     if fixed_expr == current_expr or any(h["expression"] == fixed_expr for h in debug_history):
@@ -399,7 +410,8 @@ class AlphaMiner:
                 hypothesis=hypothesis.get('hypothesis', ''),
                 metrics_summary=metrics_summary,
                 best_factors=best_factors,
-                failed_factors=failed_factors
+                failed_factors=failed_factors,
+                llm_config=self.llm_config,
             )
             
             observation = feedback_result.get('observation', '')

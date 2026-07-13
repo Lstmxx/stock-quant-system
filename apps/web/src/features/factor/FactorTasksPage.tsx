@@ -1,16 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button, Card, Space, Drawer, Typography } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { PlusOutlined, SettingOutlined } from '@ant-design/icons';
 import { useFactorTasks } from './hooks/useFactorTasks';
 import { useTaskLogsPolling } from './hooks/useTaskLogsPolling';
 import { FactorTaskTable } from './components/FactorTaskTable';
 import { CreateMiningTaskModal } from './components/CreateMiningTaskModal';
+import { FactorTaskConfigModal } from './components/FactorTaskConfigModal';
 
 const { Text } = Typography;
 
 const FactorTasksPage: React.FC = () => {
   const { tasks, loading, handleCreateTask, handleCancelTask } = useFactorTasks();
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isConfigVisible, setIsConfigVisible] = useState(false);
   
   // Drawer and polling state
   const [activeLogTaskId, setActiveLogTaskId] = useState<string | null>(null);
@@ -38,7 +40,17 @@ const FactorTasksPage: React.FC = () => {
         title=""
         extra={
           <Space>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalVisible(true)}>
+            <Button
+              icon={<SettingOutlined />}
+              onClick={() => setIsConfigVisible(true)}
+            >
+              任务配置
+            </Button>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setIsModalVisible(true)}
+            >
               发起挖掘任务
             </Button>
           </Space>
@@ -56,6 +68,11 @@ const FactorTasksPage: React.FC = () => {
         open={isModalVisible}
         onCancel={() => setIsModalVisible(false)}
         onSubmit={handleSubmit}
+      />
+
+      <FactorTaskConfigModal
+        open={isConfigVisible}
+        onCancel={() => setIsConfigVisible(false)}
       />
 
       <Drawer

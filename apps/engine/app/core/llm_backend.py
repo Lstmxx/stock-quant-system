@@ -18,6 +18,21 @@ import requests
 
 # Config
 from .config import LLMConfig
+from .crypto import decrypt
+
+# Module-level SQLAlchemy engine singleton — created once, reused across calls.
+# SQLAlchemy engines manage a connection pool internally; creating one per call
+# wastes resources and leaks connections.
+_db_engine = None
+
+def _get_db_engine():
+    """Return a lazily-initialised module-level SQLAlchemy engine."""
+    global _db_engine
+    if _db_engine is None:
+        from sqlalchemy import create_engine
+        from app.config import settings
+        _db_engine = create_engine(settings.database_url)
+    return _db_engine
 
 
 class LLMBackend:
@@ -40,10 +55,8 @@ class LLMBackend:
             return
             
         try:
-            from sqlalchemy import create_engine, text
-            from app.config import settings
-            
-            engine = create_engine(settings.database_url)
+            from sqlalchemy import text
+            engine = _get_db_engine()
             with engine.connect() as conn:
                 query = text('SELECT key, value FROM user_configs WHERE "userId" = :uid')
                 result = conn.execute(query, {"uid": user_id}).fetchall()
@@ -60,6 +73,37 @@ class LLMBackend:
                 print(f"[LLMBackend] 已成功加载用户 {user_id} 的专属大模型配置 (Model: {self.model})", flush=True)
         except Exception as e:
             print(f"[LLMBackend] 从数据库加载用户配置失败: {e}，将使用环境变量默认配置", flush=True)
+
+    def _load_model_config(self, llm_model_id: str) -> Dict:
+        """
+        根据 llm_model_id 从数据库 llm_models 表查询完整模型配置。
+        API 层已将模型 ID 注入 Redis 局载荷，本方法负责在 Engine 内部解密。
+
+        Raises:
+            ValueError: 若指定 ID 不存在。
+        Returns:
+            dict with keys: api_key, base_url, model
+        """
+        from sqlalchemy import text
+
+        engine = _get_db_engine()
+        with engine.connect() as conn:
+            row = conn.execute(
+                text('SELECT "apiKey", "baseUrl", "modelName" FROM llm_models WHERE id = :id'),
+                {"id": llm_model_id},
+            ).fetchone()
+
+        if row is None:
+            raise ValueError(f"大模型配置 {llm_model_id!r} 不存在，请重新配置")
+
+        encrypted_api_key, base_url, model_name = row
+        api_key = decrypt(encrypted_api_key or "")
+
+        return {
+            "api_key": api_key,
+            "base_url": base_url or self.base_url,
+            "model": model_name,
+        }
             
     def _check_api_key(self):
         if not self.api_key:
@@ -70,7 +114,8 @@ class LLMBackend:
         messages: List[Dict[str, str]],
         temperature: float = 0.7,
         max_tokens: int = 4000,
-        json_mode: bool = False
+        json_mode: bool = False,
+        llm_config: Optional[Dict] = None,
     ) -> str:
         """
         调用LLM
@@ -80,19 +125,32 @@ class LLMBackend:
             temperature: 温度
             max_tokens: 最大token数
             json_mode: 是否要求JSON输出
+            llm_config: 可选的模型配置字典 (api_key, base_url, model)。
+                        若提供，优先于实例属性，且不修改实例状态。
             
         Returns:
             LLM回复文本
         """
-        self._check_api_key()
-        
+        # Resolve effective credentials — prefer per-call config, fall back to instance
+        if llm_config:
+            effective_api_key = llm_config.get("api_key") or self.api_key
+            effective_base_url = llm_config.get("base_url") or self.base_url
+            effective_model = llm_config.get("model") or self.model
+        else:
+            effective_api_key = self.api_key
+            effective_base_url = self.base_url
+            effective_model = self.model
+
+        if not effective_api_key:
+            raise ValueError("未配置LLM API KEY (数据库与环境变量均未配置)")
+
         headers = {
-            "Authorization": f"Bearer {self.api_key}",
+            "Authorization": f"Bearer {effective_api_key}",
             "Content-Type": "application/json"
         }
         
         payload = {
-            "model": self.model,
+            "model": effective_model,
             "messages": messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
@@ -105,7 +163,7 @@ class LLMBackend:
         for attempt in range(LLMConfig.MAX_RETRIES):
             try:
                 resp = requests.post(
-                    f"{self.base_url}/chat/completions",
+                    f"{effective_base_url}/chat/completions",
                     json=payload,
                     headers=headers,
                     timeout=self.timeout
@@ -134,7 +192,8 @@ class LLMBackend:
         self,
         direction: str,
         history: List[Dict] = None,
-        feedback: str = ""
+        feedback: str = "",
+        llm_config: Optional[Dict] = None,
     ) -> Dict:
         """
         生成研究假设
@@ -148,7 +207,7 @@ class LLMBackend:
             {"role": "user", "content": prompt}
         ]
         
-        response = self.chat(messages, temperature=0.8, max_tokens=2000)
+        response = self.chat(messages, temperature=0.8, max_tokens=2000, llm_config=llm_config)
         
         # 解析JSON
         return self._parse_json_response(response, {
@@ -161,7 +220,8 @@ class LLMBackend:
         self,
         hypothesis: str,
         existing_expressions: List[str] = None,
-        n_factors: int = 3
+        n_factors: int = 3,
+        llm_config: Optional[Dict] = None,
     ) -> List[Dict]:
         """
         根据假设生成因子表达式（带重试）
@@ -179,7 +239,7 @@ class LLMBackend:
         
         # 重试3次（mimo-v2.5-pro偶尔返回空响应）
         for attempt in range(3):
-            response = self.chat(messages, temperature=0.6, max_tokens=3000)
+            response = self.chat(messages, temperature=0.6, max_tokens=3000, llm_config=llm_config)
             if response and len(response.strip()) > 10:
                 factors = self._parse_factor_list(response)
                 if factors:
@@ -191,7 +251,8 @@ class LLMBackend:
     def evolve_factors(
         self,
         elite_expressions: List[str],
-        n_children: int = 5
+        n_children: int = 5,
+        llm_config: Optional[Dict] = None,
     ) -> List[Dict]:
         """
         通过LLM演化（变异/交叉）生成新因子
@@ -206,7 +267,7 @@ class LLMBackend:
         ]
         
         for attempt in range(3):
-            response = self.chat(messages, temperature=0.7, max_tokens=3000)
+            response = self.chat(messages, temperature=0.7, max_tokens=3000, llm_config=llm_config)
             if response and len(response.strip()) > 10:
                 factors = self._parse_factor_list(response)
                 if factors:
@@ -220,7 +281,8 @@ class LLMBackend:
         hypothesis: str,
         metrics_summary: str,
         best_factors: List[Dict],
-        failed_factors: List[Dict]
+        failed_factors: List[Dict],
+        llm_config: Optional[Dict] = None,
     ) -> Dict:
         """
         生成反馈和新假设方向
@@ -236,7 +298,7 @@ class LLMBackend:
             {"role": "user", "content": prompt}
         ]
         
-        response = self.chat(messages, temperature=0.5, max_tokens=2000)
+        response = self.chat(messages, temperature=0.5, max_tokens=2000, llm_config=llm_config)
         
         return self._parse_json_response(response, {
             "observation": "",
@@ -250,7 +312,8 @@ class LLMBackend:
         expression: str,
         error_message: str,
         context: str = "",
-        history: Optional[List[Dict[str, str]]] = None
+        history: Optional[List[Dict[str, str]]] = None,
+        llm_config: Optional[Dict] = None,
     ) -> Tuple[str, str]:
         """
         调试因子代码
@@ -264,7 +327,7 @@ class LLMBackend:
             {"role": "user", "content": prompt}
         ]
         
-        response = self.chat(messages, temperature=0.3, max_tokens=2000)
+        response = self.chat(messages, temperature=0.3, max_tokens=2000, llm_config=llm_config)
         
         # 提取修复后的表达式
         fixed_expr = self._extract_expression(response)

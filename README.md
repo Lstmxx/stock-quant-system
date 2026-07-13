@@ -1,100 +1,174 @@
 # Stock Quant System
 
-A股量化交易系统：数据采集 → 技术指标 → LLM分析 → Alpha因子挖掘
+面向个人与小团队的 A 股量化研究和工程实验平台。系统把行情数据采集、LLM 辅助分析、Alpha 因子挖掘与策略研究整合到一个本地优先的 Web 工作台中。
 
-## 项目结构
+> 本项目用于研究和工程实验，不是生产级实盘交易系统，也不构成投资建议。当前系统不负责券商接入、订单执行或资金与仓位管理。
 
-```
-├── alpha_miner/              # Alpha因子挖掘系统
-│   ├── alpha_miner.py        # 主入口：因子进化引擎
-│   ├── factor_calculator.py  # 因子计算器
-│   ├── factor_evaluator.py   # 因子评估（IC、IR、衰减分析）
-│   ├── factor_evolution.py   # 因子进化（遗传算法）
-│   ├── factor_dsl.py         # 因子DSL解析器
-│   ├── factor_library.py     # 因子库管理
-│   ├── factor_decay.py       # 因子衰减分析
-│   ├── multi_factor_selector.py # 多因子组合选择
-│   ├── data_loader.py        # 数据加载（baostock + HDF5缓存）
-│   ├── llm_backend.py        # LLM后端（因子生成）
-│   ├── direction_manager.py  # 因子方向管理
-│   ├── param_search.py       # 参数搜索优化
-│   ├── prompts.py            # LLM Prompt模板
-│   └── config.py             # 配置
-│
-├── scripts/                  # 股票分析脚本
-│   ├── stock_cron_data.py    # 数据采集 + 技术指标计算（baostock）
-│   ├── stock_llm_analyzer.py # LLM驱动的股票分析器
-│   ├── stock_report.py       # Markdown报告生成
-│   ├── stock_pipeline_v2.sh  # 主Pipeline编排脚本
-│   ├── stock_charts.py       # K线图表生成（mplfinance）
-│   ├── index_analysis.py     # 大盘指数分析
-│   ├── factor_change_tracker.py  # 因子变动追踪
-│   ├── stock_intraday_monitor.py # 盘中异动监控
-│   ├── stock_screener.py     # 多因子选股器
-│   ├── watchlist_analysis.py # 自选股分析
-│   ├── mytt.py               # MyTT技术指标库
-│   ├── alpha_factor_calc.py  # Alpha因子计算工具
-│   ├── fetch_and_build.py    # 数据获取与构建
-│   ├── generate_final_report.py  # 最终报告生成
-│   ├── stock_fast_report.py  # 快速报告生成
-│   ├── cron_alpha_miner.sh   # Alpha因子定时任务
-│   └── cron_intraday_monitor.sh  # 盘中监控定时任务
-│
-├── .env.example              # 环境变量模板
-└── .gitignore
+## 当前能力
+
+- 采集并缓存 A 股行情数据，管理自选股与采集参数
+- 使用 DSL 表达、计算和评估量价因子
+- 通过 LLM 生成研究假设并迭代挖掘因子
+- 发起、取消和跟踪数据采集及因子挖掘任务
+- 对个股或自选股执行 LLM 辅助分析
+- 组合因子、模拟策略并生成研究报告
+- 以用户维度管理 LLM 模型、密钥和研究数据
+
+## 系统架构
+
+```text
+浏览器
+  │
+  ▼
+React Web (:5173)
+  │ HTTP / SSE
+  ▼
+Elysia API (:3000) ───────────────► PostgreSQL
+  │                                     ▲
+  ├── HTTP ──► FastAPI Engine (:8000) ──┤
+  │                    │                 │
+  └──────────────► Redis ◄──────────────┘
+                  任务队列与行情缓存
 ```
 
-## 核心流程
+- `apps/web`：React、Vite 与 Ant Design 构建的研究工作台
+- `apps/api`：Elysia/Bun API 网关，处理认证、业务接口和任务入队
+- `apps/engine`：FastAPI/Python 计算引擎，执行数据采集、因子计算与后台任务
+- `packages/database`：Drizzle schema、迁移和共享数据库访问
+- PostgreSQL：持久化用户、配置、任务、因子与策略
+- Redis：承载异步任务队列、任务日志、取消信号与行情缓存
 
-### 1. 数据采集 + 指标计算
-```bash
-python scripts/stock_cron_data.py
+业务边界和术语请从 [`CONTEXT-MAP.md`](./CONTEXT-MAP.md) 开始阅读。
+
+## 仓库结构
+
+```text
+.
+├── apps/
+│   ├── api/                  # Elysia API 网关
+│   ├── engine/               # FastAPI 量化计算引擎
+│   └── web/                  # React 研究工作台
+├── packages/
+│   ├── config/               # 共享 TypeScript 配置
+│   └── database/             # Drizzle schema 与迁移
+├── docs/
+│   ├── adr/                  # 系统级架构决策
+│   ├── agents/               # Agent 工作约定
+│   └── contexts/             # 领域上下文与术语表
+├── scripts/                  # 兼容/实验用途的旧版独立脚本
+├── CONTEXT-MAP.md            # 全局领域导航
+└── package.json              # Bun workspace 与统一开发命令
 ```
-- 数据源：baostock（A股日线、分钟线）
-- 技术指标：MA、MACD、RSI、KDJ、BOLL、ATR等
-- 输出：带指标的股票数据CSV
 
-### 2. LLM股票分析
-```bash
-python scripts/stock_llm_analyzer.py
-```
-- 输入：技术指标数据 + 基本面信息
-- LLM分析：趋势判断、支撑压力位、买卖信号
-- 输出：个股分析报告（Markdown）
+## 本地开发
 
-### 3. 报告生成
-```bash
-python scripts/stock_report.py
-```
-- 汇总所有分析结果
-- 生成完整的选股日报
+### 1. 准备环境
 
-### 4. Alpha因子挖掘
-```bash
-cd alpha_miner && python alpha_miner.py
-```
-- LLM生成因子表达式（DSL）
-- 遗传算法进化优化
-- IC/IR评估 + 衰减分析
-- 多因子组合选择
+需要安装：
 
-### 5. 完整Pipeline
-```bash
-bash scripts/stock_pipeline_v2.sh
-```
-一键执行：数据采集 → 指标计算 → LLM分析 → 报告生成
+- [Bun](https://bun.sh/)：JavaScript 运行时与 workspace 包管理器
+- Python 3.12 与 [uv](https://docs.astral.sh/uv/)
+- Docker 与 Docker Compose：启动 PostgreSQL 和 Redis
 
-## 环境要求
+安装项目依赖：
 
 ```bash
-pip install baostock pandas numpy mplfinance ta-lib
-# Alpha因子额外依赖
-cd alpha_miner && pip install -r requirements.txt
+bun install
+cd apps/engine
+uv sync
+cd ../..
 ```
 
-## 环境变量
+### 2. 启动基础设施
 
-参考 `.env.example` 配置：
-- `LLM_API_KEY` - LLM API密钥
-- `LLM_BASE_URL` - LLM API地址
-- `LLM_MODEL` - 模型名称
+通用本地环境使用无主机目录绑定的示例配置：
+
+```bash
+docker compose -f docker-compose.example.yml up -d
+```
+
+仓库内的 `docker-compose.yml` 使用 `${HOME}` 下的持久化目录，适合已经准备好对应目录的开发机。
+
+### 3. 配置环境变量
+
+在仓库根目录创建 `.env`：
+
+```dotenv
+DATABASE_URL=postgresql://postgres:password@localhost:5432/stock_quant
+REDIS_URL=redis://localhost:6379
+ENCRYPTION_KEY=replace-with-a-long-random-secret
+
+# 可选：服务地址与端口
+PORT_WEB=5173
+PORT_API=3000
+PORT_ENGINE=8000
+CORS_ORIGIN=http://localhost:5173
+ENGINE_URL=http://localhost:8000
+
+# 可选：也可以登录后在 Web 界面配置 LLM
+# LLM_API_KEY=your-api-key
+# LLM_BASE_URL=https://api.openai.com/v1
+# LLM_MODEL=your-model-name
+```
+
+`ENCRYPTION_KEY` 用于加密保存的 LLM 密钥。同一数据库环境必须保持该值稳定；请勿提交 `.env`。
+
+### 4. 初始化数据库
+
+```bash
+cd packages/database
+bun run db:migrate
+cd ../..
+```
+
+### 5. 启动应用
+
+```bash
+bun run dev
+```
+
+默认地址：
+
+- Web：<http://localhost:5173>
+- API：<http://localhost:3000>
+- Engine 健康检查：<http://localhost:8000/health>
+
+首次使用时，在 Web 界面注册账户并配置 LLM 模型；因子挖掘任务需要先选择一个可用的模型。
+
+也可以分别启动服务：
+
+```bash
+bun run dev:web
+bun run dev:api
+bun run dev:engine
+```
+
+## 测试
+
+```bash
+# API 与共享包
+bun test apps/api/src apps/api/tests packages/database/tests
+
+# Web
+(cd apps/web && bunx vitest run)
+
+# Engine
+(cd apps/engine && uv run pytest tests)
+```
+
+部分 Engine 集成测试需要正在运行的 PostgreSQL、Redis 或外部行情数据源。
+
+## 兼容与实验脚本
+
+根目录 `scripts/` 保留了项目早期的独立数据采集、报告生成和选股脚本。它们用于兼容旧流程或快速实验：
+
+- 不属于当前 Web 平台的主要运行链路
+- 不保证与 monorepo 的数据库模型、配置方式和依赖版本同步
+- 新功能应优先落在 `apps/` 与 `packages/` 中
+
+## 文档导航
+
+- [`CONTEXT-MAP.md`](./CONTEXT-MAP.md)：全局领域地图与代码导航
+- [`docs/adr/`](./docs/adr/)：系统级架构决策记录
+- [`docs/agents/domain.md`](./docs/agents/domain.md)：领域文档的维护约定
+- [`AGENTS.md`](./AGENTS.md)：仓库级 Agent 工作说明

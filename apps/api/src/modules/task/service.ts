@@ -1,4 +1,4 @@
-import { db, alphaTasks, userConfigs, dataCollectionConfigs } from "@stock-quant/database";
+import { db, alphaTasks, userConfigs, dataCollectionConfigs, llmModels } from "@stock-quant/database";
 import { eq, and } from "drizzle-orm";
 import Redis from "ioredis";
 
@@ -21,13 +21,38 @@ export abstract class TaskService {
 		userId: string,
 		params: { targetSymbol: string; days?: number },
 	) {
+		// 1. Check if user has configured a default LLM model for factor tasks
+		const configRows = await db
+			.select()
+			.from(userConfigs)
+			.where(and(eq(userConfigs.userId, userId), eq(userConfigs.key, "FACTOR_TASK_LLM_MODEL")));
+
+		if (configRows.length === 0) {
+			return { success: false, error: "未选择因子任务的大模型配置，请先在任务配置中选择模型" };
+		}
+
+		const llmModelId = configRows[0].value;
+
+		// 2. Verify the configured model still exists
+		const modelRows = await db
+			.select()
+			.from(llmModels)
+			.where(and(eq(llmModels.id, llmModelId), eq(llmModels.userId, userId)));
+
+		if (modelRows.length === 0) {
+			return { success: false, error: "所选大模型已不存在，请重新配置" };
+		}
+
+		// 3. Build task params with llmModelId (Engine will resolve config from DB)
+		const taskParams = { ...params, llmModelId };
+
 		const [task] = await db
 			.insert(alphaTasks)
 			.values({
 				userId,
 				type: "FACTOR_MINING",
 				status: "PENDING",
-				params,
+				params: taskParams,
 			})
 			.returning();
 
@@ -39,7 +64,7 @@ export abstract class TaskService {
 				taskId: task.id,
 				userId,
 				type: "FACTOR_MINING",
-				params,
+				params: taskParams,
 			}),
 		);
 		await redis.quit();

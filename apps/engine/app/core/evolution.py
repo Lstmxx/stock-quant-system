@@ -45,7 +45,8 @@ class EvolutionStrategy:
     def evolve(
         self,
         population: List[FactorRecord],
-        n_children: int = 10
+        n_children: int = 10,
+        llm_config: Optional[Dict] = None,
     ) -> List[str]:
         """
         执行进化操作
@@ -78,7 +79,7 @@ class EvolutionStrategy:
         
         if n_llm_target > 0 and elite_exprs:
             print(f"  [Evolution] 正在使用 LLM 对 {len(elite_exprs)} 个精英因子进行智能演化...")
-            llm_factors = llm.evolve_factors(elite_exprs, n_children=n_llm_target)
+            llm_factors = llm.evolve_factors(elite_exprs, n_children=n_llm_target, llm_config=llm_config)
             for factor_info in llm_factors:
                 expr = factor_info.get("expression")
                 if expr and expr not in children:
