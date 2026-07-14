@@ -21,10 +21,12 @@ This directory contains guidelines for frontend development. Fill in each file w
 | [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | To fill |
 | [Type Safety](./type-safety.md) | Type patterns, validation | To fill |
 | [Factor Workflow Contract](../../api/backend/factor-workflow-contract.md) | Factor task UI, status, selection, and log-polling contracts | Active |
+| [Data Collection Workflow Contract](../../api/backend/data-collection-workflow-contract.md) | Global collection UI, status, pagination, and polling contracts | Active |
 
 ## Pre-Development Checklist
 
 - When changing factor pages, task status, selection, or logs, read [Factor Workflow Contract](../../api/backend/factor-workflow-contract.md).
+- When changing the data-management page, collection status, failures, or polling, read [Data Collection Workflow Contract](../../api/backend/data-collection-workflow-contract.md).
 
 ---
 

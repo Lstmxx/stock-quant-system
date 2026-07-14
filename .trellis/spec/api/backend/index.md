@@ -20,10 +20,12 @@ This directory contains guidelines for backend development. Fill in each file wi
 | [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | To fill |
 | [Logging Guidelines](./logging-guidelines.md) | Structured logging, log levels | To fill |
 | [Factor Workflow Contract](./factor-workflow-contract.md) | Mining, queue, selection, cancellation, and analysis contracts | Active |
+| [Data Collection Workflow Contract](./data-collection-workflow-contract.md) | Global collection, scheduler, retry, cache, and UI contracts | Active |
 
 ## Pre-Development Checklist
 
 - When changing factor mining, task queues, selection, or stock analysis, read [Factor Workflow Contract](./factor-workflow-contract.md).
+- When changing stock collection, scheduler, retries, or market-data caches, read [Data Collection Workflow Contract](./data-collection-workflow-contract.md).
 
 ---
 
