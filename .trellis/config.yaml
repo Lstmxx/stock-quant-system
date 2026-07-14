@@ -40,15 +40,11 @@ max_journal_lines: 2000
 # Each hook receives TASK_JSON_PATH environment variable pointing to task.json.
 # Hook failures print a warning but do not block the main operation.
 #
-# hooks:
-#   after_create:
-#     - "echo 'Task created'"
-#   after_start:
-#     - "echo 'Task started'"
-#   after_finish:
-#     - "echo 'Task finished'"
-#   after_archive:
-#     - "echo 'Task archived'"
+hooks:
+  # Archiving is Trellis' deterministic "task complete" transition. Notify
+  # here instead of inferring completion from a Codex turn or final message.
+  after_archive:
+    - "python3 .trellis/scripts/hooks/review_notification.py"
 
 #-------------------------------------------------------------------------------
 # Monorepo / Packages
