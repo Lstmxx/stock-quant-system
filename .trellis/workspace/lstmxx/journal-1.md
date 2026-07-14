@@ -72,3 +72,37 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: 移除采集配置硬编码并验证真实数据链路
+
+**Date**: 2026-07-14
+**Task**: 移除采集配置硬编码并验证真实数据链路
+**Branch**: `refactor`
+
+### Summary
+
+统一 API、Engine 与数据库的根环境配置，移除连接信息 fallback；强制刷新 Baostock 采集 3189 只股票并验证 Redis pub/sub 与价格摘要，真实集成测试耗时 277.02 秒。
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0db66c2` | (see git log) |
+| `f8d2317` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
