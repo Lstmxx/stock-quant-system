@@ -18,9 +18,10 @@ def test_save_cache_replaces_aggregate_key_atomically() -> None:
 
     loader._save_cache("2026-07-14_250", {"close": pd.DataFrame()})
 
-    pipeline.setex.assert_called_once()
-    temporary_key = pipeline.setex.call_args.args[0]
+    pipeline.set.assert_called_once()
+    temporary_key = pipeline.set.call_args.args[0]
     assert temporary_key.startswith("market_data:2026-07-14_250:tmp:")
+    assert pipeline.set.call_args.kwargs["ex"] == 20 * 3600
     pipeline.rename.assert_called_once_with(
         temporary_key,
         "market_data:2026-07-14_250",

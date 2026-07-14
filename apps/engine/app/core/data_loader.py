@@ -141,7 +141,7 @@ def _fetch_stock_chunk(args):
                 
         if success:
             key = f"kline:{code}:{start_date}_{end_date}"
-            r.setex(key, 7 * 24 * 3600, json.dumps(stock_data))
+            r.set(key, json.dumps(stock_data), ex=7 * 24 * 3600)
             all_data.extend(stock_data)
             success_count += 1
             if task_id:
@@ -196,15 +196,11 @@ import baostock as bs
 import numpy as np
 import pandas as pd
 import redis
+from ..config import settings
 
-# use absolute import or sys.path, actually relative import should work if we run from app/
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-try:
-    from .config import settings
-    REDIS_URL = settings.redis_url
-except ImportError:
-    REDIS_URL = "redis://localhost:6379"
+
+REDIS_URL = settings.redis_url
 
 warnings.filterwarnings("ignore")
 
@@ -284,7 +280,7 @@ class DataLoader:
             prev = (datetime.strptime(date, '%Y-%m-%d') - timedelta(days=1)).strftime('%Y-%m-%d')
             return self.get_main_board_stocks(prev, depth + 1)
 
-        self.r.setex(cache_key, 7 * 24 * 3600, json.dumps(stocks))
+        self.r.set(cache_key, json.dumps(stocks), ex=7 * 24 * 3600)
         # Persist stock names into a Redis Hash (no TTL — names rarely change)
         if names:
             self.r.hset("stock_names", mapping=names)
@@ -429,7 +425,11 @@ class DataLoader:
         cache_key = f"market_data:{date_key}"
         temporary_key = f"{cache_key}:tmp:{os.getpid()}:{time.time_ns()}"
         pipeline = self.r.pipeline()
-        pipeline.setex(temporary_key, CACHE_MAX_AGE_HOURS * 3600, pickled_data)
+        pipeline.set(
+            temporary_key,
+            pickled_data,
+            ex=CACHE_MAX_AGE_HOURS * 3600,
+        )
         pipeline.rename(temporary_key, cache_key)
         pipeline.execute()
         print(f"[DataLoader] 已原子更新 Redis {cache_key}")
@@ -461,7 +461,7 @@ class DataLoader:
             if code.startswith('sh.60') or code.startswith('sz.00'):
                 industries[code] = industry if industry else 'Unknown'
                 
-        self.r.setex(cache_key, 7 * 24 * 3600, json.dumps(industries))
+        self.r.set(cache_key, json.dumps(industries), ex=7 * 24 * 3600)
         return pd.Series(industries)
 
     def load_latest(self, lookback_days: int = LOOKBACK_DAYS,

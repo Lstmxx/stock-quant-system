@@ -1,5 +1,4 @@
-import { config } from "dotenv";
-config({ path: "../../.env" });
+import "./lib/env";
 
 import { Elysia } from "elysia";
 import { engineClient } from "./lib/engine-client";

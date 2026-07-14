@@ -2,12 +2,10 @@ import asyncio
 import redis
 import json
 import pandas as pd
-import os
 import baostock as bs
-from dotenv import load_dotenv
+from app.config import settings
 
-load_dotenv("../../.env")
-redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+redis_url = settings.redis_url
 r = redis.Redis.from_url(redis_url, decode_responses=True)
 
 keys = r.keys("market_data:*")

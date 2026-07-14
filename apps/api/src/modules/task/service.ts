@@ -7,6 +7,7 @@ import {
 } from "@stock-quant/database";
 import { and, count, desc, eq, inArray, or } from "drizzle-orm";
 import Redis from "ioredis";
+import { redisUrl } from "../../lib/env";
 import type { CreateMiningTaskBody } from "./model";
 
 const QUEUE_NAME = "stock:tasks:queue";
@@ -39,7 +40,7 @@ type DataCollectionParams = {
 };
 
 export function getRedis() {
-	return new Redis(process.env.REDIS_URL || "redis://localhost:6379");
+	return new Redis(redisUrl);
 }
 
 function isUniqueViolation(error: unknown): boolean {

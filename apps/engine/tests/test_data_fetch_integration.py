@@ -25,12 +25,16 @@ async def test_full_data_fetch_integration():
     # Set up Redis client
     r = aioredis.from_url(settings.redis_url)
     pubsub = r.pubsub()
+    await r.delete(summary_key)
     await pubsub.subscribe(channel_name)
 
     # We will trigger the endpoint directly.
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-            response = await ac.post("/internal/fetch-data", json={"symbol": symbol, "days": 30})
+            response = await ac.post(
+                "/internal/fetch-data",
+                json={"symbol": symbol, "days": 30, "force_update": True},
+            )
         
         assert response.status_code == 200
         assert response.json()["status"] == "accepted"
@@ -70,4 +74,5 @@ async def test_full_data_fetch_integration():
 
     finally:
         await pubsub.unsubscribe(channel_name)
+        await pubsub.aclose()
         await r.aclose()

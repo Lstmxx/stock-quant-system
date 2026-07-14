@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { db, alphaTasks, factorSelectionResults, userConfigs } from "@stock-quant/database";
 import { and, eq, desc } from "drizzle-orm";
 import Redis from "ioredis";
+import { redisUrl } from "../../lib/env";
 import { engineClient } from "../../lib/engine-client";
 import { FactorSelectionService, resolveFactorSet } from "../factor-selection/service";
 import type { AnalysisReport, FactorAnalysisContext, StartAnalysisBody } from "./model";
@@ -196,7 +197,7 @@ async function callLlm(
 async function getMarketDataFromRedis(_symbol: string, days: number): Promise<object | null> {
 	const today = new Date().toISOString().slice(0, 10);
 	const key = `market_data:${today}_${days}`;
-	const client = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
+	const client = new Redis(redisUrl);
 	const raw = await client.get(key).finally(() => client.quit());
 	if (!raw) return null;
 	// The pickled data is a Python dict; we only check presence here.
@@ -207,7 +208,7 @@ async function getMarketDataFromRedis(_symbol: string, days: number): Promise<ob
 async function getPriceSummary(symbol: string): Promise<object> {
 	// We store daily price stats as a lightweight JSON summary alongside the heavy pickle
 	const key = `price_summary:${symbol}:${new Date().toISOString().slice(0, 10)}`;
-	const client = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
+	const client = new Redis(redisUrl);
 	const raw = await client.get(key).finally(() => client.quit());
 	if (raw) return JSON.parse(raw);
 	// Fallback: return minimal placeholder (Engine has not yet written stats)
@@ -265,7 +266,7 @@ export abstract class AnalysisService {
 				await engineClient.triggerDataFetch(symbol, days);
 				// Wait up to 60s for engine to publish data ready signal
 				await new Promise<void>((resolve) => {
-					const sub = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
+					const sub = new Redis(redisUrl);
 					const channel = `data_ready:${symbol}`;
 					const timeout = setTimeout(() => {
 						sub.quit();

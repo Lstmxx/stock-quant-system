@@ -26,6 +26,7 @@ router = APIRouter(prefix="/internal", tags=["internal"])
 class FetchDataRequest(BaseModel):
     symbol: str  # e.g. "sh.600000"
     days: int = 250
+    force_update: bool = False
 
 
 class ReloadConfigRequest(BaseModel):
@@ -59,6 +60,7 @@ async def fetch_data(body: FetchDataRequest):
     """
     symbol = body.symbol
     days = body.days
+    force_update = body.force_update
 
     async def _do_fetch():
         r = aioredis.from_url(settings.redis_url)
@@ -68,7 +70,10 @@ async def fetch_data(body: FetchDataRequest):
 
             def _load():
                 loader = DataLoader()
-                data = loader.load_latest(lookback_days=days)
+                data = loader.load_latest(
+                    lookback_days=days,
+                    force_update=force_update,
+                )
                 loader.logout()
 
                 # Write a lightweight price summary for the given symbol to Redis
@@ -92,7 +97,7 @@ async def fetch_data(body: FetchDataRequest):
 
             today = datetime.now().strftime("%Y-%m-%d")
             summary_key = f"price_summary:{symbol}:{today}"
-            await r.setex(summary_key, 20 * 3600, json.dumps(summary))
+            await r.set(summary_key, json.dumps(summary), ex=20 * 3600)
 
             # Notify API that data is ready
             await r.publish(f"data_ready:{symbol}", json.dumps({"symbol": symbol, "date": today}))
