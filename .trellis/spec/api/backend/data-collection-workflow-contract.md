@@ -29,6 +29,10 @@ The collection dataset is global. It is not user-isolated like factor mining: au
   - response: `{ taskId, stocks, failures: [{ code, reason }] }`
 - `POST /api/tasks/:id/retry-failed`
   - success: `{ success: true, taskId, stockCount }`
+- `POST /internal/fetch-data`
+  - body: `{ symbol: string, days: number, force_update?: boolean }`
+  - `force_update` defaults to `false`; real source-integration tests set it to `true`
+  - immediate response: `{ status: "accepted", symbol, message }`
 
 ### Queue and cache
 
@@ -48,6 +52,12 @@ The collection dataset is global. It is not user-isolated like factor mining: au
 - `alpha_tasks.userId` is nullable only so scheduled collection tasks can have no user actor.
 - `alpha_tasks_active_data_collection_unique` is a partial unique index on `type = 'DATA_COLLECTION'` while status is active.
 
+### Environment
+
+- `DATABASE_URL` and `REDIS_URL` are required runtime keys in the repository-root `.env`.
+- API, Engine, database runtime, Drizzle config, and config tests resolve the root `.env` from their source file location, never from the current working directory.
+- Connection settings have no localhost, username, password, or port fallback. A missing required key fails fast with a key-only error that does not include the connection string.
+
 ## 3. Contracts
 
 1. A new manual, retry, or scheduled task never cancels an existing active collection task. The API may pre-check for a friendly response, but the PostgreSQL partial unique index is the concurrency authority.
@@ -58,6 +68,8 @@ The collection dataset is global. It is not user-isolated like factor mining: au
 6. A retry is complete only after successful target symbols are written to per-symbol K-line caches and the full aggregate `market_data:*` value is rebuilt. Write aggregation through a temporary key and `RENAME` so readers see either the old or new complete value.
 7. Task results use `{ totalCount, successCount, failedCount, lookbackDays, completedAt, retryOf? }`. Status is derived from counts: no failures is `COMPLETED`, mixed results is `PARTIAL_SUCCESS`, and no successes is `FAILED`.
 8. Redis failure details expire. If `result.failedCount > 0` but the failure set is empty, the UI must say that details expired; it must not claim all stocks succeeded.
+9. A real Baostock integration run must bypass both aggregate and per-symbol caches through `force_update = true`. Deleting only `market_data:*` is insufficient because `kline:*` entries can still make the test pass without fetching Baostock.
+10. Integration tests remove the target summary before triggering, subscribe before the request, and close pub/sub plus Redis clients in `finally`.
 
 ## 4. Validation & Error Matrix
 
@@ -74,6 +86,9 @@ The collection dataset is global. It is not user-isolated like factor mining: au
 | all retry targets fail | task is `FAILED`; preserve the previous aggregate cache |
 | some symbols fail | publish reasons and finish as `PARTIAL_SUCCESS` after rebuilding usable aggregate data |
 | cancellation requested while running | database status becomes `CANCELLING`, then worker finishes as `CANCELLED` |
+| `DATABASE_URL` or `REDIS_URL` is absent | fail startup/config loading with the missing key name; never substitute credentials or localhost |
+| config/test starts from a different working directory | load the same repository-root `.env` through a source-relative absolute path |
+| integration request uses `force_update = true` | bypass aggregate and per-symbol market caches and call the real Baostock path |
 
 ## 5. Good / Base / Bad Cases
 
@@ -82,6 +97,9 @@ The collection dataset is global. It is not user-isolated like factor mining: au
 - Good retry: a partial task reports two failed codes; retry repairs one, removes it from the source failure set, rebuilds the aggregate, and finishes `PARTIAL_SUCCESS` with one remaining reason.
 - Bad: selecting all active tasks and setting cancellation flags before inserting a new one. This destroys another user's global work and hides the conflict.
 - Bad: retrying only `load_kline_data(stocks=failed)` and marking the task complete. Downstream factor code still reads the stale aggregate cache.
+- Good config: running tests from either repository root or a package directory loads the same root `.env` and validates URL structure without printing credentials.
+- Bad config: `process.env.REDIS_URL || "redis://localhost:6379"`, fixed PostgreSQL credentials, or `config({ path: "../../.env" })`; these silently target the wrong service or depend on the launch directory.
+- Good integration: `force_update = true` reports zero per-symbol cache hits, publishes `data_ready:{symbol}`, and writes a fresh `price_summary`.
 
 ## 6. Tests Required
 
@@ -91,6 +109,8 @@ The collection dataset is global. It is not user-isolated like factor mining: au
 - Worker tests: mixed counts map to `PARTIAL_SUCCESS`; retry calls the aggregate rebuild path.
 - Scheduler tests: timezone is `Asia/Shanghai`; invalid cron does not replace the job; enqueue failure is compensated.
 - Web hook tests: polling requests do not overlap; failed worker remains failed; `CANCELLING` blocks duplicate start; cancellation copy matches the intermediate state.
+- Config tests: execute from repository root and package directories; assert required URL protocols/hosts without asserting or printing usernames, passwords, ports, or full URLs.
+- Real integration test: send `force_update = true`, observe actual Baostock collection, assert accepted response, pub/sub success, fresh `price_summary`, and resource cleanup.
 - Build gates: API Bun build, Web TypeScript/Vite build, Python compile check, antd lint, and `git diff --check`.
 
 ## 7. Wrong vs Correct
@@ -117,3 +137,28 @@ return enqueued ? success(task.id) : enqueueFailure(task.id);
 ```
 
 For retries, the equivalent rule is: refresh target per-symbol caches, rebuild the complete aggregate into a temporary key, atomically rename it, and only then publish the terminal task status.
+
+### Configuration and real integration
+
+#### Wrong
+
+```typescript
+const redis = new Redis(process.env.REDIS_URL || "redis://localhost:6379");
+config({ path: "../../.env" });
+```
+
+```python
+data = loader.load_latest(lookback_days=30)  # may be a cache-only false positive
+```
+
+#### Correct
+
+```typescript
+const rootEnv = fileURLToPath(new URL("../../../../.env", import.meta.url));
+config({ path: rootEnv });
+const redisUrl = requireEnv("REDIS_URL");
+```
+
+```python
+data = loader.load_latest(lookback_days=30, force_update=True)
+```

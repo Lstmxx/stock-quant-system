@@ -1,0 +1,1 @@
+{"file":".trellis/spec/api/backend/data-collection-workflow-contract.md","reason":"Preserve Redis, Baostock, aggregate-cache, and resource cleanup contracts while changing integration behavior."}

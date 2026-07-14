@@ -1,0 +1,1 @@
+{"file":".trellis/spec/api/backend/data-collection-workflow-contract.md","reason":"Verify the forced real collection still atomically writes aggregate data and publishes completion."}
