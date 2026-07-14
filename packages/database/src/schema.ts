@@ -1,4 +1,16 @@
-import { pgTable, text, timestamp, boolean, uuid, jsonb, integer } from "drizzle-orm/pg-core";
+import {
+	boolean,
+	doublePrecision,
+	index,
+	integer,
+	jsonb,
+	pgTable,
+	primaryKey,
+	text,
+	timestamp,
+	uniqueIndex,
+	uuid,
+} from "drizzle-orm/pg-core";
 import { user } from "./auth-schema";
 
 // --- Business Tables ---
@@ -33,7 +45,7 @@ export const dataCollectionConfigs = pgTable("data_collection_configs", {
 export const alphaTasks = pgTable("alpha_tasks", {
 	id: uuid("id").defaultRandom().primaryKey(),
 	userId: text("userId").notNull().references(() => user.id),
-	status: text("status").notNull(), // "PENDING", "RUNNING", "COMPLETED", "FAILED"
+	status: text("status").notNull(), // PENDING, RUNNING, CANCELLING, CANCELLED, COMPLETED, FAILED
 	type: text("type").notNull(), // "FACTOR_MINING", "LLM_ANALYSIS"
 	params: jsonb("params"), // JSON params for the task
 	result: jsonb("result"), // JSON results
@@ -41,21 +53,98 @@ export const alphaTasks = pgTable("alpha_tasks", {
 	updatedAt: timestamp("updatedAt").defaultNow().notNull()
 });
 
-export const alphaFactors = pgTable("alpha_factors", {
-	id: uuid("id").defaultRandom().primaryKey(),
-	userId: text("userId").notNull().references(() => user.id),
-	name: text("name").notNull(),
-	expression: text("expression").notNull(),
-	hypothesis: text("hypothesis"),
-	icValue: text("icValue"), // numeric value mapped to string/decimal to avoid precision issues
-	icir: text("icir"),
-	monotonicity: text("monotonicity"),
-	direction: text("direction"), // 1 or -1
-	isValid: boolean("isValid").default(false),
-	generation: text("generation").default("0"),
-	createdAt: timestamp("createdAt").defaultNow().notNull(),
-	updatedAt: timestamp("updatedAt").defaultNow().notNull()
-});
+export const alphaFactors = pgTable(
+	"alpha_factors",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		userId: text("userId").notNull().references(() => user.id),
+		name: text("name").notNull(),
+		expression: text("expression").notNull(),
+		hypothesis: text("hypothesis"),
+		researchDirection: text("researchDirection"),
+		icValue: doublePrecision("icValue"),
+		icir: doublePrecision("icir"),
+		monotonicity: doublePrecision("monotonicity"),
+		direction: integer("direction"),
+		isValid: boolean("isValid").default(false).notNull(),
+		generation: integer("generation").default(0).notNull(),
+		createdAt: timestamp("createdAt").defaultNow().notNull(),
+		updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+	},
+	(table) => [
+		uniqueIndex("alpha_factors_user_expression_unique").on(
+			table.userId,
+			table.expression,
+		),
+		index("alpha_factors_user_quality_idx").on(
+			table.userId,
+			table.isValid,
+			table.icValue,
+		),
+	],
+);
+
+/** The user's manual override for factors shared by selection and LLM analysis. */
+export const userSelectedFactors = pgTable(
+	"user_selected_factors",
+	{
+		userId: text("userId")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		factorId: uuid("factorId")
+			.notNull()
+			.references(() => alphaFactors.id, { onDelete: "cascade" }),
+		createdAt: timestamp("createdAt").defaultNow().notNull(),
+	},
+	(table) => [primaryKey({ columns: [table.userId, table.factorId] })],
+);
+
+export interface FactorContribution {
+	factorId: string;
+	name: string;
+	value: number;
+	zScore: number;
+	weight: number;
+	direction: number;
+	contribution: number;
+	percentile: number;
+}
+
+/** Immutable per-stock output produced by a FACTOR_SELECTION task. */
+export const factorSelectionResults = pgTable(
+	"factor_selection_results",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		taskId: uuid("taskId")
+			.notNull()
+			.references(() => alphaTasks.id, { onDelete: "cascade" }),
+		userId: text("userId")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		symbol: text("symbol").notNull(),
+		rank: integer("rank").notNull(),
+		compositeScore: doublePrecision("compositeScore").notNull(),
+		dataDate: text("dataDate").notNull(),
+		factorContributions: jsonb("factorContributions")
+			.$type<FactorContribution[]>()
+			.notNull(),
+		createdAt: timestamp("createdAt").defaultNow().notNull(),
+	},
+	(table) => [
+		uniqueIndex("factor_selection_results_task_symbol_unique").on(
+			table.taskId,
+			table.symbol,
+		),
+		index("factor_selection_results_user_date_idx").on(
+			table.userId,
+			table.dataDate,
+		),
+		index("factor_selection_results_task_rank_idx").on(
+			table.taskId,
+			table.rank,
+		),
+	],
+);
 
 export const quantStrategies = pgTable("quant_strategies", {
 	id: uuid("id").defaultRandom().primaryKey(),

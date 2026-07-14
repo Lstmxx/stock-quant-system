@@ -9,7 +9,8 @@ import {
   DatabaseOutlined,
   FunctionOutlined,
   AppstoreOutlined,
-  UnorderedListOutlined
+  UnorderedListOutlined,
+  FundProjectionScreenOutlined
 } from '@ant-design/icons';
 import { authClient } from '../../api/auth-client';
 import { useAuthStore } from '../../features/auth/store';
@@ -23,6 +24,7 @@ const pageMap: Record<string, { icon: React.ReactNode; title: string }> = {
   '/data': { icon: <DatabaseOutlined />, title: '股票数据管理' },
   '/factor/tasks': { icon: <AppstoreOutlined />, title: '因子任务' },
   '/factor/list': { icon: <UnorderedListOutlined />, title: '因子列表' },
+  '/factor/selection': { icon: <FundProjectionScreenOutlined />, title: '因子选股' },
 };
 
 const AppLayout: React.FC = () => {
@@ -67,6 +69,11 @@ const AppLayout: React.FC = () => {
           key: '/factor/list',
           icon: <UnorderedListOutlined />,
           label: '因子列表',
+        },
+        {
+          key: '/factor/selection',
+          icon: <FundProjectionScreenOutlined />,
+          label: '因子选股',
         },
       ]
     }

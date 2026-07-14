@@ -6,6 +6,7 @@ mock.module("@stock-quant/database", () => ({
 	db: {
 		insert: mock().mockReturnValue({
 			values: mock().mockReturnValue({
+				onConflictDoUpdate: mock().mockResolvedValue(true),
 				returning: mock().mockResolvedValue([{ id: "task-999" }]),
 			}),
 		}),
@@ -27,6 +28,7 @@ mock.module("@stock-quant/database", () => ({
 		}),
 	},
 	alphaTasks: { id: "alphaTasks.id", userId: "alphaTasks.userId", type: "alphaTasks.type", status: "alphaTasks.status" },
+	dataCollectionConfigs: { userId: "dataCollectionConfigs.userId" },
 	userConfigs: { id: "userConfigs.id", userId: "userConfigs.userId", key: "userConfigs.key", value: "userConfigs.value" },
 	llmModels: { id: "llmModels.id", userId: "llmModels.userId" },
 }));
@@ -37,6 +39,7 @@ import { db } from "@stock-quant/database";
 describe("TaskService", () => {
 	let origSetex: any;
 	let origLpush: any;
+	let origRpush: any;
 	let origQuit: any;
 
 	beforeEach(() => {
@@ -44,16 +47,19 @@ describe("TaskService", () => {
 		
 		origSetex = Redis.prototype.setex;
 		origLpush = Redis.prototype.lpush;
+		origRpush = Redis.prototype.rpush;
 		origQuit = Redis.prototype.quit;
 
 		Redis.prototype.setex = mock().mockResolvedValue("OK");
 		Redis.prototype.lpush = mock().mockResolvedValue(1);
+		Redis.prototype.rpush = mock().mockResolvedValue(1);
 		Redis.prototype.quit = mock().mockResolvedValue("OK");
 	});
 
 	afterEach(() => {
 		Redis.prototype.setex = origSetex;
 		Redis.prototype.lpush = origLpush;
+		Redis.prototype.rpush = origRpush;
 		Redis.prototype.quit = origQuit;
 	});
 
@@ -69,7 +75,7 @@ describe("TaskService", () => {
 
 		it("should return parsed config if found", async () => {
 			const selectMock = db.select() as any;
-			selectMock.from().where.mockResolvedValue([{ value: '{"lookbackDays": 100}' }]);
+			selectMock.from().where.mockResolvedValue([{ lookbackDays: 100, workerCount: 4 }]);
 
 			const config = await TaskService.getDataCollectionConfig("user-1");
 			expect(config).toEqual({ lookbackDays: 100, workerCount: 4 });
@@ -77,10 +83,7 @@ describe("TaskService", () => {
 	});
 
 	describe("setDataCollectionConfig", () => {
-		it("should insert new config if it does not exist", async () => {
-			const selectMock = db.select() as any;
-			selectMock.from().where.mockResolvedValue([]);
-			
+		it("should upsert the config", async () => {
 			const insertSpy = spyOn(db, "insert");
 
 			const result = await TaskService.setDataCollectionConfig("user-1", 150, 2);
@@ -89,18 +92,6 @@ describe("TaskService", () => {
 			expect(result).toEqual({ success: true });
 		});
 
-		it("should update config if it exists", async () => {
-			const selectMock = db.select() as any;
-			// Return mock config for both getDataCollectionConfig and setDataCollectionConfig checks
-			selectMock.from().where.mockResolvedValue([{ id: "config-1", value: '{"lookbackDays": 100}' }]);
-			
-			const updateSpy = spyOn(db, "update");
-
-			const result = await TaskService.setDataCollectionConfig("user-1", 150, 4);
-			
-			expect(updateSpy).toHaveBeenCalled();
-			expect(result).toEqual({ success: true });
-		});
 	});
 
 	describe("runDataCollectionTask", () => {
@@ -119,7 +110,7 @@ describe("TaskService", () => {
 						{ id: "task-3", status: "COMPLETED" },
 					]);
 				}
-				return Promise.resolve([{ value: '{"lookbackDays": 120}' }]);
+				return Promise.resolve([{ lookbackDays: 120, workerCount: 4 }]);
 			});
 
 			const updateSpy = spyOn(db, "update");
@@ -136,9 +127,9 @@ describe("TaskService", () => {
 
 			// Should have inserted a new task
 			expect(insertSpy).toHaveBeenCalled();
-			expect(Redis.prototype.lpush).toHaveBeenCalled();
-			expect(Redis.prototype.lpush).toHaveBeenCalledWith("stock:tasks:queue", expect.stringContaining("DATA_COLLECTION"));
-			expect(Redis.prototype.lpush).toHaveBeenCalledWith("stock:tasks:queue", expect.stringContaining('"days":120'));
+			expect(Redis.prototype.rpush).toHaveBeenCalled();
+			expect(Redis.prototype.rpush).toHaveBeenCalledWith("stock:tasks:queue", expect.stringContaining("DATA_COLLECTION"));
+			expect(Redis.prototype.rpush).toHaveBeenCalledWith("stock:tasks:queue", expect.stringContaining('"days":120'));
 
 			expect(result).toEqual({ success: true, taskId: "task-999" });
 		});
@@ -169,7 +160,9 @@ describe("TaskService", () => {
 			// userConfigs returns empty — no FACTOR_TASK_LLM_MODEL key
 			selectMock.from().where.mockResolvedValue([]);
 
-			const result = await TaskService.createMiningTask("user-1", { targetSymbol: "sh.000300" });
+			const result = await TaskService.createMiningTask("user-1", {
+				researchDirection: "动量反转",
+			});
 
 			expect(result.success).toBe(false);
 			expect((result as any).error).toContain("未选择");
@@ -188,7 +181,9 @@ describe("TaskService", () => {
 				return Promise.resolve([]);
 			});
 
-			const result = await TaskService.createMiningTask("user-1", { targetSymbol: "sh.000300" });
+			const result = await TaskService.createMiningTask("user-1", {
+				researchDirection: "动量反转",
+			});
 
 			expect(result.success).toBe(false);
 			expect((result as any).error).toContain("已不存在");
@@ -207,14 +202,47 @@ describe("TaskService", () => {
 				return Promise.resolve([{ id: "model-uuid-123" }]);
 			});
 
-			const result = await TaskService.createMiningTask("user-1", { targetSymbol: "sh.000300" });
+			const result = await TaskService.createMiningTask("user-1", {
+				researchDirection: "动量反转",
+			});
 
 			expect(result.success).toBe(true);
 			// llmModelId should be present in the Redis payload
-			expect(Redis.prototype.lpush).toHaveBeenCalledWith(
+			expect(Redis.prototype.rpush).toHaveBeenCalledWith(
 				"stock:tasks:queue",
-				expect.stringContaining('"llmModelId":"model-uuid-123"')
+				expect.stringContaining('"researchDirection":"动量反转"')
 			);
+			expect(Redis.prototype.rpush).toHaveBeenCalledWith(
+				"stock:tasks:queue",
+				expect.stringContaining('"llmModelId":"model-uuid-123"'),
+			);
+		});
+
+		it("marks the task failed when Redis enqueue fails", async () => {
+			const selectMock = db.select() as any;
+			let callCount = 0;
+			selectMock.from().where.mockImplementation(() => {
+				callCount++;
+				return Promise.resolve(
+					callCount === 1
+						? [{ value: "model-uuid-123" }]
+						: [{ id: "model-uuid-123" }],
+				);
+			});
+			Redis.prototype.rpush = mock().mockRejectedValue(
+				new Error("redis unavailable"),
+			);
+
+			const result = await TaskService.createMiningTask("user-1", {
+				researchDirection: "量价关系",
+			});
+
+			expect(result).toEqual({
+				success: false,
+				error: "任务入队失败，请稍后重试",
+				taskId: "task-999",
+			});
+			expect(db.update).toHaveBeenCalled();
 		});
 	});
 });

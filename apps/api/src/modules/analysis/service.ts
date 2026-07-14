@@ -1,10 +1,11 @@
-import { db, alphaTasks, alphaFactors, userConfigs } from "@stock-quant/database";
-import { eq, desc } from "drizzle-orm";
+import { createHash } from "node:crypto";
+
+import { db, alphaTasks, factorSelectionResults, userConfigs } from "@stock-quant/database";
+import { and, eq, desc } from "drizzle-orm";
 import Redis from "ioredis";
 import { engineClient } from "../../lib/engine-client";
-import type { AnalysisReport, StartAnalysisBody } from "./model";
-
-const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
+import { FactorSelectionService, resolveFactorSet } from "../factor-selection/service";
+import type { AnalysisReport, FactorAnalysisContext, StartAnalysisBody } from "./model";
 
 // ─── LLM Helpers ───
 
@@ -19,7 +20,11 @@ function getLlmConfig(configs: { key: string; value: string }[]) {
 	};
 }
 
-function buildAnalysisPrompt(symbol: string, priceStats: object, factorSummary: object): string {
+export function buildAnalysisPrompt(
+	symbol: string,
+	priceStats: object,
+	factorContext: FactorAnalysisContext,
+): string {
 	return `你是一位专业的A股量化分析师。请对以下股票数据进行综合分析，并严格按 JSON 格式返回分析结果。
 
 ## 股票代码
@@ -28,8 +33,10 @@ ${symbol}
 ## 近期行情数据摘要
 ${JSON.stringify(priceStats, null, 2)}
 
-## 已挖掘的量化因子
-${JSON.stringify(factorSummary, null, 2)}
+## 该股票的因子选股快照
+${JSON.stringify(factorContext, null, 2)}
+
+请结合综合排名、各因子的实际值、方向调整后的 z-score、股票池百分位和得分贡献进行解释。不得把因子定义或历史 IC 当成该股票当前的实际暴露。
 
 ## 输出要求
 请返回严格符合以下结构的 JSON（不要包含任何额外文字）：
@@ -51,6 +58,109 @@ ${JSON.stringify(factorSummary, null, 2)}
   },
   "recommendation": "BUY" 或 "HOLD" 或 "SELL" 或 "WATCH"
 }`;
+}
+
+function shanghaiDate(): string {
+	return new Intl.DateTimeFormat("en-CA", {
+		timeZone: "Asia/Shanghai",
+		year: "numeric",
+		month: "2-digit",
+		day: "2-digit",
+	}).format(new Date());
+}
+
+function toFactorContext(candidate: {
+	selection: typeof factorSelectionResults.$inferSelect;
+	task: typeof alphaTasks.$inferSelect;
+}): FactorAnalysisContext {
+	const params = (candidate.task.params ?? {}) as { universeType?: unknown };
+	return {
+		selectionTaskId: candidate.task.id,
+		dataDate: candidate.selection.dataDate,
+		universeType: params.universeType === "WATCHLIST" ? "WATCHLIST" : "ALL_MARKET",
+		symbol: candidate.selection.symbol,
+		compositeScore: candidate.selection.compositeScore,
+		rank: candidate.selection.rank,
+		factorContributions: candidate.selection.factorContributions,
+	};
+}
+
+async function findCompatibleFactorContext(
+	userId: string,
+	symbol: string,
+	factorSetHash: string,
+	dataDate: string,
+): Promise<FactorAnalysisContext | null> {
+	const candidates = await db
+		.select({ selection: factorSelectionResults, task: alphaTasks })
+		.from(factorSelectionResults)
+		.innerJoin(
+			alphaTasks,
+			and(
+				eq(alphaTasks.id, factorSelectionResults.taskId),
+				eq(alphaTasks.userId, userId),
+				eq(alphaTasks.type, "FACTOR_SELECTION"),
+				eq(alphaTasks.status, "COMPLETED"),
+			),
+		)
+		.where(
+			and(
+				eq(factorSelectionResults.userId, userId),
+				eq(factorSelectionResults.symbol, symbol),
+			),
+		)
+		.orderBy(desc(alphaTasks.createdAt));
+
+	const compatible = candidates.find(({ task }) => {
+		const params = (task.params ?? {}) as Record<string, unknown>;
+		return params.factorSetHash === factorSetHash && params.dataDate === dataDate;
+	});
+	return compatible ? toFactorContext(compatible) : null;
+}
+
+async function waitForSelectionTask(
+	userId: string,
+	taskId: string,
+	timeoutMs = 90_000,
+): Promise<void> {
+	const deadline = Date.now() + timeoutMs;
+	while (Date.now() < deadline) {
+		const [task] = await db
+			.select({ status: alphaTasks.status, result: alphaTasks.result })
+			.from(alphaTasks)
+			.where(and(eq(alphaTasks.id, taskId), eq(alphaTasks.userId, userId)));
+		if (!task) throw new Error("自动选股任务不存在或无权访问");
+		if (task.status === "COMPLETED") return;
+		if (task.status === "FAILED" || task.status === "CANCELLED") {
+			throw new Error(`自动选股任务未完成: ${JSON.stringify(task.result)}`);
+		}
+		await new Promise((resolve) => setTimeout(resolve, 2_000));
+	}
+	throw new Error("等待因子选股结果超时，请稍后重试");
+}
+
+async function getOrCreateFactorContext(
+	userId: string,
+	symbol: string,
+): Promise<FactorAnalysisContext> {
+	const { factors } = await resolveFactorSet(userId);
+	if (factors.length === 0) throw new Error("暂无有效因子，无法进行个股因子分析");
+	const factorIds = factors.map((factor) => factor.id).sort();
+	const factorSetHash = createHash("sha256").update(factorIds.join(",")).digest("hex");
+	const dataDate = shanghaiDate();
+	const existing = await findCompatibleFactorContext(userId, symbol, factorSetHash, dataDate);
+	if (existing) return existing;
+
+	const created = await FactorSelectionService.create(userId, {
+		universeType: "ALL_MARKET",
+		topN: 20,
+		lookbackDays: 250,
+	});
+	if (!created.success) throw new Error(created.error);
+	await waitForSelectionTask(userId, created.taskId);
+	const context = await findCompatibleFactorContext(userId, symbol, factorSetHash, dataDate);
+	if (!context) throw new Error(`选股结果中没有股票 ${symbol} 的完整因子暴露`);
+	return context;
 }
 
 async function callLlm(
@@ -86,7 +196,8 @@ async function callLlm(
 async function getMarketDataFromRedis(_symbol: string, days: number): Promise<object | null> {
 	const today = new Date().toISOString().slice(0, 10);
 	const key = `market_data:${today}_${days}`;
-	const raw = await redis.get(key);
+	const client = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
+	const raw = await client.get(key).finally(() => client.quit());
 	if (!raw) return null;
 	// The pickled data is a Python dict; we only check presence here.
 	// Actual analysis uses summary stats fetched from a separate key.
@@ -96,7 +207,8 @@ async function getMarketDataFromRedis(_symbol: string, days: number): Promise<ob
 async function getPriceSummary(symbol: string): Promise<object> {
 	// We store daily price stats as a lightweight JSON summary alongside the heavy pickle
 	const key = `price_summary:${symbol}:${new Date().toISOString().slice(0, 10)}`;
-	const raw = await redis.get(key);
+	const client = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
+	const raw = await client.get(key).finally(() => client.quit());
 	if (raw) return JSON.parse(raw);
 	// Fallback: return minimal placeholder (Engine has not yet written stats)
 	return { symbol, note: "stats pending — data fetch in progress" };
@@ -168,21 +280,10 @@ export abstract class AnalysisService {
 				});
 			}
 
-			// 4. Fetch price summary stats + latest alpha factors
+			// 4. Fetch price summary stats and the same persisted factor exposure
+			// snapshot used by the selection UI.
 			const priceStats = await getPriceSummary(symbol);
-			const factors = await db
-				.select()
-				.from(alphaFactors)
-				.where(eq(alphaFactors.userId, userId))
-				.orderBy(desc(alphaFactors.icValue))
-				.limit(5);
-
-			const factorSummary = factors.map((f) => ({
-				expression: f.expression,
-				icValue: f.icValue,
-				icir: f.icir,
-				direction: f.direction,
-			}));
+			const factorContext = await getOrCreateFactorContext(userId, symbol);
 
 			// 5. Get user LLM config
 			const userCfgs = await db
@@ -194,7 +295,7 @@ export abstract class AnalysisService {
 			if (!apiKey) throw new Error("LLM API Key not configured. Please set it in Settings.");
 
 			// 6. Call LLM
-			const prompt = buildAnalysisPrompt(symbol, priceStats, factorSummary);
+			const prompt = buildAnalysisPrompt(symbol, priceStats, factorContext);
 			const rawReport = await callLlm(apiKey, baseUrl, model, prompt);
 
 			// 7. Parse structured JSON from LLM response
@@ -220,7 +321,10 @@ export abstract class AnalysisService {
 					description: "",
 				},
 				signals: (structuredData.signals as AnalysisReport["signals"]) ?? [],
-				factors: factorSummary as AnalysisReport["factors"],
+				factors: factorContext.factorContributions,
+				selectionTaskId: factorContext.selectionTaskId,
+				selectionDataDate: factorContext.dataDate,
+				selectionUniverseType: factorContext.universeType,
 				risk: (structuredData.risk as AnalysisReport["risk"]) ?? {
 					level: "MEDIUM",
 					notes: "",
@@ -248,8 +352,8 @@ export abstract class AnalysisService {
 		const [task] = await db
 			.select()
 			.from(alphaTasks)
-			.where(eq(alphaTasks.id, taskId));
-		if (!task || task.userId !== userId) return null;
+			.where(and(eq(alphaTasks.id, taskId), eq(alphaTasks.userId, userId)));
+		if (!task) return null;
 		return task;
 	}
 }

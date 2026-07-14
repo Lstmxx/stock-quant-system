@@ -1,60 +1,82 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
 import { api } from '../../../api/api';
 
 const POLL_INTERVAL_MS = 2000;
+const TERMINAL_STATUSES = new Set(['COMPLETED', 'FAILED', 'CANCELLED']);
 
-export const useTaskLogsPolling = (taskId: string | null, pollInterval = 2000) => {
+export function useTaskLogsPolling(
+  taskId: string | null,
+  taskStatus?: string,
+  pollInterval = POLL_INTERVAL_MS,
+) {
   const [logs, setLogs] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const offsetRef = useRef(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const stopPolling = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-  }, []);
-
-  const fetchLogs = useCallback(async (activeTaskId: string) => {
-    try {
-      const res = await api.tasks({ id: activeTaskId }).logs.get({
-        query: { offset: offsetRef.current },
-      });
-
-      if (res.data) {
-        const newLogs = res.data.logs.map((log: string) => {
-          try {
-            const parsed = JSON.parse(log);
-            return parsed.message ?? log;
-          } catch {
-            return log;
-          }
-        });
-
-        if (newLogs.length > 0) {
-          setLogs((prev) => [...prev, ...newLogs]);
-        }
-        
-        offsetRef.current = res.data.nextOffset;
-      }
-    } catch (err) {
-      console.error('[useTaskLogsPolling] fetch error:', err);
-    }
-  }, []);
+  const generationRef = useRef(0);
+  const statusRef = useRef(taskStatus);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    stopPolling();
+    statusRef.current = taskStatus;
+  }, [taskStatus]);
+
+  useEffect(() => {
+    generationRef.current += 1;
+    const generation = generationRef.current;
     setLogs([]);
+    setError(null);
     offsetRef.current = 0;
 
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
     if (!taskId) return;
 
-    // Fetch immediately, then every POLL_INTERVAL_MS
-    fetchLogs(taskId);
-    intervalRef.current = setInterval(() => fetchLogs(taskId), pollInterval);
+    let disposed = false;
+    const poll = async () => {
+      try {
+        const response = await api.tasks({ id: taskId }).logs.get({
+          query: { offset: offsetRef.current },
+        });
+        if (disposed || generationRef.current !== generation) return;
+        if (response.error || !response.data || typeof response.data === 'string') {
+          setError('任务日志加载失败，请稍后重试');
+        } else {
+          setError(null);
+          const newLogs = response.data.logs.map(formatLogLine);
+          if (newLogs.length > 0) setLogs((previous) => [...previous, ...newLogs]);
+          offsetRef.current = response.data.nextOffset;
+        }
+      } catch {
+        if (!disposed && generationRef.current === generation) {
+          setError('任务日志加载失败，请检查网络连接');
+        }
+      } finally {
+        if (
+          !disposed
+          && generationRef.current === generation
+          && !TERMINAL_STATUSES.has(statusRef.current ?? '')
+        ) {
+          timeoutRef.current = setTimeout(() => void poll(), pollInterval);
+        }
+      }
+    };
 
-    return stopPolling;
-  }, [taskId, fetchLogs, stopPolling, pollInterval]);
+    void poll();
+    return () => {
+      disposed = true;
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    };
+  }, [taskId, pollInterval]);
 
-  return { logs };
-};
+  return { logs, error };
+}
+
+function formatLogLine(log: string): string {
+  try {
+    const parsed = JSON.parse(log) as { message?: unknown };
+    return typeof parsed.message === 'string' ? parsed.message : log;
+  } catch {
+    return log;
+  }
+}

@@ -11,6 +11,7 @@ import { configModule } from "./modules/config";
 import { watchlistModule } from "./modules/watchlist";
 import { taskModule } from "./modules/task";
 import { factorModule } from "./modules/factor";
+import { factorSelectionModule } from "./modules/factor-selection";
 import { analysisModule } from "./modules/analysis";
 import { strategyModule } from "./modules/strategy";
 import { llmModule } from "./modules/llm";
@@ -30,6 +31,7 @@ const app = new Elysia()
 			.use(watchlistModule)
 			.use(taskModule)
 			.use(factorModule)
+			.use(factorSelectionModule)
 			.use(analysisModule)
 			.use(strategyModule)
 			.use(llmModule)

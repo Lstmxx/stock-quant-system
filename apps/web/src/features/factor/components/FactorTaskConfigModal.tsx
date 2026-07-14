@@ -77,10 +77,6 @@ export const FactorTaskConfigModal: React.FC<Props> = ({ open, onCancel, onSaved
     }
   };
 
-  const selectedModel = models.find(
-    (m) => m.id === form.getFieldValue('llmModelId')
-  );
-
   return (
     <Modal
       title="因子任务配置"

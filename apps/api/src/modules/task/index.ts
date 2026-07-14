@@ -1,7 +1,7 @@
 import { Elysia, t } from "elysia";
 import { betterAuthPlugin } from "../../plugins/auth";
 import { TaskService, getRedis } from "./service";
-import { CreateTaskBody } from "./model";
+import { CreateMiningTaskBody } from "./model";
 
 export const taskModule = new Elysia({ prefix: "/tasks", name: "task" })
 	.use(betterAuthPlugin)
@@ -17,7 +17,7 @@ export const taskModule = new Elysia({ prefix: "/tasks", name: "task" })
 		return res;
 	}, {
 		auth: true,
-		body: CreateTaskBody,
+		body: CreateMiningTaskBody,
 	})
 	.get("/data-collection/config", ({ user }) => TaskService.getDataCollectionConfig(user.id), {
 		auth: true,
@@ -30,7 +30,7 @@ export const taskModule = new Elysia({ prefix: "/tasks", name: "task" })
 		auth: true,
 	})
 	// Returns full code->name mapping from Redis (populated during data collection)
-	.get("/data-collection/stock-names", async ({ user, query }) => {
+	.get("/data-collection/stock-names", async ({ query }) => {
 		const redis = getRedis();
 		const { codes } = query;
 		let names: Record<string, string>;

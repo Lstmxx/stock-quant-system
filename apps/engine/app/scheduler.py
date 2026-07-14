@@ -47,7 +47,7 @@ async def fetch_daily_data():
         
         # Push to Redis
         r = aioredis.from_url(settings.redis_url)
-        await r.lpush(
+        await r.rpush(
             settings.queue_name,
             json.dumps({
                 "taskId": task_id,

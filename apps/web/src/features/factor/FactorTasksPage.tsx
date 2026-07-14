@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Button, Card, Space, Drawer, Typography } from 'antd';
+import { Alert, Button, Card, Space, Drawer, Typography } from 'antd';
 import { PlusOutlined, SettingOutlined } from '@ant-design/icons';
 import { useFactorTasks } from './hooks/useFactorTasks';
 import { useTaskLogsPolling } from './hooks/useTaskLogsPolling';
 import { FactorTaskTable } from './components/FactorTaskTable';
 import { CreateMiningTaskModal } from './components/CreateMiningTaskModal';
 import { FactorTaskConfigModal } from './components/FactorTaskConfigModal';
+import type { ResearchDirection } from './components/CreateMiningTaskModal';
 
 const { Text } = Typography;
 
@@ -16,11 +17,12 @@ const FactorTasksPage: React.FC = () => {
   
   // Drawer and polling state
   const [activeLogTaskId, setActiveLogTaskId] = useState<string | null>(null);
-  const { logs } = useTaskLogsPolling(activeLogTaskId);
+  const activeLogTask = tasks.find((task) => task.id === activeLogTaskId);
+  const { logs, error: logsError } = useTaskLogsPolling(activeLogTaskId, activeLogTask?.status);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
-  const handleSubmit = async (targetSymbol: string, days?: number) => {
-    await handleCreateTask(targetSymbol, days);
+  const handleSubmit = async (researchDirection: ResearchDirection, days: number) => {
+    return handleCreateTask(researchDirection, days);
   };
 
   const handleViewLogs = (taskId: string) => {
@@ -78,11 +80,12 @@ const FactorTasksPage: React.FC = () => {
       <Drawer
         title="任务日志"
         placement="right"
-        width={800}
+        size="large"
         onClose={() => setActiveLogTaskId(null)}
         open={!!activeLogTaskId}
         styles={{ body: { backgroundColor: '#1e1e1e', padding: '16px' } }}
       >
+        {logsError ? <Alert type="error" showIcon title={logsError} className="mb-4" /> : null}
         <div style={{ fontFamily: 'monospace', color: '#00ff00', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
           {logs.length === 0 ? (
             <Text style={{ color: '#00ff00' }}>Waiting for logs...</Text>

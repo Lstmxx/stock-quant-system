@@ -8,6 +8,13 @@
       "when": 1782891043082,
       "tag": "0000_awesome_hercules",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1783933465121,
+      "tag": "0001_factor_selection_contract",
+      "breakpoints": true
     }
   ]
 }

@@ -19,6 +19,11 @@ This directory contains guidelines for backend development. Fill in each file wi
 | [Error Handling](./error-handling.md) | Error types, handling strategies | To fill |
 | [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | To fill |
 | [Logging Guidelines](./logging-guidelines.md) | Structured logging, log levels | To fill |
+| [Factor Workflow Contract](../../api/backend/factor-workflow-contract.md) | Worker, queue, mining, selection, and cancellation contracts | Active |
+
+## Pre-Development Checklist
+
+- When changing factor mining, workers, task queues, or selection calculations, read [Factor Workflow Contract](../../api/backend/factor-workflow-contract.md).
 
 ---
 

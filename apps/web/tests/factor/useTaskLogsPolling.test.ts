@@ -22,7 +22,7 @@ describe('useTaskLogsPolling', () => {
   });
 
   it('should not poll if taskId is null', async () => {
-    renderHook(() => useTaskLogsPolling(null, 10));
+    renderHook(() => useTaskLogsPolling(null, undefined, 10));
     await new Promise(r => setTimeout(r, 50));
     expect(mockLogsGet).not.toHaveBeenCalled();
   });
@@ -41,7 +41,7 @@ describe('useTaskLogsPolling', () => {
       data: { logs: [], nextOffset: 2 },
     });
 
-    const { result } = renderHook(() => useTaskLogsPolling('task-1', 10));
+    const { result } = renderHook(() => useTaskLogsPolling('task-1', 'RUNNING', 10));
 
     // Should fetch immediately
     expect(mockLogsGet).toHaveBeenCalled();
@@ -60,10 +60,34 @@ describe('useTaskLogsPolling', () => {
       data: { logs: [], nextOffset: 3 },
     });
 
-    const { result } = renderHook(() => useTaskLogsPolling('task-1', 10));
+    const { result } = renderHook(() => useTaskLogsPolling('task-1', 'RUNNING', 10));
 
     await waitFor(() => {
       expect(result.current.logs).toEqual(['hello', 'plain text', '{"other": "data"}']);
     });
+  });
+
+  it('should ignore a late response from the previously selected task', async () => {
+    let resolveFirst: (value: unknown) => void = () => undefined;
+    mockLogsGet.mockImplementationOnce(() => new Promise(resolve => { resolveFirst = resolve; }));
+    mockLogsGet.mockResolvedValue({ data: { logs: ['{"message":"new task"}'], nextOffset: 1 } });
+
+    const { result, rerender } = renderHook(
+      ({ taskId }) => useTaskLogsPolling(taskId, 'COMPLETED', 10),
+      { initialProps: { taskId: 'task-1' } },
+    );
+    rerender({ taskId: 'task-2' });
+    resolveFirst({ data: { logs: ['{"message":"old task"}'], nextOffset: 1 } });
+
+    await waitFor(() => expect(result.current.logs).toEqual(['new task']));
+  });
+
+  it('should expose request failures and stop polling a terminal task', async () => {
+    mockLogsGet.mockResolvedValue({ error: { value: 'failed' } });
+    const { result } = renderHook(() => useTaskLogsPolling('task-1', 'FAILED', 10));
+
+    await waitFor(() => expect(result.current.error).toBe('任务日志加载失败，请稍后重试'));
+    await new Promise(resolve => setTimeout(resolve, 30));
+    expect(mockLogsGet).toHaveBeenCalledTimes(1);
   });
 });

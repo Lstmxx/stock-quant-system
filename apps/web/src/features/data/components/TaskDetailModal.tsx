@@ -163,7 +163,7 @@ export const TaskDetailModal: React.FC<Props> = ({ task, activeTaskId, open, onC
             {!isActive && (
               <div style={{ padding: '12px 0', color: '#666', marginBottom: 16 }}>
                 <p>该任务当前状态: <Tag>{task.status}</Tag></p>
-                {task.result && (
+                {isRecord(task.result) ? (
                   <div style={{ marginTop: 12 }}>
                     <Text strong>执行总结: </Text>
                     <div style={{ background: '#f5f5f5', padding: 12, marginTop: 8, borderRadius: 4 }}>
@@ -175,7 +175,7 @@ export const TaskDetailModal: React.FC<Props> = ({ task, activeTaskId, open, onC
                       ))}
                     </div>
                   </div>
-                )}
+                ) : null}
               </div>
             )}
 
@@ -224,3 +224,7 @@ export const TaskDetailModal: React.FC<Props> = ({ task, activeTaskId, open, onC
     </>
   );
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}

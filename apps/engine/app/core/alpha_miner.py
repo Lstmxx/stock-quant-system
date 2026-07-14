@@ -15,6 +15,7 @@ import json
 import os
 import sys
 import time
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -37,6 +38,22 @@ from app.config import settings as _app_settings
 
 _REDIS_URL = _app_settings.redis_url
 
+
+@dataclass(frozen=True, slots=True)
+class MiningResult:
+    """Observable result of one complete mining run."""
+
+    valid_factors: list[FactorRecord]
+    generated_count: int
+
+
+class TaskCancelledError(Exception):
+    """Raised at a cooperative boundary when a queued task was cancelled."""
+
+    def __init__(self, task_id: str) -> None:
+        super().__init__(f"Task {task_id} was cancelled")
+        self.task_id = task_id
+
 class AlphaMiner:
     """Alpha因子挖掘主控"""
     
@@ -44,6 +61,7 @@ class AlphaMiner:
         self.market_data = None
         self.history = []  # 历史假设和结果
         self.current_round = 0
+        self.research_direction = "量价关系"
         self.task_id = task_id
         self.user_id = user_id
         llm.set_user_config(self.user_id)
@@ -69,6 +87,14 @@ class AlphaMiner:
             self.redis_client.expire(f"task_log_list:{self.task_id}", 7200)
         except Exception:
             pass
+
+    def _check_cancelled(self) -> None:
+        """Stop work promptly without hiding cancellation as a mining failure."""
+        redis_client = getattr(self, "redis_client", None)
+        if redis_client is None:
+            return
+        if redis_client.get(f"task_cancelled:{self.task_id}"):
+            raise TaskCancelledError(self.task_id)
     
     def load_data(self, lookback_days: int = 250):
         """加载市场数据"""
@@ -97,7 +123,7 @@ class AlphaMiner:
         max_rounds: int = 10,
         factors_per_round: int = 3,
         use_evolution: bool = True
-    ) -> List[FactorRecord]:
+    ) -> MiningResult:
         """
         执行因子挖掘
         
@@ -118,73 +144,75 @@ class AlphaMiner:
         self._log(f"最大轮数: {max_rounds}, 每轮因子数: {factors_per_round}")
         self._log(f"{'='*60}\n")
         
-        all_valid_factors = []
+        self.research_direction = direction
+        all_valid_factors: list[FactorRecord] = []
         all_generated_count = 0
         feedback = ""
         
         for round_num in range(1, max_rounds + 1):
+            self._check_cancelled()
             self.current_round = round_num
             self._log(f"\n{'='*40}")
             self._log(f"第 {round_num}/{max_rounds} 轮")
             self._log(f"{'='*40}")
             
-            try:
-                # 1. 生成假设
-                hypothesis = self._generate_hypothesis(direction, feedback)
-                if not hypothesis:
-                    self._log("[跳过] 假设生成失败")
-                    continue
-                
-                # 2. 生成因子表达式
-                expressions = self._generate_factors(
-                    hypothesis, factors_per_round
-                )
-                
-                # 3. 如果使用进化，添加进化子代
-                if use_evolution and len(library.get_all()) >= 2:
-                    evolved = self._evolve_population()
-                    expressions.extend(evolved)
-                
-                all_generated_count += len(expressions)
-                
-                # 4. 计算和评估因子
-                round_results = self._evaluate_expressions(
-                    expressions, hypothesis
-                )
-                
-                # 5. 收集有效因子
-                valid_factors = [r for r in round_results if r['metrics'].is_valid]
-                all_valid_factors.extend(valid_factors)
-                
-                # 6. 生成反馈
-                feedback = self._generate_feedback(
-                    hypothesis, round_results
-                )
-                
-                # 7. 记录历史
-                self.history.append({
-                    'round': round_num,
-                    'hypothesis': hypothesis,
-                    'n_expressions': len(expressions),
-                    'n_valid': len(valid_factors),
-                    'feedback': feedback
-                })
-                
-                # 打印本轮结果
-                self._print_round_summary(round_num, round_results)
-                
-            except Exception as e:
-                self._log(f"[错误] 第{round_num}轮失败: {type(e).__name__}: {e}")
+            # 1. 生成假设
+            hypothesis = self._generate_hypothesis(direction, feedback)
+            self._check_cancelled()
+            if not hypothesis:
+                self._log("[跳过] 假设生成失败")
                 continue
+
+            # 2. 生成因子表达式
+            expressions = self._generate_factors(hypothesis, factors_per_round)
+            self._check_cancelled()
+
+            # 3. 如果使用进化，添加进化子代
+            if use_evolution and len(library.list_all(self.user_id)) >= 2:
+                evolved = self._evolve_population()
+                expressions.extend(evolved)
+
+            all_generated_count += len(expressions)
+
+            # 4. 计算和评估因子
+            round_results = self._evaluate_expressions(expressions, hypothesis)
+
+            # 5. 收集已持久化的有效因子
+            valid_factors = [
+                result["record"]
+                for result in round_results
+                if result["metrics"] is not None
+                and result["metrics"].is_valid
+                and result["record"] is not None
+            ]
+            all_valid_factors.extend(valid_factors)
+
+            # 6. 生成反馈
+            self._check_cancelled()
+            feedback = self._generate_feedback(hypothesis, round_results)
+
+            # 7. 记录历史
+            self.history.append({
+                'round': round_num,
+                'hypothesis': hypothesis,
+                'n_expressions': len(expressions),
+                'n_valid': len(valid_factors),
+                'feedback': feedback
+            })
+
+            self._print_round_summary(round_num, round_results)
         
         # 打印最终结果
         self._print_final_summary(all_valid_factors)
         
         # 自动裁剪垃圾因子
         self._log("\n[自动裁剪] 清理垃圾因子...")
-        prune_stats = library.prune()
+        library.prune(self.user_id)
         
-        return all_valid_factors, all_generated_count
+        return MiningResult(
+            valid_factors=all_valid_factors,
+            generated_count=all_generated_count,
+        )
     
     def _generate_hypothesis(
         self, direction: str, feedback: str
@@ -192,24 +220,17 @@ class AlphaMiner:
         """生成研究假设"""
         self._log("\n[1/5] 生成研究假设...")
         
-        try:
-            hypothesis = llm.generate_hypothesis(
-                direction=direction,
-                history=self.history,
-                feedback=feedback,
-                llm_config=self.llm_config,
-            )
-            
-            if hypothesis and hypothesis.get('hypothesis'):
-                self._log(f"  假设: {hypothesis['hypothesis']}")
-                return hypothesis
-            else:
-                self._log("  [警告] 生成的假设为空")
-                return None
-                
-        except Exception as e:
-            self._log(f"  [错误] 假设生成失败: {e}")
-            return None
+        hypothesis = llm.generate_hypothesis(
+            direction=direction,
+            history=self.history,
+            feedback=feedback,
+            llm_config=self.llm_config,
+        )
+        if not hypothesis or not hypothesis.get('hypothesis'):
+            raise RuntimeError("LLM 未返回可用的研究假设")
+
+        self._log(f"  假设: {hypothesis['hypothesis']}")
+        return hypothesis
     
     def _generate_factors(
         self, hypothesis: Dict, n_factors: int
@@ -218,45 +239,34 @@ class AlphaMiner:
         self._log(f"\n[2/5] 生成因子表达式 (目标{n_factors}个)...")
         
         # 获取已有表达式（避免重复）
-        existing = library.get_expressions()
+        existing = library.list_expressions(self.user_id)
         
-        try:
-            factors = llm.generate_factors(
-                hypothesis=hypothesis.get('hypothesis', ''),
-                existing_expressions=existing,
-                n_factors=n_factors,
-                llm_config=self.llm_config,
-            )
-            
-            expressions = [f['expression'] for f in factors if f.get('expression')]
-            
-            self._log(f"  生成了 {len(expressions)} 个表达式")
-            for i, expr in enumerate(expressions, 1):
-                self._log(f"    {i}. {expr}")
-            
-            return expressions
-            
-        except Exception as e:
-            self._log(f"  [错误] 因子生成失败: {e}")
-            return []
+        factors = llm.generate_factors(
+            hypothesis=hypothesis.get('hypothesis', ''),
+            existing_expressions=existing,
+            n_factors=n_factors,
+            llm_config=self.llm_config,
+        )
+        expressions = [factor['expression'] for factor in factors if factor.get('expression')]
+        if not expressions:
+            raise RuntimeError("LLM 未返回可计算的因子表达式")
+
+        self._log(f"  生成了 {len(expressions)} 个表达式")
+        for i, expr in enumerate(expressions, 1):
+            self._log(f"    {i}. {expr}")
+        return expressions
     
     def _evolve_population(self) -> List[str]:
         """进化种群"""
         self._log("\n[2.5/5] 执行进化操作...")
         
-        try:
-            population = library.get_valid_factors()
-            if len(population) < 2:
-                return []
-            
-            children = evolution.evolve(population, n_children=5, llm_config=self.llm_config)
-            self._log(f"  进化生成了 {len(children)} 个子代")
-            
-            return children
-            
-        except Exception as e:
-            self._log(f"  [错误] 进化失败: {e}")
+        population = library.list_valid(self.user_id)
+        if len(population) < 2:
             return []
+
+        children = evolution.evolve(population, n_children=5, llm_config=self.llm_config)
+        self._log(f"  进化生成了 {len(children)} 个子代")
+        return children
     
     def _evaluate_expressions(
         self, expressions: List[str], hypothesis: Dict
@@ -267,6 +277,7 @@ class AlphaMiner:
         results = []
         
         for i, expr in enumerate(expressions, 1):
+            self._check_cancelled()
             self._log(f"\n  --- 因子 {i}/{len(expressions)} ---")
             self._log(f"  表达式: {expr}")
             
@@ -289,6 +300,7 @@ class AlphaMiner:
                 
                 # 如果通过评估，保存到因子库
                 if metrics.is_valid:
+                    self._check_cancelled()
                     parsed = parser.parse(expr)
                     record = library.add(
                         name=f"Round{self.current_round}_Factor{i}",
@@ -298,6 +310,7 @@ class AlphaMiner:
                         operators=parsed.operators,
                         nesting_depth=parsed.nesting_depth,
                         hypothesis=hypothesis.get('hypothesis', ''),
+                        research_direction=self.research_direction,
                         generation=self.current_round,
                         user_id=self.user_id
                     )
@@ -324,12 +337,14 @@ class AlphaMiner:
         debug_history = []
         
         for attempt in range(max_attempts):
+            self._check_cancelled()
             # 1. 解析表达式
             parsed = parser.parse(current_expr)
             if not parsed.is_valid:
                 # 语法错误，尝试debug
                 if attempt < max_attempts - 1:
                     debug_history.append({"expression": current_expr, "error": parsed.error})
+                    self._check_cancelled()
                     fixed_expr, _ = llm.debug_factor_code(
                         current_expr, parsed.error, history=debug_history, llm_config=self.llm_config
                     )
@@ -352,6 +367,7 @@ class AlphaMiner:
                 # 计算错误，尝试debug
                 if attempt < max_attempts - 1:
                     debug_history.append({"expression": current_expr, "error": error})
+                    self._check_cancelled()
                     fixed_expr, _ = llm.debug_factor_code(
                         current_expr, error, history=debug_history, llm_config=self.llm_config
                     )
@@ -405,26 +421,19 @@ class AlphaMiner:
                     'error': r['error'],
                 })
         
-        try:
-            feedback_result = llm.generate_feedback(
-                hypothesis=hypothesis.get('hypothesis', ''),
-                metrics_summary=metrics_summary,
-                best_factors=best_factors,
-                failed_factors=failed_factors,
-                llm_config=self.llm_config,
-            )
-            
-            observation = feedback_result.get('observation', '')
-            new_direction = feedback_result.get('new_direction', '')
-            
-            self._log(f"  观察: {observation}")
-            self._log(f"  新方向: {new_direction}")
-            
-            return json.dumps(feedback_result, ensure_ascii=False)
-            
-        except Exception as e:
-            self._log(f"  [错误] 反馈生成失败: {e}")
-            return ""
+        feedback_result = llm.generate_feedback(
+            hypothesis=hypothesis.get('hypothesis', ''),
+            metrics_summary=metrics_summary,
+            best_factors=best_factors,
+            failed_factors=failed_factors,
+            llm_config=self.llm_config,
+        )
+
+        observation = feedback_result.get('observation', '')
+        new_direction = feedback_result.get('new_direction', '')
+        self._log(f"  观察: {observation}")
+        self._log(f"  新方向: {new_direction}")
+        return json.dumps(feedback_result, ensure_ascii=False)
     
     def _build_metrics_summary(self, results: List[Dict]) -> str:
         """构建指标摘要"""
@@ -453,7 +462,7 @@ class AlphaMiner:
         self._log(f"\n--- 第{round_num}轮摘要 ---")
         self._log(f"  总计: {n_total}, 通过: {n_valid}, 失败: {n_failed}")
     
-    def _print_final_summary(self, valid_factors: List[Dict]):
+    def _print_final_summary(self, valid_factors: list[FactorRecord]) -> None:
         """打印最终摘要"""
         self._log(f"\n{'='*60}")
         self._log("因子挖掘完成")
@@ -465,16 +474,20 @@ class AlphaMiner:
             # 按IC排序
             sorted_factors = sorted(
                 valid_factors,
-                key=lambda r: r['metrics'].ic_abs_weighted,
+                key=lambda factor: abs(factor.ic_value or 0.0),
                 reverse=True
             )
             
             self._log(f"\nTop 5 因子:")
             for i, f in enumerate(sorted_factors[:5], 1):
-                m = f['metrics']
-                self._log(f"\n  {i}. {f['expression']}")
-                self._log(f"     IC={m.ic_abs_weighted:.4f}, ICIR={m.icir:.4f}")
-                self._log(f"     方向={'正向' if m.direction == 1 else '负向'}")
+                self._log(f"\n  {i}. {f.expression}")
+                self._log(
+                    f"     IC={(f.ic_value or 0.0):.4f}, "
+                    f"ICIR={(f.icir or 0.0):.4f}"
+                )
+                self._log(
+                    f"     方向={'正向' if f.direction == 1 else '负向'}"
+                )
         
         # 打印因子库摘要
         self._log(f"\n{library.format_summary()}")
@@ -552,7 +565,7 @@ def main():
         direction, decay_stats, optimized = miner.self_optimize()
     
     # 开始挖掘
-    valid_factors, total_generated = miner.mine(
+    mining_result = miner.mine(
         direction=direction,
         max_rounds=args.rounds,
         factors_per_round=args.factors_per_round,
@@ -562,16 +575,16 @@ def main():
     # 记录方向结果
     if args.auto_direction or args.self_optimize:
         from .direction_manager import direction_manager
-        valid_factors_list = list(valid_factors)
+        valid_factors_list = list(mining_result.valid_factors)
         direction_manager.record_result(
             direction=direction,
-            n_factors_generated=total_generated,
+            n_factors_generated=mining_result.generated_count,
             n_factors_valid=len(valid_factors_list),
-            best_ic=max((f.get('ic_abs_weighted', 0) if isinstance(f, dict) else f.ic_abs_weighted for f in valid_factors_list), default=0),
-            avg_ic=sum((f.get('ic_abs_weighted', 0) if isinstance(f, dict) else f.ic_abs_weighted for f in valid_factors_list)) / max(len(valid_factors_list), 1),
+            best_ic=max((abs(f.ic_value or 0.0) for f in valid_factors_list), default=0),
+            avg_ic=sum(abs(f.ic_value or 0.0) for f in valid_factors_list) / max(len(valid_factors_list), 1),
         )
     else:
-        valid_factors_list = list(valid_factors)
+        valid_factors_list = list(mining_result.valid_factors)
     
     return valid_factors_list
 

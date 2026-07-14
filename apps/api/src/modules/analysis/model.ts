@@ -11,6 +11,25 @@ export const StartAnalysisBody = t.Object({
 
 export type StartAnalysisBody = typeof StartAnalysisBody.static;
 
+export interface FactorAnalysisContext {
+	selectionTaskId: string;
+	dataDate: string;
+	universeType: "ALL_MARKET" | "WATCHLIST";
+	symbol: string;
+	compositeScore: number;
+	rank: number;
+	factorContributions: Array<{
+		factorId: string;
+		name: string;
+		value: number;
+		zScore: number;
+		weight: number;
+		direction: number;
+		contribution: number;
+		percentile: number;
+	}>;
+}
+
 /**
  * JSON-structured analysis report stored in alpha_tasks.result
  */
@@ -31,12 +50,10 @@ export interface AnalysisReport {
 		label: string;
 		sentiment: "BULLISH" | "BEARISH" | "NEUTRAL";
 	}>;
-	factors: Array<{
-		expression: string;
-		icValue: string;
-		icir: string;
-		direction: string;
-	}>;
+	factors: FactorAnalysisContext["factorContributions"];
+	selectionTaskId: string;
+	selectionDataDate: string;
+	selectionUniverseType: "ALL_MARKET" | "WATCHLIST";
 	risk: {
 		level: "LOW" | "MEDIUM" | "HIGH";
 		notes: string;

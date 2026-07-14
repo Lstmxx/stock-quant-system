@@ -8,12 +8,17 @@ vi.mock('../../src/api/api', () => ({
   api: {
     factors: {
       get: vi.fn(),
+      selection: {
+        get: vi.fn().mockResolvedValue({ data: { mode: 'AUTO', factorIds: [] } }),
+        put: vi.fn(),
+      },
     },
   },
 }));
 
 vi.mock('antd', () => ({
   message: {
+    success: vi.fn(),
     error: vi.fn(),
   },
 }));
@@ -41,7 +46,7 @@ describe('useFactors', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(api.factors.get).toHaveBeenCalledWith({
-      query: { limit: '10', offset: '0', keyword: undefined },
+      query: { limit: 10, offset: 0, keyword: undefined },
     });
   });
 
@@ -98,7 +103,7 @@ describe('useFactors', () => {
     
     await waitFor(() => {
       expect(api.factors.get).toHaveBeenCalledWith({
-        query: { limit: '20', offset: '20', keyword: 'MACD' },
+        query: { limit: 20, offset: 20, keyword: 'MACD' },
       });
     });
   });

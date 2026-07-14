@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { message } from 'antd';
 import { api } from '../../../api/api';
 import { FactorTask } from '../types';
+import type { ResearchDirection } from '../components/CreateMiningTaskModal';
 
 export const useFactorTasks = () => {
   const [tasks, setTasks] = useState<FactorTask[]>([]);
@@ -32,21 +33,25 @@ export const useFactorTasks = () => {
     return () => clearInterval(timer);
   }, []);
 
-  const handleCreateTask = async (targetSymbol: string, days?: number) => {
+  const handleCreateTask = async (researchDirection: ResearchDirection, days: number) => {
     try {
-      const { error } = await api.tasks.mining.post({ targetSymbol, days });
+      const { error } = await api.tasks.mining.post({ researchDirection, days });
       if (!error) {
         message.success('已触发挖掘任务');
         fetchTasks();
+        return true;
       } else {
         const errorMsg =
           error?.value && typeof error.value === 'object' && 'error' in error.value
             ? String(error.value.error)
             : '触发失败，请重试';
         message.error(errorMsg);
+        return false;
       }
     } catch (e) {
       console.error(e);
+      message.error('触发失败，请检查网络后重试');
+      return false;
     }
   };
 
@@ -54,7 +59,7 @@ export const useFactorTasks = () => {
     try {
       const { error } = await api.tasks({ id }).cancel.post();
       if (!error) {
-        message.success('任务已终止');
+        message.success('取消请求已提交，任务将在下一个检查点停止');
         fetchTasks();
       } else {
         message.error('终止任务失败');

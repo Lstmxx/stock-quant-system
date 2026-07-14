@@ -1,6 +1,7 @@
 import { db, alphaTasks, userConfigs, dataCollectionConfigs, llmModels } from "@stock-quant/database";
 import { eq, and } from "drizzle-orm";
 import Redis from "ioredis";
+import type { CreateMiningTaskBody } from "./model";
 
 const QUEUE_NAME = "stock:tasks:queue";
 
@@ -9,6 +10,30 @@ export function getRedis() {
 }
 
 export abstract class TaskService {
+	static async enqueueTask(
+		taskId: string,
+		payload: Record<string, unknown>,
+	): Promise<boolean> {
+		const redis = getRedis();
+		try {
+			await redis.rpush(QUEUE_NAME, JSON.stringify(payload));
+			return true;
+		} catch (error) {
+			const detail = error instanceof Error ? error.message : String(error);
+			await db
+				.update(alphaTasks)
+				.set({
+					status: "FAILED",
+					result: { error: "任务入队失败", detail },
+					updatedAt: new Date(),
+				})
+				.where(eq(alphaTasks.id, taskId));
+			return false;
+		} finally {
+			await redis.quit().catch(() => undefined);
+		}
+	}
+
 	static async listByUser(userId: string) {
 		return await db
 			.select()
@@ -19,7 +44,7 @@ export abstract class TaskService {
 
 	static async createMiningTask(
 		userId: string,
-		params: { targetSymbol: string; days?: number },
+		params: CreateMiningTaskBody,
 	) {
 		// 1. Check if user has configured a default LLM model for factor tasks
 		const configRows = await db
@@ -56,18 +81,19 @@ export abstract class TaskService {
 			})
 			.returning();
 
-		// Push to redis queue for FastAPI engine
-		const redis = getRedis();
-		await redis.lpush(
-			QUEUE_NAME,
-			JSON.stringify({
+		const enqueued = await this.enqueueTask(task.id, {
 				taskId: task.id,
 				userId,
 				type: "FACTOR_MINING",
 				params: taskParams,
-			}),
-		);
-		await redis.quit();
+			});
+		if (!enqueued) {
+			return {
+				success: false,
+				error: "任务入队失败，请稍后重试",
+				taskId: task.id,
+			};
+		}
 
 		return { success: true, taskId: task.id };
 	}
@@ -121,7 +147,10 @@ export abstract class TaskService {
 			await redis.setex(`task_cancelled:${task.id}`, 3600, "1");
 			await db
 				.update(alphaTasks)
-				.set({ status: "CANCELLED", updatedAt: new Date() })
+				.set({
+					status: task.status === "PENDING" ? "CANCELLED" : "CANCELLING",
+					updatedAt: new Date(),
+				})
 				.where(eq(alphaTasks.id, task.id));
 		}
 
@@ -137,7 +166,7 @@ export abstract class TaskService {
 			})
 			.returning();
 
-		await redis.lpush(
+		await redis.rpush(
 			QUEUE_NAME,
 			JSON.stringify({
 				taskId: newTask.id,
@@ -172,7 +201,10 @@ export abstract class TaskService {
 			await redis.setex(`task_cancelled:${task.id}`, 3600, "1");
 			await db
 				.update(alphaTasks)
-				.set({ status: "CANCELLED", updatedAt: new Date() })
+				.set({
+					status: task.status === "PENDING" ? "CANCELLED" : "CANCELLING",
+					updatedAt: new Date(),
+				})
 				.where(eq(alphaTasks.id, task.id));
 			await redis.quit();
 		}
@@ -208,7 +240,7 @@ export abstract class TaskService {
 			})
 			.returning();
 
-		await redis.lpush(
+		await redis.rpush(
 			QUEUE_NAME,
 			JSON.stringify({
 				taskId: newTask.id,
@@ -237,4 +269,3 @@ export abstract class TaskService {
 		};
 	}
 }
-

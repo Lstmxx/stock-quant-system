@@ -10,6 +10,7 @@ const LlmManagement = React.lazy(() => import('../features/llm/LlmManagement'));
 const DataManagement = React.lazy(() => import('../features/data/DataManagement'));
 const FactorTasksPage = React.lazy(() => import('../features/factor/FactorTasksPage'));
 const FactorListPage = React.lazy(() => import('../features/factor/FactorListPage'));
+const FactorSelectionPage = React.lazy(() => import('../features/factor/FactorSelectionPage'));
 
 export const router = createBrowserRouter([
   {
@@ -60,6 +61,10 @@ export const router = createBrowserRouter([
           {
             path: 'list',
             element: <Suspense fallback={<div>Loading...</div>}><FactorListPage /></Suspense>,
+          },
+          {
+            path: 'selection',
+            element: <Suspense fallback={<div>Loading...</div>}><FactorSelectionPage /></Suspense>,
           },
         ]
       },

@@ -48,7 +48,7 @@ const Dashboard: React.FC = () => {
   const submitTask = async (values: any) => {
     setSubmitting(true);
     try {
-      await api.tasks.mining.post({ targetSymbol: values.targetSymbol });
+      await api.tasks.mining.post({ researchDirection: values.researchDirection, days: 250 });
       setShowNewTaskModal(false);
       form.resetFields();
       await fetchTasks();
@@ -92,7 +92,7 @@ const Dashboard: React.FC = () => {
       title: 'Target',
       dataIndex: 'params',
       key: 'params',
-      render: (params: any) => params?.targetSymbol || '—',
+      render: (params: any) => params?.researchDirection || params?.targetSymbol || '—',
     },
     {
       title: 'Created',
@@ -137,8 +137,8 @@ const Dashboard: React.FC = () => {
         footer={null}
       >
         <Form form={form} layout="vertical" onFinish={submitTask}>
-          <Form.Item name="targetSymbol" label="Target Symbol" rules={[{ required: true }]}>
-            <Input placeholder="e.g. sh.600000" />
+          <Form.Item name="researchDirection" label="Research Direction" rules={[{ required: true }]}>
+            <Input placeholder="e.g. 量价关系" />
           </Form.Item>
           <Form.Item style={{ textAlign: 'right', marginBottom: 0 }}>
             <Button onClick={() => setShowNewTaskModal(false)} style={{ marginRight: 8 }}>Cancel</Button>

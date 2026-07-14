@@ -1,131 +1,182 @@
-"""
-因子库管理模块 (PostgreSQL + SQLAlchemy)
-==============
-取代了原本的 JSON 存储，使用数据库中的 `alpha_factors` 表保存因子。
-"""
-import hashlib
-from typing import Dict, List, Optional
-from datetime import datetime
+"""User-scoped PostgreSQL factor library."""
 
-from sqlalchemy import create_engine, text
-from app.config import settings
 from dataclasses import dataclass
+from typing import Any
+from uuid import uuid4
 
-@dataclass
+from sqlalchemy import Engine, create_engine, text
+
+from app.config import settings
+
+
+@dataclass(frozen=True, slots=True)
 class FactorRecord:
-    """因子记录"""
-    id: str                    # MD5哈希ID
-    name: str                  # 因子名称
-    expression: str            # 因子表达式
-    direction: int             # 因子方向: 1=正向, -1=负向
-    is_positive: bool          # 是否为正向因子
-    
-    # 评估指标
-    ic_mean: float
-    ic_std: float
-    ir: float
-    t_stat_mean: float
-    win_rate: float
-    annual_return: float
-    max_drawdown: float
-    turnover: float
-    
-    # 组合指标
-    fitness: float
-    
-    # 元数据
-    variables: List[str]
-    operators: List[str]
-    nesting_depth: int
-    created_at: str
-    
-    # 新增字段: 演化关系
-    parent_ids: List[str]
+    """Persisted factor metadata used by mining, evolution, and selection."""
+
+    id: str
+    user_id: str
+    name: str
+    expression: str
+    hypothesis: str | None
+    research_direction: str | None
+    ic_value: float | None
+    icir: float | None
+    monotonicity: float | None
+    direction: int | None
+    is_valid: bool
     generation: int
-    mutation_type: str
+
 
 class FactorLibrary:
-    """因子库管理器 (DB-backed)"""
-    
-    def __init__(self):
-        self.engine = create_engine(settings.database_url)
-    
+    """Persist and retrieve factors without crossing user boundaries."""
+
+    def __init__(self, engine: Engine | None = None) -> None:
+        self.engine = engine or create_engine(settings.database_url)
+
     @staticmethod
-    def _generate_id(expression: str) -> str:
-        return hashlib.md5(expression.strip().encode()).hexdigest()[:12]
-    
+    def _to_record(row: Any) -> FactorRecord:
+        values = row if isinstance(row, dict) else row._mapping
+        return FactorRecord(
+            id=str(values["id"]),
+            user_id=str(values["userId"]),
+            name=str(values["name"]),
+            expression=str(values["expression"]),
+            hypothesis=values["hypothesis"],
+            research_direction=values["researchDirection"],
+            ic_value=(
+                float(values["icValue"]) if values["icValue"] is not None else None
+            ),
+            icir=float(values["icir"]) if values["icir"] is not None else None,
+            monotonicity=(
+                float(values["monotonicity"])
+                if values["monotonicity"] is not None
+                else None
+            ),
+            direction=(
+                int(values["direction"])
+                if values["direction"] is not None
+                else None
+            ),
+            is_valid=bool(values["isValid"]),
+            generation=int(values["generation"]),
+        )
+
+    @staticmethod
+    def _select_columns() -> str:
+        return '''
+            id, "userId", name, expression, hypothesis, "researchDirection",
+            "icValue", icir, monotonicity, direction, "isValid", generation
+        '''
+
     def add(
         self,
+        *,
+        user_id: str,
         name: str,
         expression: str,
-        metrics: any,
-        variables: List[str],
-        operators: List[str],
+        metrics: Any,
+        variables: list[str],
+        operators: list[str],
         nesting_depth: int,
         hypothesis: str = "",
+        research_direction: str | None = None,
         generation: int = 0,
-        parent_ids: Optional[List[str]] = None,
-        user_id: str = "system" # default or passed from task
-    ):
-        """
-        添加因子到库 (数据库)
-        """
-        factor_id = self._generate_id(expression)
-        
-        with self.engine.connect() as conn:
-            # check if exists
-            res = conn.execute(
-                text("SELECT id FROM alpha_factors WHERE id = :id"),
-                {"id": factor_id}
-            ).fetchone()
-            
-            if not res:
-                conn.execute(
-                    text("""
-                        INSERT INTO alpha_factors (
-                            id, "userId", name, expression, hypothesis, 
-                            "icValue", icir, monotonicity, direction, 
-                            "isValid", generation, "createdAt", "updatedAt"
-                        ) VALUES (
-                            :id, :userId, :name, :expression, :hypothesis,
-                            :icValue, :icir, :monotonicity, :direction,
-                            :isValid, :generation, NOW(), NOW()
-                        )
-                    """),
-                    {
-                        "id": factor_id,
-                        "userId": user_id,
-                        "name": name,
-                        "expression": expression,
-                        "hypothesis": hypothesis,
-                        "icValue": str(metrics.ic_abs_weighted),
-                        "icir": str(metrics.icir),
-                        "monotonicity": str(metrics.monotonicity_score),
-                        "direction": str(metrics.direction),
-                        "isValid": metrics.is_valid,
-                        "generation": str(generation)
-                    }
-                )
-                conn.commit()
-                
-        return {"id": factor_id, "name": name}
-    
-    def get_expressions(self) -> List[str]:
-        with self.engine.connect() as conn:
-            res = conn.execute(text("SELECT expression FROM alpha_factors"))
-            return [row[0] for row in res]
-            
-    def get_valid_factors(self) -> List[str]:
-        with self.engine.connect() as conn:
-            res = conn.execute(text("SELECT expression FROM alpha_factors WHERE \"isValid\" = true"))
-            return [row[0] for row in res]
+        parent_ids: list[str] | None = None,
+    ) -> FactorRecord:
+        """Insert a valid factor once per user and return its persisted record."""
 
-    def prune(self, **kwargs):
-        # implement prune if needed, just a stub for now
-        return {"before": 0, "after": 0, "removed": 0, "reasons": {}}
-        
-    def format_summary(self) -> str:
-        return "因子库迁移至PostgreSQL，请在Web端查看。"
+        del variables, operators, nesting_depth, parent_ids
+        factor_id = str(uuid4())
 
-# 全局实例
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    '''
+                    INSERT INTO alpha_factors (
+                        id, "userId", name, expression, hypothesis,
+                        "researchDirection", "icValue", icir, monotonicity,
+                        direction, "isValid", generation, "createdAt", "updatedAt"
+                    ) VALUES (
+                        :id, :user_id, :name, :expression, :hypothesis,
+                        :research_direction, :ic_value, :icir, :monotonicity,
+                        :direction, :is_valid, :generation,
+                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                    )
+                    ON CONFLICT ("userId", expression) DO NOTHING
+                    '''
+                ),
+                {
+                    "id": factor_id,
+                    "user_id": user_id,
+                    "name": name,
+                    "expression": expression.strip(),
+                    "hypothesis": hypothesis or None,
+                    "research_direction": research_direction,
+                    "ic_value": float(metrics.ic_abs_weighted),
+                    "icir": float(metrics.icir),
+                    "monotonicity": float(metrics.monotonicity_score),
+                    "direction": int(metrics.direction),
+                    "is_valid": bool(metrics.is_valid),
+                    "generation": generation,
+                },
+            )
+            row = connection.execute(
+                text(
+                    f'''
+                    SELECT {self._select_columns()}
+                    FROM alpha_factors
+                    WHERE "userId" = :user_id AND expression = :expression
+                    '''
+                ),
+                {"user_id": user_id, "expression": expression.strip()},
+            ).mappings().one()
+
+        return self._to_record(dict(row))
+
+    def get(self, user_id: str, factor_id: str) -> FactorRecord | None:
+        with self.engine.connect() as connection:
+            row = connection.execute(
+                text(
+                    f'''
+                    SELECT {self._select_columns()}
+                    FROM alpha_factors
+                    WHERE id = :factor_id AND "userId" = :user_id
+                    '''
+                ),
+                {"factor_id": factor_id, "user_id": user_id},
+            ).mappings().one_or_none()
+        return self._to_record(dict(row)) if row else None
+
+    def list_all(self, user_id: str) -> list[FactorRecord]:
+        with self.engine.connect() as connection:
+            rows = connection.execute(
+                text(
+                    f'''
+                    SELECT {self._select_columns()}
+                    FROM alpha_factors
+                    WHERE "userId" = :user_id
+                    ORDER BY "createdAt" ASC, id ASC
+                    '''
+                ),
+                {"user_id": user_id},
+            ).mappings()
+            return [self._to_record(dict(row)) for row in rows]
+
+    def list_valid(self, user_id: str) -> list[FactorRecord]:
+        return [factor for factor in self.list_all(user_id) if factor.is_valid]
+
+    def list_expressions(self, user_id: str) -> list[str]:
+        return [factor.expression for factor in self.list_all(user_id)]
+
+    def prune(self, user_id: str, **_: Any) -> dict[str, Any]:
+        """Return a stable no-op result until pruning rules are implemented."""
+
+        before = len(self.list_all(user_id))
+        return {"before": before, "after": before, "removed": 0, "reasons": {}}
+
+    @staticmethod
+    def format_summary() -> str:
+        return "因子库已持久化至 PostgreSQL，请在 Web 端查看。"
+
+
 library = FactorLibrary()

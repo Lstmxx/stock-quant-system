@@ -11,8 +11,9 @@ from sqlalchemy import create_engine, text
 
 from .config import settings
 
-from .core.alpha_miner import AlphaMiner
+from .core.alpha_miner import AlphaMiner, TaskCancelledError
 from .core.data_loader import preload_market_data
+from .core.factor_selection_runner import run_factor_selection
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -50,7 +51,13 @@ async def process_task(task_data: dict) -> None:
     """Process a single task from the queue."""
     task_id = task_data.get("taskId")
     params = task_data.get("params", {})
-    target_symbol = params.get("targetSymbol", "量价关系")
+    # ``targetSymbol`` is kept as a read-only fallback for tasks that were
+    # already queued before factor mining switched to research directions.
+    research_direction = (
+        params.get("researchDirection")
+        or params.get("targetSymbol")
+        or "量价关系"
+    )
     days = params.get("days", 250)
 
     user_id = task_data.get("userId", "system")
@@ -123,22 +130,32 @@ async def process_task(task_data: dict) -> None:
                 await update_task_status(task_id, "COMPLETED", result)
                 logger.info(f"Data Collection Task {task_id} completed successfully")
         
+        elif task_type == "FACTOR_SELECTION":
+            result = await asyncio.to_thread(
+                run_factor_selection,
+                task_id,
+                user_id,
+                params,
+            )
+            await update_task_status(task_id, "COMPLETED", result)
+            logger.info(f"Factor selection task {task_id} completed successfully")
+
         else:
             # Run the CPU-bound mining logic in a thread pool
             def _run_miner():
                 miner = AlphaMiner(task_id=task_id, user_id=user_id, llm_model_id=llm_model_id)
                 miner.load_data(lookback_days=days)
-                valid_factors, total = miner.mine(
-                    direction=target_symbol,
+                mining_result = miner.mine(
+                    direction=research_direction,
                     max_rounds=3,
                     factors_per_round=3,
                     use_evolution=True
                 )
                 # return summary
                 return {
-                    "有效因子数": len(valid_factors),
-                    "总生成策略": total,
-                    "目标挖掘方向": target_symbol,
+                    "有效因子数": len(mining_result.valid_factors),
+                    "总生成策略": mining_result.generated_count,
+                    "研究方向": research_direction,
                     "完成时间": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }
                 
@@ -151,13 +168,16 @@ async def process_task(task_data: dict) -> None:
                 await update_task_status(task_id, "COMPLETED", result)
                 logger.info(f"Task {task_id} completed successfully")
 
+    except TaskCancelledError:
+        logger.warning(f"Task {task_id} was cancelled.")
+        await update_task_status(
+            task_id,
+            "CANCELLED",
+            {"message": "Task was manually cancelled"},
+        )
     except Exception as e:
-        if "Cancelled" in str(e) or "cancelled" in str(e).lower():
-            logger.warning(f"Task {task_id} was cancelled.")
-            await update_task_status(task_id, "CANCELLED", {"message": "Task was manually cancelled"})
-        else:
-            logger.error(f"Task {task_id} failed: {e}")
-            await update_task_status(task_id, "FAILED", {"error": str(e)})
+        logger.error(f"Task {task_id} failed: {e}")
+        await update_task_status(task_id, "FAILED", {"error": str(e)})
             
     finally:
         await r_client.aclose()

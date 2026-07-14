@@ -65,7 +65,11 @@ class EvolutionStrategy:
         
         # 1. 精英保留
         n_elite = max(1, int(len(population) * self.elite_ratio))
-        elite = sorted(population, key=lambda f: f.ic_abs_weighted, reverse=True)[:n_elite]
+        elite = sorted(
+            population,
+            key=lambda factor: abs(factor.ic_value or 0.0),
+            reverse=True,
+        )[:n_elite]
         elite_exprs = []
         
         # 精英直接进入下一代（不变异）
@@ -110,7 +114,7 @@ class EvolutionStrategy:
         # 锦标赛选择：随机选3个，取最好的
         tournament_size = min(3, len(population))
         tournament = random.sample(population, tournament_size)
-        return max(tournament, key=lambda f: f.ic_abs_weighted)
+        return max(tournament, key=lambda factor: abs(factor.ic_value or 0.0))
     
     def _select_parents(
         self,

@@ -73,10 +73,10 @@ describe('useFactorTasks', () => {
     const { result } = renderHook(() => useFactorTasks());
 
     await act(async () => {
-      await result.current.handleCreateTask('sh.000001', 100);
+      await result.current.handleCreateTask('动量反转', 100);
     });
 
-    expect(api.tasks.mining.post).toHaveBeenCalledWith({ targetSymbol: 'sh.000001', days: 100 });
+    expect(api.tasks.mining.post).toHaveBeenCalledWith({ researchDirection: '动量反转', days: 100 });
     expect(message.success).toHaveBeenCalledWith('已触发挖掘任务');
     expect(api.tasks.get).toHaveBeenCalledTimes(2); // Initial mount + after create
   });
@@ -88,10 +88,10 @@ describe('useFactorTasks', () => {
     const { result } = renderHook(() => useFactorTasks());
 
     await act(async () => {
-      await result.current.handleCreateTask('sh.000001');
+      await result.current.handleCreateTask('量价关系', 250);
     });
 
-    expect(message.error).toHaveBeenCalledWith('触发失败');
+    expect(message.error).toHaveBeenCalledWith('触发失败，请重试');
   });
 
   it('handleCancelTask should call api and refetch on success', async () => {
@@ -106,7 +106,7 @@ describe('useFactorTasks', () => {
 
     expect(api.tasks).toHaveBeenCalledWith({ id: 'task-1' });
     expect(mockCancelPost).toHaveBeenCalled();
-    expect(message.success).toHaveBeenCalledWith('任务已终止');
+    expect(message.success).toHaveBeenCalledWith('取消请求已提交，任务将在下一个检查点停止');
   });
 
   it('handleCancelTask should show error on failure', async () => {
