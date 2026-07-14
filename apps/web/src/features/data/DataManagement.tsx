@@ -1,52 +1,94 @@
-import React, { useState } from 'react';
-import { Button, Space, Card } from 'antd';
+import React, { useMemo, useState } from 'react';
+import { Alert, Button, Card, Space, Tooltip } from 'antd';
 import { SettingOutlined, SyncOutlined } from '@ant-design/icons';
-import { useTasks } from './hooks/useTasks';
-import { TaskTable } from './components/TaskTable';
-import { TaskDetailModal } from './components/TaskDetailModal';
 import { DataCollectionConfigModal } from './components/DataCollectionConfigModal';
-import { Task } from './types';
+import { TaskDetailModal } from './components/TaskDetailModal';
+import { TaskTable } from './components/TaskTable';
+import { useTasks } from './hooks/useTasks';
 
 const DataManagement: React.FC = () => {
-  const { tasks, loading, activeTaskId, fetchTasks, handleRunNow, handleCancelTask } = useTasks();
-
+  const {
+    tasks,
+    total,
+    page,
+    pageSize,
+    loading,
+    running,
+    cancellingId,
+    error,
+    activeTask,
+    fetchTasks,
+    changePage,
+    handleRunNow,
+    handleCancelTask,
+  } = useTasks();
   const [isConfigModalVisible, setIsConfigModalVisible] = useState(false);
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isDetailModalVisible, setIsDetailModalVisible] = useState(false);
 
-  const handleViewTask = (task: Task) => {
-    setSelectedTask(task);
-    setIsDetailModalVisible(true);
-  };
+  const selectedTask = useMemo(
+    () => tasks.find((task) => task.id === selectedTaskId) ?? null,
+    [selectedTaskId, tasks],
+  );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {error && <Alert title={error} type="error" showIcon />}
+      {activeTask && (
+        <Alert
+          title={`全局采集任务正在${activeTask.status === 'CANCELLING' ? '取消' : '执行'}，完成前不能重复启动。`}
+          type="info"
+          showIcon
+        />
+      )}
       <Card
-        title=""
-        extra={
+        extra={(
           <Space>
-            <Button icon={<SettingOutlined />} onClick={() => setIsConfigModalVisible(true)}>设置</Button>
-            <Button type="primary" icon={<SyncOutlined />} onClick={handleRunNow}>
-              立即更新
+            <Button icon={<SettingOutlined />} onClick={() => setIsConfigModalVisible(true)}>
+              全局设置
             </Button>
+            <Tooltip title={activeTask ? '已有全局采集任务正在执行' : undefined}>
+              <Button
+                type="primary"
+                icon={<SyncOutlined spin={running} />}
+                loading={running}
+                disabled={Boolean(activeTask)}
+                onClick={handleRunNow}
+              >
+                立即更新
+              </Button>
+            </Tooltip>
           </Space>
-        }
+        )}
       >
-        <TaskTable tasks={tasks} loading={loading} onViewTask={handleViewTask} onCancelTask={handleCancelTask} />
+        <TaskTable
+          tasks={tasks}
+          loading={loading}
+          total={total}
+          page={page}
+          pageSize={pageSize}
+          cancellingId={cancellingId}
+          onPageChange={changePage}
+          onViewTask={(task) => {
+            setSelectedTaskId(task.id);
+            setIsDetailModalVisible(true);
+          }}
+          onCancelTask={handleCancelTask}
+        />
       </Card>
 
       <TaskDetailModal
         task={selectedTask}
-        activeTaskId={activeTaskId}
+        activeTaskId={activeTask?.id ?? null}
         open={isDetailModalVisible}
         onCancel={() => setIsDetailModalVisible(false)}
-        onRetryCreated={() => fetchTasks()}
+        onRetryCreated={() => void fetchTasks()}
       />
 
       <DataCollectionConfigModal
         open={isConfigModalVisible}
         onCancel={() => setIsConfigModalVisible(false)}
-        onSuccess={fetchTasks}
+        onSuccess={() => void fetchTasks()}
       />
     </div>
   );

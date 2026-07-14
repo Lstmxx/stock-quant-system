@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Optional
 
 import redis.asyncio as aioredis
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..config import settings
@@ -40,14 +40,14 @@ async def reload_config(body: ReloadConfigRequest = ReloadConfigRequest()):
     Reload scheduler configuration.
     Called by API after user updates system config.
     """
-    cron = body.baostock_cron or "0 12 * * 1-5"
+    cron = body.baostock_cron or "0 20 * * mon-fri"
     try:
         update_scheduler_config(cron)
         logger.info(f"Scheduler reloaded with cron: {cron}")
         return {"status": "ok", "message": f"Scheduler updated: {cron}"}
     except Exception as e:
         logger.error(f"Failed to reload scheduler: {e}")
-        return {"status": "error", "message": str(e)}
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/fetch-data")

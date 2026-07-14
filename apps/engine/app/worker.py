@@ -12,7 +12,6 @@ from sqlalchemy import create_engine, text
 from .config import settings
 
 from .core.alpha_miner import AlphaMiner, TaskCancelledError
-from .core.data_loader import preload_market_data
 from .core.factor_selection_runner import run_factor_selection
 
 logging.basicConfig(level=logging.INFO)
@@ -60,7 +59,7 @@ async def process_task(task_data: dict) -> None:
     )
     days = params.get("days", 250)
 
-    user_id = task_data.get("userId", "system")
+    user_id = task_data.get("userId")
 
     task_type = task_data.get("type", "FACTOR_MINING")
     days = task_data.get("params", {}).get("days", 250)
@@ -86,49 +85,56 @@ async def process_task(task_data: dict) -> None:
             def _run_collection():
                 from .core.data_loader import DataLoader
                 print(f"[Worker] Starting _run_collection for task {task_id} (force={force_update})", flush=True)
-                
+                loader = DataLoader()
                 target_stocks = params.get("stocks")  # None means full collection
-                
+                retry_of = params.get("retryOf")
+
                 if target_stocks:
-                    # Retry mode: only fetch the specified stocks
                     print(f"[Worker] Retry mode: fetching {len(target_stocks)} specified stocks", flush=True)
-                    loader = DataLoader()
-                    from datetime import datetime, timedelta
-                    end_date = datetime.now().strftime("%Y-%m-%d")
-                    start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
-                    loader.load_kline_data(
+                    if not retry_of:
+                        raise ValueError("重试任务缺少 retryOf")
+                    _, summary = loader.retry_failed_stocks(
                         stocks=target_stocks,
-                        start_date=start_date,
-                        end_date=end_date,
+                        lookback_days=days,
                         task_id=task_id,
-                        force_update=True,
+                        retry_of=retry_of,
                         worker_count=worker_count,
                     )
-                    stocks_count = len(target_stocks)
                 else:
-                    data = preload_market_data(lookback_days=days, task_id=task_id, force_update=force_update, worker_count=worker_count)
-                    stocks_count = len(data.get('close', {}).columns) if data and 'close' in data else 0
-                
+                    _, summary = loader.collect_latest(
+                        lookback_days=days,
+                        task_id=task_id,
+                        force_update=force_update,
+                        worker_count=worker_count,
+                    )
+
                 print(f"[Worker] Finished _run_collection for task {task_id}", flush=True)
-                retry_of = params.get("retryOf")
                 result = {
-                    "总计股票数": stocks_count,
-                    "追溯交易日": days,
-                    "完成时间": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    **summary,
+                    "lookbackDays": days,
+                    "completedAt": datetime.now().isoformat(timespec="seconds"),
                 }
                 if retry_of:
-                    result["重试来源任务"] = retry_of
+                    result["retryOf"] = retry_of
                 return result
             
             result = await asyncio.to_thread(_run_collection)
             
             is_cancelled = await r_client.get(f"task_cancelled:{task_id}")
             if is_cancelled:
-                await update_task_status(task_id, "CANCELLED", {"message": "用户手动终止了任务", "部分结果": result})
+                await update_task_status(task_id, "CANCELLED", {**result, "message": "用户手动终止了任务"})
                 logger.info(f"Data Collection Task {task_id} cancelled by user")
             else:
-                await update_task_status(task_id, "COMPLETED", result)
-                logger.info(f"Data Collection Task {task_id} completed successfully")
+                failed_count = int(result.get("failedCount", 0))
+                success_count = int(result.get("successCount", 0))
+                if failed_count == 0:
+                    final_status = "COMPLETED"
+                elif success_count > 0:
+                    final_status = "PARTIAL_SUCCESS"
+                else:
+                    final_status = "FAILED"
+                await update_task_status(task_id, final_status, result)
+                logger.info(f"Data Collection Task {task_id} finished with {final_status}")
         
         elif task_type == "FACTOR_SELECTION":
             result = await asyncio.to_thread(

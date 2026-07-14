@@ -1,72 +1,130 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { message } from 'antd';
 import { api } from '../../../api/api';
-import { Task } from '../types';
+import { isActiveTaskStatus, Task } from '../types';
+
+const POLL_INTERVAL_MS = 5000;
+
+function getApiError(value: unknown, fallback: string): string {
+  if (value && typeof value === 'object' && 'error' in value) {
+    return String(value.error);
+  }
+  return fallback;
+}
 
 export const useTasks = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [loading, setLoading] = useState(false);
-  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [running, setRunning] = useState(false);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const requestGeneration = useRef(0);
 
-  const fetchTasks = async () => {
-    setLoading(true);
+  const fetchTasks = useCallback(async (showLoading = false) => {
+    const generation = ++requestGeneration.current;
+    if (showLoading) setLoading(true);
     try {
-      const { data, error } = await api.tasks.get();
-      if (data) {
-        const dataTasks = data
-          .filter((t) => t.type === 'DATA_COLLECTION')
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        setTasks(dataTasks);
-
-        const active = dataTasks.find((t) => t.status === 'PENDING' || t.status === 'RUNNING');
-        if (active && active.id !== activeTaskId) {
-          setActiveTaskId(active.id);
-        } else if (!active && activeTaskId) {
-          setActiveTaskId(null);
-        }
-      } else if (error) {
-        message.error('获取任务列表失败');
+      const { data, error: apiError } = await api.tasks['data-collection'].get({
+        query: { limit: pageSize, offset: (page - 1) * pageSize },
+      });
+      if (generation !== requestGeneration.current) return;
+      if (apiError || !data || !('items' in data)) {
+        setError('获取数据采集任务失败');
+        return;
       }
-    } catch (e) {
-      console.error(e);
+      setTasks(data.items);
+      setTotal(data.total);
+      setActiveTask(
+        data.activeTask ?? data.items.find((task) => isActiveTaskStatus(task.status)) ?? null,
+      );
+      setError(null);
+    } catch {
+      if (generation === requestGeneration.current) {
+        setError('网络异常，暂时无法获取任务状态');
+      }
     } finally {
-      setLoading(false);
+      if (showLoading && generation === requestGeneration.current) setLoading(false);
     }
-  };
+  }, [page, pageSize]);
 
   useEffect(() => {
-    fetchTasks();
-    const timer = setInterval(fetchTasks, 5000);
-    return () => clearInterval(timer);
-  }, [activeTaskId]);
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
 
-  const handleRunNow = async () => {
+    const poll = async (showLoading = false) => {
+      await fetchTasks(showLoading);
+      if (!cancelled) timer = setTimeout(() => poll(false), POLL_INTERVAL_MS);
+    };
+
+    void poll(true);
+    return () => {
+      cancelled = true;
+      requestGeneration.current += 1;
+      if (timer) clearTimeout(timer);
+    };
+  }, [fetchTasks]);
+
+  const handleRunNow = useCallback(async () => {
+    if (running || activeTask) return;
+    setRunning(true);
     try {
-      const { error } = await api.tasks['data-collection'].run.post();
-      if (!error) {
-        message.success('已触发更新');
-        fetchTasks();
-      } else {
-        message.error('触发失败');
+      const { data, error: apiError } = await api.tasks['data-collection'].run.post();
+      if (apiError || !data || !data.success) {
+        message.warning(getApiError(apiError?.value ?? data, '已有任务正在执行或触发失败'));
+        await fetchTasks();
+        return;
       }
-    } catch (e) {
-      // errors handled by interceptor
+      message.success('数据采集任务已创建');
+      await fetchTasks();
+    } catch {
+      message.error('触发失败，请检查网络后重试');
+    } finally {
+      setRunning(false);
     }
-  };
+  }, [activeTask, fetchTasks, running]);
 
-  const handleCancelTask = async (id: string) => {
+  const handleCancelTask = useCallback(async (id: string) => {
+    if (cancellingId) return;
+    setCancellingId(id);
     try {
-      const { error } = await api.tasks({ id }).cancel.post();
-      if (!error) {
-        message.success('任务已终止');
-        fetchTasks();
-      } else {
-        message.error('终止任务失败');
+      const { data, error: apiError } = await api.tasks({ id }).cancel.post();
+      if (apiError || !data || !data.success) {
+        message.error(getApiError(apiError?.value ?? data, '取消任务失败'));
+        return;
       }
-    } catch (e) {
-      console.error(e);
+      message.success(
+        data.status === 'CANCELLED' ? '待执行任务已取消' : '取消请求已提交',
+      );
+      await fetchTasks();
+    } catch {
+      message.error('取消失败，请检查网络后重试');
+    } finally {
+      setCancellingId(null);
     }
-  };
+  }, [cancellingId, fetchTasks]);
 
-  return { tasks, loading, activeTaskId, setActiveTaskId, fetchTasks, handleRunNow, handleCancelTask };
+  const changePage = useCallback((nextPage: number, nextPageSize: number) => {
+    setPage(nextPageSize === pageSize ? nextPage : 1);
+    setPageSize(nextPageSize);
+  }, [pageSize]);
+
+  return {
+    tasks,
+    total,
+    page,
+    pageSize,
+    loading,
+    running,
+    cancellingId,
+    error,
+    activeTask,
+    fetchTasks,
+    changePage,
+    handleRunNow,
+    handleCancelTask,
+  };
 };

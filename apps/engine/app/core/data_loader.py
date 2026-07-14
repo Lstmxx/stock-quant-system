@@ -56,6 +56,11 @@ def _fetch_stock_chunk(args):
             # Record all codes in this chunk as failed (retryable: login failure)
             r.sadd(f"task_failed_stocks:{task_id}", *codes)
             r.expire(f"task_failed_stocks:{task_id}", 7 * 24 * 3600)
+            r.hset(
+                f"task_failed_stock_errors:{task_id}",
+                mapping={code: "Baostock 登录失败" for code in codes},
+            )
+            r.expire(f"task_failed_stock_errors:{task_id}", 7 * 24 * 3600)
             state = json.dumps({
                 "worker_id": worker_id, "total": len(codes),
                 "success": 0, "failed": len(codes), "status": "failed"
@@ -69,13 +74,15 @@ def _fetch_stock_chunk(args):
     total = len(codes)
     success_count = 0
     failed_count = 0
+    cancelled_requested = False
     
     for i, code in enumerate(codes):
         if task_id:
             # Check for cancellation
-            cancelled = r.get(f"task_cancelled:{task_id}")
-            if cancelled:
+            cancellation_flag = r.get(f"task_cancelled:{task_id}")
+            if cancellation_flag:
                 print(f"[Worker] Task {task_id} cancelled, stopping chunk fetch.", flush=True)
+                cancelled_requested = True
                 break
                 
             r.publish(f"task_log:{task_id}", json.dumps({
@@ -101,6 +108,7 @@ def _fetch_stock_chunk(args):
         retries = 0
         stock_data = []
         success = False
+        last_error = "未知错误"
         while retries < 3:
             try:
                 signal.alarm(10)  # 10秒超时
@@ -116,14 +124,18 @@ def _fetch_stock_chunk(args):
                 while rs.next():
                     stock_data.append(rs.get_row_data())
                 signal.alarm(0)  # 成功则取消超时
+                if not stock_data:
+                    raise ValueError("数据源未返回有效 K 线")
                 success = True
                 break
             except BaostockTimeout:
                 print(f"[Worker] {code} 拉取超时，正在进行第 {retries + 1} 次重试...", flush=True)
+                last_error = "Baostock 请求超时"
                 retries += 1
             except Exception as e:
                 print(f"[Worker] {code} 拉取发生异常: {e}", flush=True)
                 signal.alarm(0)
+                last_error = str(e) or e.__class__.__name__
                 retries += 1
                 time.sleep(1)
                 
@@ -143,28 +155,37 @@ def _fetch_stock_chunk(args):
                     "current_code": code, "status": "running"
                 }))
                 r.expire(f"task_progress:{task_id}", 7200)
-        elif retries == 3:
-            # Retryable: 3x timeout
-            print(f"[Worker] {code} 连续 3 次拉取超时，已跳过！", flush=True)
-            failed_count += 1
-            if task_id:
-                r.sadd(f"task_failed_stocks:{task_id}", code)
-                r.expire(f"task_failed_stocks:{task_id}", 7 * 24 * 3600)
-                r.publish(f"task_log:{task_id}", json.dumps({
-                    "type": "progress", "worker_id": worker_id, "total": total,
-                    "success": success_count, "failed": failed_count, "code": code, "status": "failed", "reason": "timeout"
-                }))
         else:
-            # Retryable: exception during fetch
+            print(f"[Worker] {code} 连续 3 次拉取失败，已跳过！", flush=True)
             failed_count += 1
             if task_id:
                 r.sadd(f"task_failed_stocks:{task_id}", code)
                 r.expire(f"task_failed_stocks:{task_id}", 7 * 24 * 3600)
+                r.hset(f"task_failed_stock_errors:{task_id}", code, last_error)
+                r.expire(f"task_failed_stock_errors:{task_id}", 7 * 24 * 3600)
                 r.publish(f"task_log:{task_id}", json.dumps({
                     "type": "progress", "worker_id": worker_id, "total": total,
-                    "success": success_count, "failed": failed_count, "code": code, "status": "failed", "reason": "error"
+                    "success": success_count, "failed": failed_count, "code": code,
+                    "status": "failed", "reason": last_error
                 }))
-            
+
+    if task_id:
+        if cancelled_requested:
+            final_status = "cancelled"
+        elif failed_count > 0:
+            final_status = "failed" if success_count == 0 else "partial"
+        else:
+            final_status = "completed"
+        r.hset(f"task_progress:{task_id}", str(worker_id), json.dumps({
+            "worker_id": worker_id,
+            "total": total,
+            "success": success_count,
+            "failed": failed_count,
+            "current_code": None,
+            "status": final_status,
+        }))
+        r.expire(f"task_progress:{task_id}", 7200)
+
     # Do NOT call bs.logout() here!
     # baostock uses a server-side session shared by IP. Calling logout() from any
     # worker process will invalidate the session for ALL concurrent workers on
@@ -287,7 +308,8 @@ class DataLoader:
     def load_kline_data(self, stocks: list, start_date: str, end_date: str,
                         fields: str = "date,code,open,high,low,close,volume,amount,turn,pctChg",
                         task_id: Optional[str] = None, force_update: bool = False,
-                        worker_count: int = 4) -> pd.DataFrame:
+                        worker_count: int = 4,
+                        allow_fetch_missing: bool = True) -> pd.DataFrame:
         keys = [f"kline:{code}:{start_date}_{end_date}" for code in stocks]
         cached_values = [None] * len(stocks) if force_update else self.r.mget(keys)
         
@@ -302,7 +324,7 @@ class DataLoader:
                 
         print(f"[DataLoader] Redis单股缓存命中 {len(stocks) - len(missing_stocks)} 只，还需要拉取 {len(missing_stocks)} 只")
 
-        if missing_stocks:
+        if missing_stocks and allow_fetch_missing:
             total = len(missing_stocks)
             chunk_size = max(1, total // worker_count)
             chunks = [missing_stocks[i:i + chunk_size] for i in range(0, total, chunk_size)]
@@ -345,11 +367,72 @@ class DataLoader:
                 result[field] = pivot
         return result
 
+    @staticmethod
+    def _date_range(lookback_days: int, end_date: Optional[str] = None) -> tuple[str, str, str]:
+        resolved_end_date = end_date or datetime.now().strftime("%Y-%m-%d")
+        start_dt = datetime.strptime(resolved_end_date, "%Y-%m-%d") - timedelta(
+            days=lookback_days + 60
+        )
+        start_date = start_dt.strftime("%Y-%m-%d")
+        date_key = f"{resolved_end_date}_{lookback_days}"
+        return start_date, resolved_end_date, date_key
+
+    def _build_market_data(self, df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
+        data = self.pivot_data(df)
+        close_df = data.get("close")
+        if close_df is None or close_df.empty:
+            raise ValueError("未获取到有效收盘价数据")
+
+        industry_series = self.load_industry_data()
+        industry_aligned = industry_series.reindex(close_df.columns).fillna("Unknown")
+        data["industry"] = pd.DataFrame(
+            [industry_aligned] * len(close_df.index),
+            index=close_df.index,
+            columns=close_df.columns,
+        )
+
+        names_series = pd.Series(self.load_stock_names())
+        data["stock_names"] = names_series.reindex(close_df.columns).fillna("")
+        return data
+
+    def _reset_task_failures(self, task_id: Optional[str]) -> None:
+        if not task_id:
+            return
+        self.r.delete(
+            f"task_failed_stocks:{task_id}",
+            f"task_failed_stock_errors:{task_id}",
+            f"task_progress:{task_id}",
+        )
+
+    def _record_missing_stocks(self, task_id: Optional[str], stocks: list[str],
+                               available: set[str]) -> None:
+        if not task_id:
+            return
+        already_failed = {
+            code.decode() if isinstance(code, bytes) else code
+            for code in self.r.smembers(f"task_failed_stocks:{task_id}")
+        }
+        missing = [code for code in stocks if code not in available and code not in already_failed]
+        if not missing:
+            return
+        self.r.sadd(f"task_failed_stocks:{task_id}", *missing)
+        self.r.hset(
+            f"task_failed_stock_errors:{task_id}",
+            mapping={code: "未生成有效收盘价数据" for code in missing},
+        )
+        self.r.expire(f"task_failed_stocks:{task_id}", 7 * 24 * 3600)
+        self.r.expire(f"task_failed_stock_errors:{task_id}", 7 * 24 * 3600)
+
     def _save_cache(self, date_key: str, data: Dict[str, pd.DataFrame]):
-        """保存到Redis"""
+        """通过临时 key 原子替换聚合行情缓存。"""
         pickled_data = pickle.dumps(data)
-        self.r.setex(f"market_data:{date_key}", CACHE_MAX_AGE_HOURS * 3600, pickled_data)
-        print(f"[DataLoader] 已缓存到 Redis market_data:{date_key}")
+        cache_key = f"market_data:{date_key}"
+        temporary_key = f"{cache_key}:tmp:{os.getpid()}:{time.time_ns()}"
+        pipeline = self.r.pipeline()
+        pipeline.setex(temporary_key, CACHE_MAX_AGE_HOURS * 3600, pickled_data)
+        pipeline.rename(temporary_key, cache_key)
+        pipeline.execute()
+        print(f"[DataLoader] 已原子更新 Redis {cache_key}")
 
     def _load_cache(self, date_key: str) -> Optional[Dict[str, pd.DataFrame]]:
         """从Redis加载"""
@@ -387,10 +470,7 @@ class DataLoader:
                     force_update: bool = False,
                     worker_count: int = 4) -> Dict[str, pd.DataFrame]:
         self.login()
-        if end_date is None:
-            end_date = datetime.now().strftime("%Y-%m-%d")
-            
-        date_key = f"{end_date}_{lookback_days}"
+        start_date, end_date, date_key = self._date_range(lookback_days, end_date)
         
         # 1. 尝试Redis缓存
         if not force_update:
@@ -400,32 +480,102 @@ class DataLoader:
                 return cached
 
         # 2. 从baostock加载
-        start_dt = datetime.strptime(end_date, '%Y-%m-%d') - timedelta(days=lookback_days + 60)
-        start_date = start_dt.strftime('%Y-%m-%d')
-
         print(f"[DataLoader] 加载数据: {start_date} ~ {end_date} (worker_count={worker_count})")
         stocks = self.get_main_board_stocks(end_date)
         if not stocks:
             raise ValueError("未获取到股票列表")
 
         df = self.load_kline_data(stocks, start_date, end_date, task_id=task_id, force_update=force_update, worker_count=worker_count)
-        data = self.pivot_data(df)
-        
-        # 加载并广播行业数据
-        industry_series = self.load_industry_data()
-        close_df = data['close']
-        ind_aligned = industry_series.reindex(close_df.columns).fillna('Unknown')
-        industry_df = pd.DataFrame([ind_aligned] * len(close_df.index), index=close_df.index, columns=close_df.columns)
-        data['industry'] = industry_df
-
-        # 加载股票名称 (Series: code -> name)
-        stock_names = self.load_stock_names()
-        names_series = pd.Series(stock_names)
-        data['stock_names'] = names_series.reindex(close_df.columns).fillna('')
+        data = self._build_market_data(df)
+        self._record_missing_stocks(task_id, stocks, set(data["close"].columns))
 
         # 3. 缓存
         self._save_cache(date_key, data)
         return data
+
+    def collect_latest(self, lookback_days: int, task_id: str,
+                       force_update: bool, worker_count: int) -> tuple[Dict[str, pd.DataFrame], dict]:
+        self._reset_task_failures(task_id)
+        try:
+            data = self.load_latest(
+                lookback_days=lookback_days,
+                task_id=task_id,
+                force_update=force_update,
+                worker_count=worker_count,
+            )
+            failed_codes = set(self.r.smembers(f"task_failed_stocks:{task_id}"))
+            failed = {
+                code.decode() if isinstance(code, bytes) else code
+                for code in failed_codes
+            }
+            success_count = len(data.get("close", pd.DataFrame()).columns)
+            return data, {
+                "totalCount": success_count + len(failed),
+                "successCount": success_count,
+                "failedCount": len(failed),
+            }
+        finally:
+            self.logout()
+
+    def retry_failed_stocks(self, stocks: list[str], lookback_days: int,
+                            task_id: str, retry_of: str,
+                            worker_count: int) -> tuple[Dict[str, pd.DataFrame], dict]:
+        """重拉失败股票，并用完整单股缓存原子重建聚合行情。"""
+        self._reset_task_failures(task_id)
+        self.login()
+        try:
+            start_date, end_date, date_key = self._date_range(lookback_days)
+            all_stocks = self.get_main_board_stocks(end_date)
+            if not all_stocks:
+                raise ValueError("未获取到股票列表")
+
+            try:
+                self.load_kline_data(
+                    stocks=stocks,
+                    start_date=start_date,
+                    end_date=end_date,
+                    task_id=task_id,
+                    force_update=True,
+                    worker_count=worker_count,
+                )
+            except ValueError:
+                raw_failed = self.r.smembers(f"task_failed_stocks:{task_id}")
+                if len(raw_failed) >= len(stocks):
+                    return {}, {
+                        "totalCount": len(stocks),
+                        "successCount": 0,
+                        "failedCount": len(raw_failed),
+                    }
+                raise
+            all_data = self.load_kline_data(
+                stocks=all_stocks,
+                start_date=start_date,
+                end_date=end_date,
+                force_update=False,
+                worker_count=worker_count,
+                allow_fetch_missing=False,
+            )
+            data = self._build_market_data(all_data)
+            self._record_missing_stocks(task_id, stocks, set(data["close"].columns))
+            self._save_cache(date_key, data)
+
+            raw_failed = self.r.smembers(f"task_failed_stocks:{task_id}")
+            failed = {
+                code.decode() if isinstance(code, bytes) else code
+                for code in raw_failed
+            }
+            repaired = [code for code in stocks if code not in failed]
+            if repaired:
+                self.r.srem(f"task_failed_stocks:{retry_of}", *repaired)
+                self.r.hdel(f"task_failed_stock_errors:{retry_of}", *repaired)
+
+            return data, {
+                "totalCount": len(stocks),
+                "successCount": len(repaired),
+                "failedCount": len(failed),
+            }
+        finally:
+            self.logout()
 
     def preload(self, lookback_days: int = LOOKBACK_DAYS, task_id: Optional[str] = None, force_update: bool = False, worker_count: int = 4):
         """预加载并缓存数据"""
@@ -447,4 +597,3 @@ def load_market_data(lookback_days: int = LOOKBACK_DAYS,
 
 def preload_market_data(lookback_days: int = LOOKBACK_DAYS, task_id: Optional[str] = None, force_update: bool = False, worker_count: int = 4):
     return _loader.preload(lookback_days, task_id=task_id, force_update=force_update, worker_count=worker_count)
-

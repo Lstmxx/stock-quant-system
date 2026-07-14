@@ -2,8 +2,6 @@ import { config } from "dotenv";
 config({ path: "../../.env" });
 
 import { Elysia } from "elysia";
-import { db, userConfigs } from "@stock-quant/database";
-import { eq } from "drizzle-orm";
 import { engineClient } from "./lib/engine-client";
 import { cors } from "@elysiajs/cors";
 import { betterAuthPlugin } from "./plugins/auth";
@@ -15,6 +13,7 @@ import { factorSelectionModule } from "./modules/factor-selection";
 import { analysisModule } from "./modules/analysis";
 import { strategyModule } from "./modules/strategy";
 import { llmModule } from "./modules/llm";
+import { TaskService } from "./modules/task/service";
 
 const app = new Elysia()
 	.use(
@@ -48,14 +47,11 @@ console.log(
 // Push the cron config to Engine on startup
 setTimeout(async () => {
 	try {
-		const configs = await db
-			.select()
-			.from(userConfigs)
-			.where(eq(userConfigs.key, "BAOSTOCK_CRON"));
-		if (configs.length > 0) {
-			console.log(`[API] Pushing BAOSTOCK_CRON to Engine on startup: ${configs[0].value}`);
-			await engineClient.reloadConfig(configs[0].value);
-		}
+		const collectionConfig = await TaskService.getDataCollectionConfig();
+		console.log(
+			`[API] Pushing global data collection cron to Engine: ${collectionConfig.cronExpression}`,
+		);
+		await engineClient.reloadConfig(collectionConfig.cronExpression);
 	} catch (e) {
 		console.error("[API] Failed to push config to engine on startup", e);
 	}

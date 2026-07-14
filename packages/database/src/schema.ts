@@ -11,6 +11,7 @@ import {
 	uniqueIndex,
 	uuid,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { user } from "./auth-schema";
 
 // --- Business Tables ---
@@ -33,25 +34,43 @@ export const userConfigs = pgTable("user_configs", {
 	updatedAt: timestamp("updatedAt").defaultNow().notNull()
 });
 
-export const dataCollectionConfigs = pgTable("data_collection_configs", {
-	id: uuid("id").defaultRandom().primaryKey(),
-	userId: text("userId").notNull().unique().references(() => user.id),
-	lookbackDays: integer("lookbackDays").default(250).notNull(),
-	workerCount: integer("workerCount").default(4).notNull(),
-	createdAt: timestamp("createdAt").defaultNow().notNull(),
-	updatedAt: timestamp("updatedAt").defaultNow().notNull()
-});
+export const dataCollectionConfigs = pgTable(
+	"data_collection_configs",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		scope: text("scope").default("GLOBAL").notNull(),
+		updatedBy: text("userId").references(() => user.id, { onDelete: "set null" }),
+		lookbackDays: integer("lookbackDays").default(250).notNull(),
+		workerCount: integer("workerCount").default(4).notNull(),
+		cronExpression: text("cronExpression").default("0 20 * * mon-fri").notNull(),
+		createdAt: timestamp("createdAt").defaultNow().notNull(),
+		updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+	},
+	(table) => [
+		uniqueIndex("data_collection_configs_scope_unique").on(table.scope),
+	],
+);
 
-export const alphaTasks = pgTable("alpha_tasks", {
-	id: uuid("id").defaultRandom().primaryKey(),
-	userId: text("userId").notNull().references(() => user.id),
-	status: text("status").notNull(), // PENDING, RUNNING, CANCELLING, CANCELLED, COMPLETED, FAILED
-	type: text("type").notNull(), // "FACTOR_MINING", "LLM_ANALYSIS"
-	params: jsonb("params"), // JSON params for the task
-	result: jsonb("result"), // JSON results
-	createdAt: timestamp("createdAt").defaultNow().notNull(),
-	updatedAt: timestamp("updatedAt").defaultNow().notNull()
-});
+export const alphaTasks = pgTable(
+	"alpha_tasks",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		userId: text("userId").references(() => user.id),
+		status: text("status").notNull(), // PENDING, RUNNING, CANCELLING, CANCELLED, COMPLETED, PARTIAL_SUCCESS, FAILED
+		type: text("type").notNull(), // "FACTOR_MINING", "DATA_COLLECTION", "LLM_ANALYSIS"
+		params: jsonb("params"), // JSON params for the task
+		result: jsonb("result"), // JSON results
+		createdAt: timestamp("createdAt").defaultNow().notNull(),
+		updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+	},
+	(table) => [
+		uniqueIndex("alpha_tasks_active_data_collection_unique")
+			.on(table.type)
+			.where(
+				sql`${table.type} = 'DATA_COLLECTION' AND ${table.status} IN ('PENDING', 'RUNNING', 'CANCELLING')`,
+			),
+	],
+);
 
 export const alphaFactors = pgTable(
 	"alpha_factors",

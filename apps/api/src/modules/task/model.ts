@@ -26,3 +26,18 @@ export const CreateMiningTaskBody = t.Object({
 });
 
 export type CreateMiningTaskBody = typeof CreateMiningTaskBody.static;
+
+export const DataCollectionConfigBody = t.Object({
+	lookbackDays: t.Integer({ minimum: 1, maximum: 5000 }),
+	workerCount: t.Integer({ minimum: 1, maximum: 16 }),
+	cronExpression: t.String({
+		minLength: 9,
+		maxLength: 100,
+		pattern: "^\\S+( \\S+){4}$",
+	}),
+});
+
+export const DataCollectionListQuery = t.Object({
+	limit: t.Optional(t.Numeric({ minimum: 1, maximum: 100, default: 50 })),
+	offset: t.Optional(t.Numeric({ minimum: 0, default: 0 })),
+});

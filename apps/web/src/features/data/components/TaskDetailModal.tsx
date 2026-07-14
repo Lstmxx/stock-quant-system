@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Button, Typography, Tag, Row, Col, Card, Progress, Table, message, Alert } from 'antd';
 import { ReloadOutlined, WarningOutlined } from '@ant-design/icons';
 import { BaseModal } from '../../../components/Base/BaseModal';
-import { Task, FailedStocksResponse } from '../types';
+import { Task, FailedStocksResponse, isActiveTaskStatus, isTerminalTaskStatus } from '../types';
 import { useTaskStream } from '../hooks/useTaskStream';
 import { API_BASE_URL } from '../../../constant/config';
 
@@ -18,31 +18,33 @@ interface Props {
 
 export const TaskDetailModal: React.FC<Props> = ({ task, activeTaskId, open, onCancel, onRetryCreated }) => {
   // Only poll stream if the modal is open and the selected task is active
-  const isActive = task && (task.status === 'RUNNING' || task.status === 'PENDING') && task.id === activeTaskId;
+  const isActive = Boolean(task && isActiveTaskStatus(task.status) && task.id === activeTaskId);
   const streamTaskId = open && isActive ? activeTaskId : null;
 
-  const { workers } = useTaskStream(streamTaskId);
+  const { workers, error: progressError } = useTaskStream(streamTaskId);
 
   // Failed stocks state
   const [failedStocks, setFailedStocks] = useState<FailedStocksResponse | null>(null);
   const [failedLoading, setFailedLoading] = useState(false);
+  const [failedError, setFailedError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
 
-  const isFinished = task && ['COMPLETED', 'FAILED', 'CANCELLED'].includes(task.status);
+  const isFinished = Boolean(task && isTerminalTaskStatus(task.status));
 
   const fetchFailedStocks = useCallback(async () => {
     if (!task || !isFinished) return;
     setFailedLoading(true);
+    setFailedError(null);
     try {
       const res = await fetch(`${API_BASE_URL}/api/tasks/${task.id}/failed-stocks`, {
         credentials: 'include',
       });
-      if (res.ok) {
-        const data: FailedStocksResponse = await res.json();
-        setFailedStocks(data);
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data: FailedStocksResponse = await res.json();
+      setFailedStocks(data);
     } catch (e) {
-      console.error('Failed to fetch failed stocks', e);
+      setFailedStocks(null);
+      setFailedError('失败股票明细加载失败，请稍后重试');
     } finally {
       setFailedLoading(false);
     }
@@ -53,6 +55,7 @@ export const TaskDetailModal: React.FC<Props> = ({ task, activeTaskId, open, onC
       fetchFailedStocks();
     } else {
       setFailedStocks(null);
+      setFailedError(null);
     }
   }, [open, isFinished, fetchFailedStocks]);
 
@@ -90,9 +93,22 @@ export const TaskDetailModal: React.FC<Props> = ({ task, activeTaskId, open, onC
       key: 'code',
       render: (code: string) => <Tag color="red">{code}</Tag>,
     },
+    {
+      title: '最后错误',
+      dataIndex: 'reason',
+      key: 'reason',
+      render: (reason: string) => <Text type="secondary">{reason}</Text>,
+    },
   ];
 
-  const failedDataSource = failedStocks?.stocks.map(code => ({ code, key: code })) ?? [];
+  const failedDataSource = failedStocks?.failures.map((failure) => ({
+    ...failure,
+    key: failure.code,
+  })) ?? [];
+  const recordedFailedCount = isRecord(task?.result)
+    && typeof task.result.failedCount === 'number'
+    ? task.result.failedCount
+    : 0;
 
   return (
     <>
@@ -120,6 +136,9 @@ export const TaskDetailModal: React.FC<Props> = ({ task, activeTaskId, open, onC
             {/* Active task: show per-worker progress */}
             {isActive && (
               <div style={{ maxHeight: '40vh', overflowY: 'auto', padding: '10px 0', marginBottom: 16 }}>
+                {progressError && (
+                  <Alert title={progressError} type="warning" showIcon style={{ marginBottom: 12 }} />
+                )}
                 <Row gutter={[16, 16]}>
                   {Object.values(workers).map((worker) => {
                     const percent = worker.total > 0 ? Math.round(((worker.success + worker.failed) / worker.total) * 100) : 0;
@@ -130,7 +149,16 @@ export const TaskDetailModal: React.FC<Props> = ({ task, activeTaskId, open, onC
                             <Text type="secondary">进度: </Text>
                             <Text>{worker.success + worker.failed} / {worker.total}</Text>
                           </div>
-                          <Progress percent={percent} status={worker.status === 'running' ? 'active' : worker.status === 'completed' ? 'success' : 'normal'} />
+                          <Progress
+                            percent={percent}
+                            status={worker.status === 'running'
+                              ? 'active'
+                              : worker.status === 'completed'
+                                ? 'success'
+                                : worker.status === 'failed'
+                                  ? 'exception'
+                                  : 'normal'}
+                          />
                           <div style={{ marginTop: 8, height: 24 }}>
                             {worker.status === 'running' && worker.currentCode && (
                               <Tag color="processing" style={flashingStyle}>
@@ -139,6 +167,15 @@ export const TaskDetailModal: React.FC<Props> = ({ task, activeTaskId, open, onC
                             )}
                             {worker.status === 'completed' && (
                               <Tag color="success">完成</Tag>
+                            )}
+                            {worker.status === 'failed' && (
+                              <Tag color="error">失败</Tag>
+                            )}
+                            {worker.status === 'partial' && (
+                              <Tag color="warning">部分失败</Tag>
+                            )}
+                            {worker.status === 'cancelled' && (
+                              <Tag color="default">已取消</Tag>
                             )}
                             {worker.status === 'idle' && (
                               <Tag color="default">等待中</Tag>
@@ -185,7 +222,7 @@ export const TaskDetailModal: React.FC<Props> = ({ task, activeTaskId, open, onC
                 {failedDataSource.length > 0 ? (
                   <>
                     <Alert
-                      message={`发现 ${failedDataSource.length} 只股票因网络/超时原因采集失败`}
+                      title={`发现 ${failedDataSource.length} 只股票采集失败`}
                       type="warning"
                       icon={<WarningOutlined />}
                       showIcon
@@ -211,11 +248,24 @@ export const TaskDetailModal: React.FC<Props> = ({ task, activeTaskId, open, onC
                       scroll={{ y: 200 }}
                     />
                   </>
-                ) : (
-                  !failedLoading && (
-                    <Alert message="所有股票均已成功采集，无失败记录" type="success" showIcon />
+                ) : failedError ? (
+                  <Alert
+                    title={failedError}
+                    type="error"
+                    showIcon
+                    action={<Button size="small" onClick={fetchFailedStocks}>重新加载</Button>}
+                  />
+                ) : !failedLoading && failedStocks ? (
+                  recordedFailedCount > 0 ? (
+                    <Alert
+                      title={`任务记录了 ${recordedFailedCount} 只失败股票，但明细已过期，无法直接重试`}
+                      type="warning"
+                      showIcon
+                    />
+                  ) : (
+                    <Alert title="所有股票均已成功采集，无失败记录" type="success" showIcon />
                   )
-                )}
+                ) : null}
               </div>
             )}
           </div>

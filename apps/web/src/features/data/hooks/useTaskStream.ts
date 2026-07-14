@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { WorkerState } from '../types';
+import { useEffect, useRef, useState } from 'react';
 import { API_BASE_URL } from '../../../constant/config';
+import { isTerminalTaskStatus, WorkerState } from '../types';
 
 interface ProgressResponse {
   taskId: string;
@@ -11,7 +11,7 @@ interface ProgressResponse {
     success: number;
     failed: number;
     current_code: string | null;
-    status: 'running' | 'failed' | 'completed';
+    status: 'running' | 'partial' | 'failed' | 'completed' | 'cancelled';
   }>;
 }
 
@@ -19,60 +19,62 @@ const POLL_INTERVAL_MS = 2000;
 
 export const useTaskStream = (activeTaskId: string | null) => {
   const [workers, setWorkers] = useState<Record<number, WorkerState>>({});
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const stopPolling = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-  }, []);
-
-  const fetchProgress = useCallback(async (taskId: string) => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/progress`, {
-        credentials: 'include',
-      });
-      if (!res.ok) return;
-
-      const data: ProgressResponse = await res.json();
-
-      // Map engine snake_case to frontend WorkerState
-      const workerMap: Record<number, WorkerState> = {};
-      for (const w of data.workers) {
-        const done = w.success + w.failed >= w.total && w.total > 0;
-        workerMap[w.worker_id] = {
-          workerId: w.worker_id,
-          total: w.total,
-          success: w.success,
-          failed: w.failed,
-          currentCode: w.current_code,
-          status: done ? 'completed' : w.status === 'failed' ? 'completed' : 'running',
-        };
-      }
-      setWorkers(workerMap);
-
-      // Stop polling when task is fully done
-      if (data.status === 'COMPLETED' || data.status === 'FAILED' || data.status === 'CANCELLED') {
-        stopPolling();
-      }
-    } catch (err) {
-      console.error('[useTaskStream] polling error:', err);
-    }
-  }, [stopPolling]);
+  const [error, setError] = useState<string | null>(null);
+  const generationRef = useRef(0);
 
   useEffect(() => {
-    stopPolling();
+    const generation = ++generationRef.current;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let stopped = false;
+
     setWorkers({});
+    setError(null);
+    if (!activeTaskId) return () => controller.abort();
 
-    if (!activeTaskId) return;
+    const poll = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/api/tasks/${activeTaskId}/progress`,
+          { credentials: 'include', signal: controller.signal },
+        );
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-    // Fetch immediately, then every POLL_INTERVAL_MS
-    fetchProgress(activeTaskId);
-    intervalRef.current = setInterval(() => fetchProgress(activeTaskId), POLL_INTERVAL_MS);
+        const data: ProgressResponse = await response.json();
+        if (stopped || generation !== generationRef.current || data.taskId !== activeTaskId) return;
 
-    return stopPolling;
-  }, [activeTaskId, fetchProgress, stopPolling]);
+        const workerMap: Record<number, WorkerState> = {};
+        for (const worker of data.workers) {
+          workerMap[worker.worker_id] = {
+            workerId: worker.worker_id,
+            total: worker.total,
+            success: worker.success,
+            failed: worker.failed,
+            currentCode: worker.current_code,
+            status: worker.status,
+          };
+        }
+        setWorkers(workerMap);
+        setError(null);
+        if (isTerminalTaskStatus(data.status)) stopped = true;
+      } catch (pollError) {
+        if (!controller.signal.aborted && generation === generationRef.current) {
+          setError('进度暂时无法加载，系统将自动重试');
+        }
+      }
 
-  return { workers };
+      if (!stopped && !controller.signal.aborted) {
+        timer = setTimeout(poll, POLL_INTERVAL_MS);
+      }
+    };
+
+    void poll();
+    return () => {
+      stopped = true;
+      controller.abort();
+      if (timer) clearTimeout(timer);
+    };
+  }, [activeTaskId]);
+
+  return { workers, error };
 };

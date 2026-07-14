@@ -38,7 +38,12 @@ export function useTaskLogsPolling(
           query: { offset: offsetRef.current },
         });
         if (disposed || generationRef.current !== generation) return;
-        if (response.error || !response.data || typeof response.data === 'string') {
+        if (
+          response.error
+          || !response.data
+          || typeof response.data === 'string'
+          || !('logs' in response.data)
+        ) {
           setError('任务日志加载失败，请稍后重试');
         } else {
           setError(null);

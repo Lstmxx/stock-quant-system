@@ -28,7 +28,10 @@ mock.module("@stock-quant/database", () => ({
 		}),
 	},
 	alphaTasks: { id: "alphaTasks.id", userId: "alphaTasks.userId", type: "alphaTasks.type", status: "alphaTasks.status" },
-	dataCollectionConfigs: { userId: "dataCollectionConfigs.userId" },
+	dataCollectionConfigs: {
+		scope: "dataCollectionConfigs.scope",
+		updatedBy: "dataCollectionConfigs.userId",
+	},
 	userConfigs: { id: "userConfigs.id", userId: "userConfigs.userId", key: "userConfigs.key", value: "userConfigs.value" },
 	llmModels: { id: "llmModels.id", userId: "llmModels.userId" },
 }));
@@ -70,15 +73,27 @@ describe("TaskService", () => {
 			selectMock.from().where.mockResolvedValue([]);
 
 			const config = await TaskService.getDataCollectionConfig("user-1");
-			expect(config).toEqual({ lookbackDays: 250, workerCount: 4 });
+			expect(config).toEqual({
+				lookbackDays: 250,
+				workerCount: 4,
+				cronExpression: "0 20 * * mon-fri",
+			});
 		});
 
 		it("should return parsed config if found", async () => {
 			const selectMock = db.select() as any;
-			selectMock.from().where.mockResolvedValue([{ lookbackDays: 100, workerCount: 4 }]);
+			selectMock.from().where.mockResolvedValue([{
+				lookbackDays: 100,
+				workerCount: 4,
+				cronExpression: "30 19 * * 1-5",
+			}]);
 
 			const config = await TaskService.getDataCollectionConfig("user-1");
-			expect(config).toEqual({ lookbackDays: 100, workerCount: 4 });
+			expect(config).toEqual({
+				lookbackDays: 100,
+				workerCount: 4,
+				cronExpression: "30 19 * * 1-5",
+			});
 		});
 	});
 
@@ -86,7 +101,12 @@ describe("TaskService", () => {
 		it("should upsert the config", async () => {
 			const insertSpy = spyOn(db, "insert");
 
-			const result = await TaskService.setDataCollectionConfig("user-1", 150, 2);
+			const result = await TaskService.setDataCollectionConfig(
+				"user-1",
+				150,
+				2,
+				"0 20 * * mon-fri",
+			);
 			
 			expect(insertSpy).toHaveBeenCalled();
 			expect(result).toEqual({ success: true });
@@ -95,48 +115,86 @@ describe("TaskService", () => {
 	});
 
 	describe("runDataCollectionTask", () => {
-		it("should cancel active tasks and create a new one", async () => {
+		it("returns a conflict without cancelling the active global task", async () => {
 			const selectMock = db.select() as any;
-			
-			// Mock db.select().from().where() to return active tasks for the first call
-			// and return config for the second call
 			let callCount = 0;
 			selectMock.from().where.mockImplementation(() => {
-				if (callCount === 0) {
-					callCount++;
-					return Promise.resolve([
-						{ id: "task-1", status: "RUNNING" },
-						{ id: "task-2", status: "PENDING" },
-						{ id: "task-3", status: "COMPLETED" },
-					]);
-				}
-				return Promise.resolve([{ lookbackDays: 120, workerCount: 4 }]);
+				callCount++;
+				return Promise.resolve(callCount === 1
+					? [{ lookbackDays: 120, workerCount: 4, cronExpression: "0 20 * * mon-fri" }]
+					: [{ id: "task-1", status: "RUNNING" }]);
 			});
 
-			const updateSpy = spyOn(db, "update");
-			updateSpy.mockClear();
 			const insertSpy = spyOn(db, "insert");
+			insertSpy.mockClear();
+			const result = await TaskService.runDataCollectionTask("user-1");
+
+			expect(result).toEqual({
+				success: false,
+				conflict: true,
+				error: "已有数据采集任务正在执行",
+				taskId: "task-1",
+				status: "RUNNING",
+			});
+			expect(insertSpy).not.toHaveBeenCalled();
+			expect(Redis.prototype.setex).not.toHaveBeenCalled();
+			expect(Redis.prototype.rpush).not.toHaveBeenCalled();
+		});
+
+		it("creates and reliably enqueues a task when the global slot is free", async () => {
+			const selectMock = db.select() as any;
+			let callCount = 0;
+			selectMock.from().where.mockImplementation(() => {
+				callCount++;
+				return Promise.resolve(callCount === 1
+					? [{ lookbackDays: 120, workerCount: 4, cronExpression: "0 20 * * mon-fri" }]
+					: []);
+			});
 
 			const result = await TaskService.runDataCollectionTask("user-1");
 
-			// Should have cancelled task-1 and task-2
-			expect(Redis.prototype.setex).toHaveBeenCalledTimes(2);
-			expect(Redis.prototype.setex).toHaveBeenCalledWith("task_cancelled:task-1", 3600, "1");
-			expect(Redis.prototype.setex).toHaveBeenCalledWith("task_cancelled:task-2", 3600, "1");
-			expect(updateSpy).toHaveBeenCalledTimes(2);
-
-			// Should have inserted a new task
-			expect(insertSpy).toHaveBeenCalled();
-			expect(Redis.prototype.rpush).toHaveBeenCalled();
-			expect(Redis.prototype.rpush).toHaveBeenCalledWith("stock:tasks:queue", expect.stringContaining("DATA_COLLECTION"));
-			expect(Redis.prototype.rpush).toHaveBeenCalledWith("stock:tasks:queue", expect.stringContaining('"days":120'));
-
 			expect(result).toEqual({ success: true, taskId: "task-999" });
+			expect(Redis.prototype.rpush).toHaveBeenCalledWith(
+				"stock:tasks:queue",
+				expect.stringContaining('"trigger":"MANUAL"'),
+			);
+		});
+
+		it("marks a collection task failed when Redis enqueue fails", async () => {
+			const selectMock = db.select() as any;
+			let callCount = 0;
+			selectMock.from().where.mockImplementation(() => {
+				callCount++;
+				return Promise.resolve(callCount === 1
+					? [{ lookbackDays: 120, workerCount: 4, cronExpression: "0 20 * * mon-fri" }]
+					: []);
+			});
+			Redis.prototype.rpush = mock().mockRejectedValue(
+				new Error("redis unavailable"),
+			);
+
+			const result = await TaskService.runDataCollectionTask("user-1");
+
+			expect(result).toEqual({
+				success: false,
+				conflict: false,
+				error: "任务入队失败，请稍后重试",
+				taskId: "task-999",
+			});
+			expect(db.update).toHaveBeenCalled();
+			expect(Redis.prototype.quit).toHaveBeenCalled();
 		});
 	});
 
 	describe("getTaskLogs", () => {
 		it("should fetch logs from redis list with lrange", async () => {
+			const selectMock = db.select() as any;
+			selectMock.from().where.mockResolvedValue([{
+				id: "task-abc",
+				userId: "user-1",
+				type: "FACTOR_MINING",
+				status: "RUNNING",
+			}]);
 			const lrangeSpy = mock().mockResolvedValue([
 				'{"message": "log1"}',
 				'{"message": "log2"}',

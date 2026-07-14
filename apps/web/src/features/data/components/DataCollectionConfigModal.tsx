@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Form, InputNumber, message } from 'antd';
-import { BaseModal } from '../../../components/Base/BaseModal';
+import React, { useEffect, useState } from 'react';
+import { Alert, Form, Input, InputNumber, message, Spin } from 'antd';
 import { api } from '../../../api/api';
+import { BaseModal } from '../../../components/Base/BaseModal';
 
 interface Props {
   open: boolean;
@@ -9,77 +9,110 @@ interface Props {
   onSuccess: () => void;
 }
 
+interface ConfigFormValues {
+  lookbackDays: number;
+  workerCount: number;
+  cronExpression: string;
+}
+
 export const DataCollectionConfigModal: React.FC<Props> = ({ open, onCancel, onSuccess }) => {
-  const [form] = Form.useForm();
-  const [loading, setLoading] = useState(false);
+  const [form] = Form.useForm<ConfigFormValues>();
+  const [saving, setSaving] = useState(false);
+  const [fetching, setFetching] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (open) {
-      const fetchConfig = async () => {
-        try {
-          const { data, error } = await api.tasks['data-collection'].config.get();
-          if (!error && data) {
-            form.setFieldsValue({ 
-              lookbackDays: data.lookbackDays ?? 250,
-              workerCount: data.workerCount ?? 4 
-            });
-          }
-        } catch (e) {
-          console.error('Failed to fetch config', e);
+    if (!open) return;
+    let cancelled = false;
+
+    const fetchConfig = async () => {
+      setFetching(true);
+      setLoadError(null);
+      try {
+        const { data, error } = await api.tasks['data-collection'].config.get();
+        if (cancelled) return;
+        if (error || !data || !('lookbackDays' in data)) {
+          setLoadError('全局采集配置加载失败，请稍后重试');
+          return;
         }
-      };
-      fetchConfig();
-    }
-  }, [open, form]);
+        form.setFieldsValue(data);
+      } catch {
+        if (!cancelled) setLoadError('网络异常，无法加载全局采集配置');
+      } finally {
+        if (!cancelled) setFetching(false);
+      }
+    };
+
+    void fetchConfig();
+    return () => { cancelled = true; };
+  }, [form, open]);
 
   const handleSave = async () => {
     try {
       const values = await form.validateFields();
-      setLoading(true);
-      const { error } = await api.tasks['data-collection'].config.put({ 
-        lookbackDays: values.lookbackDays,
-        workerCount: values.workerCount
-      });
-      if (!error) {
-        message.success('保存配置成功');
-        onSuccess();
-        onCancel();
-      } else {
-        message.error('保存失败');
+      setSaving(true);
+      const { data, error } = await api.tasks['data-collection'].config.put(values);
+      if (error || !data || !data.success) {
+        message.error('保存失败，请检查 cron 表达式或 Engine 状态');
+        return;
       }
-    } catch (e) {
-      console.error(e);
+      message.success('全局采集配置已保存');
+      onSuccess();
+      onCancel();
+    } catch (error) {
+      if (error instanceof Error) message.error('保存配置失败，请稍后重试');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
   return (
     <BaseModal
-      title="数据采集设置"
+      title="全局数据采集设置"
       open={open}
       onOk={handleSave}
       onCancel={onCancel}
-      confirmLoading={loading}
+      confirmLoading={saving}
+      okButtonProps={{ disabled: fetching || Boolean(loadError) }}
     >
-      <Form form={form} layout="vertical">
-        <Form.Item
-          name="lookbackDays"
-          label="回溯天数 (默认250)"
-          rules={[{ required: true, message: '请输入回溯天数' }]}
-          tooltip="设置每次拉取的默认K线历史长度"
-        >
-          <InputNumber min={1} max={5000} style={{ width: '100%' }} />
-        </Form.Item>
-        <Form.Item
-          name="workerCount"
-          label="并发进程数 (默认4)"
-          rules={[{ required: true, message: '请输入并发进程数' }]}
-          tooltip="设置数据采集时启动的并发 Worker 数量，设置过高可能导致网络超时"
-        >
-          <InputNumber min={1} max={16} style={{ width: '100%' }} />
-        </Form.Item>
-      </Form>
+      <Spin spinning={fetching}>
+        <Alert
+          title="该配置对所有用户、手动任务和定时任务生效，调度时区为 Asia/Shanghai。"
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+        {loadError && <Alert title={loadError} type="error" showIcon style={{ marginBottom: 16 }} />}
+        <Form form={form} layout="vertical">
+          <Form.Item
+            name="lookbackDays"
+            label="回溯自然日参数"
+            rules={[{ required: true, message: '请输入回溯天数' }]}
+            tooltip="采集器会额外预留非交易日窗口，实际数据按可用交易日生成"
+          >
+            <InputNumber min={1} max={5000} precision={0} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item
+            name="workerCount"
+            label="并发进程数"
+            rules={[{ required: true, message: '请输入并发进程数' }]}
+            tooltip="设置过高可能触发数据源限流"
+          >
+            <InputNumber min={1} max={16} precision={0} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item
+            name="cronExpression"
+            label="定时规则（分 时 日 月 星期）"
+            rules={[
+              { required: true, message: '请输入 cron 表达式' },
+              { pattern: /^\S+( \S+){4}$/, message: '请输入标准 5 段 cron 表达式' },
+            ]}
+            tooltip="默认 0 20 * * mon-fri，即工作日北京时间 20:00"
+          >
+            <Input placeholder="0 20 * * mon-fri" />
+          </Form.Item>
+        </Form>
+      </Spin>
     </BaseModal>
   );
 };
