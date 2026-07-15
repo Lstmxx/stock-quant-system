@@ -1,73 +1,85 @@
-"""
-app/core/crypto.py
-===================
-AES-256-GCM encryption/decryption — mirrors apps/api/src/lib/crypto.ts exactly.
+"""Strict cross-language encryption for persisted LLM API keys."""
 
-Key sharing convention
------------------------
-Both this module and the Node.js API read ``ENCRYPTION_KEY`` from the **root**
-``.env`` file (engine picks it up via pydantic-settings ``env_file="../../.env"``).
-
-- If ``ENCRYPTION_KEY`` is **not set**, both sides fall back to the same hardcoded
-  string ``'stock-quant-default-secret-key-32b'``.
-- To use a real key: add ``ENCRYPTION_KEY="<your-secret>"`` to the root ``.env``.
-  Both services will pick it up automatically on next restart.
-
-Wire format (Node.js compatible)
-----------------------------------
-``<iv_hex>:<auth_tag_hex>:<ciphertext_hex>``
-
-- IV:       16 random bytes  → 32 hex chars
-- Auth tag: 16 bytes GCM tag → 32 hex chars
-- Ciphertext: variable length hex
-"""
-import hashlib
+import base64
+import binascii
 import os
-import secrets
 
+from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 
+_VERSION = "v1"
+_AAD = b"stock-quant:llm-api-key:v1"
+_IV_LENGTH = 12
+_AUTH_TAG_LENGTH = 16
+
+
+def _decode_base64url(value: str, label: str) -> bytes:
+    if not value or any(
+        character
+        not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+        for character in value
+    ):
+        raise ValueError(f"{label} must be unpadded base64url")
+    padding = "=" * ((4 - len(value) % 4) % 4)
+    try:
+        return base64.urlsafe_b64decode(value + padding)
+    except (ValueError, binascii.Error) as error:
+        raise ValueError(f"{label} must be unpadded base64url") from error
+
+
+def _encode_base64url(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).decode("ascii").rstrip("=")
+
+
 def _get_secret_key() -> bytes:
-    """Derive a 32-byte AES key from ENCRYPTION_KEY env var (SHA-256 digest)."""
-    raw = os.environ.get("ENCRYPTION_KEY", "stock-quant-default-secret-key-32b")
-    return hashlib.sha256(raw.encode()).digest()
+    encoded = os.environ.get("ENCRYPTION_KEY")
+    if not encoded:
+        raise ValueError("ENCRYPTION_KEY is required")
+    key = _decode_base64url(encoded, "ENCRYPTION_KEY")
+    if len(key) != 32:
+        raise ValueError("ENCRYPTION_KEY must decode to exactly 32 bytes")
+    return key
+
+
+def validate_encryption_key() -> None:
+    """Validate the required process-level secret at an LLM execution boundary."""
+    _get_secret_key()
 
 
 def encrypt(text: str) -> str:
-    """Encrypt *text* and return ``iv:authTag:ciphertext`` hex string."""
+    """Encrypt a non-empty secret using the only supported v1 wire format."""
     if not text:
-        return text
-    key = _get_secret_key()
-    iv = secrets.token_bytes(16)
-    aesgcm = AESGCM(key)
-    # AESGCM.encrypt returns ciphertext + 16-byte auth tag appended
-    ct_with_tag = aesgcm.encrypt(iv, text.encode(), None)
-    ciphertext = ct_with_tag[:-16]
-    auth_tag = ct_with_tag[-16:]
-    return f"{iv.hex()}:{auth_tag.hex()}:{ciphertext.hex()}"
+        raise ValueError("Cannot encrypt an empty secret")
+
+    iv = os.urandom(_IV_LENGTH)
+    encrypted_with_tag = AESGCM(_get_secret_key()).encrypt(iv, text.encode(), _AAD)
+    ciphertext = encrypted_with_tag[:-_AUTH_TAG_LENGTH]
+    auth_tag = encrypted_with_tag[-_AUTH_TAG_LENGTH:]
+    return ":".join(
+        (
+            _VERSION,
+            _encode_base64url(iv),
+            _encode_base64url(auth_tag),
+            _encode_base64url(ciphertext),
+        )
+    )
 
 
-def decrypt(text: str) -> str:
-    """Decrypt a ``iv:authTag:ciphertext`` hex string produced by :func:`encrypt` or the Node.js counterpart.
+def decrypt(value: str) -> str:
+    """Decrypt a v1 ciphertext or fail closed without legacy fallbacks."""
+    parts = value.split(":")
+    if len(parts) != 4 or parts[0] != _VERSION:
+        raise ValueError("Invalid LLM API key ciphertext format")
 
-    Returns the original plaintext string, or *text* unchanged if it does not
-    look like an encrypted value (legacy / plain-text fallback, matching Node.js behaviour).
-    """
-    if not text:
-        return text
-    parts = text.split(":")
-    if len(parts) != 3:
-        # Not in encrypted format — return as-is (same as Node.js decrypt)
-        return text
+    iv = _decode_base64url(parts[1], "ciphertext IV")
+    auth_tag = _decode_base64url(parts[2], "ciphertext auth tag")
+    ciphertext = _decode_base64url(parts[3], "ciphertext payload")
+    if len(iv) != _IV_LENGTH or len(auth_tag) != _AUTH_TAG_LENGTH or not ciphertext:
+        raise ValueError("Invalid LLM API key ciphertext lengths")
+
     try:
-        iv = bytes.fromhex(parts[0])
-        auth_tag = bytes.fromhex(parts[1])
-        ciphertext = bytes.fromhex(parts[2])
-        key = _get_secret_key()
-        aesgcm = AESGCM(key)
-        # cryptography lib expects ciphertext+tag concatenated
-        plaintext_bytes = aesgcm.decrypt(iv, ciphertext + auth_tag, None)
-        return plaintext_bytes.decode()
-    except Exception:
-        return ""
+        plaintext = AESGCM(_get_secret_key()).decrypt(iv, ciphertext + auth_tag, _AAD)
+    except (InvalidTag, ValueError) as error:
+        raise ValueError("Failed to decrypt LLM API key") from error
+    return plaintext.decode()

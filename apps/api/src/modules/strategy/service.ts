@@ -1,17 +1,7 @@
-import { db, alphaFactors, quantStrategies, userConfigs } from "@stock-quant/database";
-import { eq, desc } from "drizzle-orm";
+import { db, alphaFactors, quantStrategies } from "@stock-quant/database";
+import { and, eq, desc } from "drizzle-orm";
 import { engineClient } from "../../lib/engine-client";
-
-function getLlmConfig(configs: { key: string; value: string }[]) {
-	const get = (key: string, fallback: string) =>
-		configs.find((c) => c.key === key)?.value ?? fallback;
-
-	return {
-		apiKey: get("LLM_API_KEY", process.env.LLM_API_KEY ?? ""),
-		baseUrl: get("LLM_BASE_URL", process.env.LLM_BASE_URL ?? "https://api.openai.com/v1"),
-		modelName: get("LLM_MODEL", process.env.LLM_MODEL ?? "gpt-4o"),
-	};
-}
+import { LlmService } from "../llm/service";
 
 export class StrategyService {
 	/**
@@ -31,11 +21,11 @@ export class StrategyService {
 		return factors.slice(0, 3);
 	}
 
-	static async simulateFactor(_userId: string, factorId: string, _constraints: any) {
+	static async simulateFactor(userId: string, factorId: string, _constraints: any) {
 		const factor = await db
 			.select()
 			.from(alphaFactors)
-			.where(eq(alphaFactors.id, factorId))
+			.where(and(eq(alphaFactors.id, factorId), eq(alphaFactors.userId, userId)))
 			.limit(1)
 			.then((res) => res[0]);
 
@@ -57,16 +47,6 @@ export class StrategyService {
 	 * Beat 3: Generate structured JSON report via LLM and save it
 	 */
 	static async generateReportStructured(userId: string, body: any) {
-		const userCfgs = await db
-			.select()
-			.from(userConfigs)
-			.where(eq(userConfigs.userId, userId));
-		const config = getLlmConfig(userCfgs);
-
-		if (!config?.apiKey) {
-			throw new Error("LLM API Key not configured");
-		}
-
 		const prompt = `你是一个资深的量化金融分析师。
 用户经过交互式策略构建选择了以下因子：
 投资风格：${body.style}
@@ -92,27 +72,13 @@ export class StrategyService {
 }
 注意：radarData 的 value 请根据回测表现主观打分（0-100）。`;
 
-		const endpoint = config.baseUrl.replace(/\/$/, '') + '/chat/completions';
-		const resp = await fetch(endpoint, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				Authorization: `Bearer ${config.apiKey}`,
-			},
-			body: JSON.stringify({
-				model: config.modelName,
-				messages: [{ role: "user", content: prompt }],
-				temperature: 0.7,
-				response_format: { type: "json_object" }
-			}),
+		const llmResult = await LlmService.chatDefault(userId, {
+			messages: [{ role: "user", content: prompt }],
+			temperature: 0.7,
+			maxTokens: 3000,
+			jsonMode: true,
 		});
-
-		if (!resp.ok) {
-			throw new Error(`LLM Error: HTTP ${resp.status}`);
-		}
-
-		const llmResult = await resp.json();
-		const reportContent = llmResult.choices[0]?.message?.content || "{}";
+		const reportContent = llmResult.content;
 		let structuredReport;
 		try {
 			structuredReport = JSON.parse(reportContent);

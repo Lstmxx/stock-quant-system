@@ -22,6 +22,13 @@
       "when": 1783998467296,
       "tag": "0002_black_speedball",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784016910069,
+      "tag": "0003_llm_configuration_contract",
+      "breakpoints": true
     }
   ]
 }

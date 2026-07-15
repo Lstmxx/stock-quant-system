@@ -1,25 +1,13 @@
 import { createHash } from "node:crypto";
 
-import { db, alphaTasks, factorSelectionResults, userConfigs } from "@stock-quant/database";
+import { db, alphaTasks, factorSelectionResults } from "@stock-quant/database";
 import { and, eq, desc } from "drizzle-orm";
 import Redis from "ioredis";
 import { redisUrl } from "../../lib/env";
 import { engineClient } from "../../lib/engine-client";
 import { FactorSelectionService, resolveFactorSet } from "../factor-selection/service";
+import { LlmService } from "../llm/service";
 import type { AnalysisReport, FactorAnalysisContext, StartAnalysisBody } from "./model";
-
-// ─── LLM Helpers ───
-
-function getLlmConfig(configs: { key: string; value: string }[]) {
-	const get = (key: string, fallback: string) =>
-		configs.find((c) => c.key === key)?.value ?? fallback;
-
-	return {
-		apiKey: get("LLM_API_KEY", process.env.LLM_API_KEY ?? ""),
-		baseUrl: get("LLM_BASE_URL", process.env.LLM_BASE_URL ?? "https://api.openai.com/v1"),
-		model: get("LLM_MODEL", process.env.LLM_MODEL ?? "gpt-4o"),
-	};
-}
 
 export function buildAnalysisPrompt(
 	symbol: string,
@@ -164,34 +152,6 @@ async function getOrCreateFactorContext(
 	return context;
 }
 
-async function callLlm(
-	apiKey: string,
-	baseUrl: string,
-	model: string,
-	prompt: string,
-): Promise<string> {
-	const resp = await fetch(`${baseUrl}/chat/completions`, {
-		method: "POST",
-		headers: {
-			Authorization: `Bearer ${apiKey}`,
-			"Content-Type": "application/json",
-		},
-		body: JSON.stringify({
-			model,
-			messages: [{ role: "user", content: prompt }],
-			temperature: 0.3,
-			max_tokens: 2000,
-		}),
-	});
-
-	if (!resp.ok) {
-		throw new Error(`LLM API error: HTTP ${resp.status}`);
-	}
-
-	const data = (await resp.json()) as { choices: Array<{ message: { content: string } }> };
-	return data.choices[0]?.message?.content ?? "";
-}
-
 // ─── Market Data Helpers ───
 
 async function getMarketDataFromRedis(_symbol: string, days: number): Promise<object | null> {
@@ -286,20 +246,17 @@ export abstract class AnalysisService {
 			const priceStats = await getPriceSummary(symbol);
 			const factorContext = await getOrCreateFactorContext(userId, symbol);
 
-			// 5. Get user LLM config
-			const userCfgs = await db
-				.select()
-				.from(userConfigs)
-				.where(eq(userConfigs.userId, userId));
-			const { apiKey, baseUrl, model } = getLlmConfig(userCfgs);
-
-			if (!apiKey) throw new Error("LLM API Key not configured. Please set it in Settings.");
-
-			// 6. Call LLM
+			// 5. Resolve the current user's default model and call the Engine adapter.
 			const prompt = buildAnalysisPrompt(symbol, priceStats, factorContext);
-			const rawReport = await callLlm(apiKey, baseUrl, model, prompt);
+			const llmResult = await LlmService.chatDefault(userId, {
+				messages: [{ role: "user", content: prompt }],
+				temperature: 0.3,
+				maxTokens: 2000,
+				jsonMode: true,
+			});
+			const rawReport = llmResult.content;
 
-			// 7. Parse structured JSON from LLM response
+			// 6. Parse structured JSON from LLM response
 			let structuredData: Partial<AnalysisReport> = {};
 			try {
 				const jsonMatch = rawReport.match(/\{[\s\S]*\}/);

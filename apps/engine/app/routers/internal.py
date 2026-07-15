@@ -2,18 +2,23 @@
 Internal API router — endpoints called only by the API (ElysiaJS) gateway.
 Not exposed externally.
 """
+
 import asyncio
 import json
 import logging
-import pickle
+from dataclasses import asdict
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 import redis.asyncio as aioredis
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..config import settings
+from ..core.litellm_client import get_default_llm_client
+from ..core.llm_config_loader import get_default_config_loader
+from ..core.llm_types import ChatRequest, LlmError
 from ..scheduler import update_scheduler_config
 
 logger = logging.getLogger(__name__)
@@ -22,6 +27,7 @@ router = APIRouter(prefix="/internal", tags=["internal"])
 
 
 # ─── Request Models ───
+
 
 class FetchDataRequest(BaseModel):
     symbol: str  # e.g. "sh.600000"
@@ -33,7 +39,94 @@ class ReloadConfigRequest(BaseModel):
     baostock_cron: Optional[str] = None
 
 
+class LlmChatMessage(BaseModel):
+    role: Literal["system", "user", "assistant"]
+    content: str = Field(min_length=1, max_length=100_000)
+
+
+class LlmChatRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    user_id: str = Field(alias="userId", min_length=1)
+    model_id: str = Field(alias="modelId", min_length=1)
+    messages: list[LlmChatMessage] = Field(min_length=1, max_length=100)
+    temperature: float = Field(default=0.7, ge=0, le=2)
+    max_tokens: int = Field(default=4000, alias="maxTokens", ge=1, le=100_000)
+    json_mode: bool = Field(default=False, alias="jsonMode")
+
+
+class LlmTestRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    user_id: str = Field(alias="userId", min_length=1)
+    model_id: str = Field(alias="modelId", min_length=1)
+
+
 # ─── Endpoints ───
+
+
+def _llm_error_response(error: LlmError) -> JSONResponse:
+    status_by_code = {
+        "LLM_CONFIG_NOT_FOUND": 404,
+        "LLM_CONFIG_INVALID": 422,
+        "LLM_SECRET_INVALID": 422,
+        "LLM_AUTH_FAILED": 502,
+        "LLM_RATE_LIMITED": 502,
+        "LLM_TIMEOUT": 504,
+        "LLM_PROVIDER_UNAVAILABLE": 502,
+        "LLM_RESPONSE_INVALID": 502,
+    }
+    return JSONResponse(
+        status_code=status_by_code.get(error.code, 502),
+        content={"code": error.code, "message": str(error)},
+    )
+
+
+def _run_llm_chat(body: LlmChatRequest):
+    config = get_default_config_loader().get(body.user_id, body.model_id)
+    request = ChatRequest(
+        messages=tuple(message.model_dump() for message in body.messages),
+        temperature=body.temperature,
+        max_tokens=body.max_tokens,
+        json_mode=body.json_mode,
+    )
+    return get_default_llm_client().chat(config, request)
+
+
+@router.post("/llm/chat")
+async def llm_chat(body: LlmChatRequest):
+    try:
+        result = await asyncio.to_thread(_run_llm_chat, body)
+    except LlmError as error:
+        return _llm_error_response(error)
+    return {
+        "content": result.content,
+        "provider": result.provider,
+        "model": result.model,
+        "usage": asdict(result.usage) if result.usage else None,
+    }
+
+
+@router.post("/llm/test")
+async def test_llm_connection(body: LlmTestRequest):
+    request = LlmChatRequest(
+        userId=body.user_id,
+        modelId=body.model_id,
+        messages=[LlmChatMessage(role="user", content="Reply with OK.")],
+        temperature=0,
+        maxTokens=16,
+        jsonMode=False,
+    )
+    try:
+        result = await asyncio.to_thread(_run_llm_chat, request)
+    except LlmError as error:
+        return _llm_error_response(error)
+    return {
+        "success": True,
+        "provider": result.provider,
+        "model": result.model,
+    }
+
 
 @router.post("/reload-config")
 async def reload_config(body: ReloadConfigRequest = ReloadConfigRequest()):
@@ -84,7 +177,11 @@ async def fetch_data(body: FetchDataRequest):
                         summary = {
                             "symbol": symbol,
                             "latest_price": float(close.iloc[-1]),
-                            "change_30d": float((close.iloc[-1] / close.iloc[-30] - 1) * 100) if len(close) >= 30 else 0,
+                            "change_30d": float(
+                                (close.iloc[-1] / close.iloc[-30] - 1) * 100
+                            )
+                            if len(close) >= 30
+                            else 0,
                             "high_30d": float(last_n.max()),
                             "low_30d": float(last_n.min()),
                             "avg_30d": float(last_n.mean()),
@@ -100,19 +197,29 @@ async def fetch_data(body: FetchDataRequest):
             await r.set(summary_key, json.dumps(summary), ex=20 * 3600)
 
             # Notify API that data is ready
-            await r.publish(f"data_ready:{symbol}", json.dumps({"symbol": symbol, "date": today}))
-            logger.info(f"Data fetch completed for {symbol}, published to data_ready channel")
+            await r.publish(
+                f"data_ready:{symbol}", json.dumps({"symbol": symbol, "date": today})
+            )
+            logger.info(
+                f"Data fetch completed for {symbol}, published to data_ready channel"
+            )
 
         except Exception as e:
             logger.error(f"Data fetch failed for {symbol}: {e}")
             # Still publish so API doesn't hang waiting
-            await r.publish(f"data_ready:{symbol}", json.dumps({"symbol": symbol, "error": str(e)}))
+            await r.publish(
+                f"data_ready:{symbol}", json.dumps({"symbol": symbol, "error": str(e)})
+            )
         finally:
             await r.aclose()
 
     # Run in background, respond immediately
     asyncio.create_task(_do_fetch())
-    return {"status": "accepted", "symbol": symbol, "message": "Data fetch started in background"}
+    return {
+        "status": "accepted",
+        "symbol": symbol,
+        "message": "Data fetch started in background",
+    }
 
 
 class SimulateFactorRequest(BaseModel):
@@ -151,11 +258,15 @@ async def simulate_factor(body: SimulateFactorRequest):
             # The evaluator.evaluate() returns a FactorMetrics object
             # FactorMetrics has ic_mean, icir, long_short_return, turnover_rate, monotonicity_score
             return {
-                "annualReturn": float(metrics.long_short_return * 252) if metrics.long_short_return else 0.0,
+                "annualReturn": float(metrics.long_short_return * 252)
+                if metrics.long_short_return
+                else 0.0,
                 "maxDrawdown": -0.15,  # Note: A real max drawdown calc would need cumulative returns array
-                "sharpeRatio": float(metrics.icir) * 1.5, # Approximation for now
-                "winRate": float(metrics.ic_positive_ratio) if hasattr(metrics, 'ic_positive_ratio') else 0.55,
-                "ic": float(metrics.ic_mean) if metrics.ic_mean else 0.0
+                "sharpeRatio": float(metrics.icir) * 1.5,  # Approximation for now
+                "winRate": float(metrics.ic_positive_ratio)
+                if hasattr(metrics, "ic_positive_ratio")
+                else 0.55,
+                "ic": float(metrics.ic_mean) if metrics.ic_mean else 0.0,
             }
 
         result = await asyncio.to_thread(_simulate)

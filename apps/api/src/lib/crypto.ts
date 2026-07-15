@@ -1,39 +1,70 @@
-import crypto from 'node:crypto';
+import crypto from "node:crypto";
 
-const algorithm = 'aes-256-gcm';
-// 使用环境变量 ENCRYPTION_KEY 或默认的 fallback key
-const secretKey = process.env.ENCRYPTION_KEY 
-    ? crypto.createHash('sha256').update(process.env.ENCRYPTION_KEY).digest()
-    : crypto.createHash('sha256').update('stock-quant-default-secret-key-32b').digest();
+const ALGORITHM = "aes-256-gcm";
+const VERSION = "v1";
+const AAD = Buffer.from("stock-quant:llm-api-key:v1", "utf8");
+const IV_LENGTH = 12;
+const AUTH_TAG_LENGTH = 16;
 
-export function encrypt(text: string): string {
-    if (!text) return text;
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv(algorithm, secretKey, iv);
-    let encrypted = cipher.update(text, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    const authTag = cipher.getAuthTag().toString('hex');
-    return `${iv.toString('hex')}:${authTag}:${encrypted}`;
+function decodeBase64Url(value: string, label: string): Buffer {
+	if (!/^[A-Za-z0-9_-]+$/.test(value)) {
+		throw new Error(`${label} must be unpadded base64url`);
+	}
+	const padding = "=".repeat((4 - (value.length % 4)) % 4);
+	return Buffer.from(value.replace(/-/g, "+").replace(/_/g, "/") + padding, "base64");
 }
 
-export function decrypt(text: string): string {
-    if (!text) return text;
-    try {
-        const parts = text.split(':');
-        // 如果不是加密格式（例如旧数据），直接返回
-        if (parts.length !== 3) return text; 
-        
-        const iv = Buffer.from(parts[0], 'hex');
-        const authTag = Buffer.from(parts[1], 'hex');
-        const encryptedText = parts[2];
-        
-        const decipher = crypto.createDecipheriv(algorithm, secretKey, iv);
-        decipher.setAuthTag(authTag);
-        let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
-        decrypted += decipher.final('utf8');
-        return decrypted;
-    } catch (e) {
-        console.error("Decryption failed", e);
-        return "";
-    }
+function encodeBase64Url(value: Buffer): string {
+	return value.toString("base64url");
+}
+
+function getSecretKey(): Buffer {
+	const encoded = process.env.ENCRYPTION_KEY;
+	if (!encoded) {
+		throw new Error("ENCRYPTION_KEY is required");
+	}
+	const key = decodeBase64Url(encoded, "ENCRYPTION_KEY");
+	if (key.length !== 32) {
+		throw new Error("ENCRYPTION_KEY must decode to exactly 32 bytes");
+	}
+	return key;
+}
+
+export function encrypt(text: string): string {
+	if (!text) throw new Error("Cannot encrypt an empty secret");
+
+	const iv = crypto.randomBytes(IV_LENGTH);
+	const cipher = crypto.createCipheriv(ALGORITHM, getSecretKey(), iv, {
+		authTagLength: AUTH_TAG_LENGTH,
+	});
+	cipher.setAAD(AAD);
+	const ciphertext = Buffer.concat([cipher.update(text, "utf8"), cipher.final()]);
+	const authTag = cipher.getAuthTag();
+
+	return [VERSION, encodeBase64Url(iv), encodeBase64Url(authTag), encodeBase64Url(ciphertext)].join(":");
+}
+
+export function decrypt(value: string): string {
+	const parts = value.split(":");
+	if (parts.length !== 4 || parts[0] !== VERSION) {
+		throw new Error("Invalid LLM API key ciphertext format");
+	}
+
+	const iv = decodeBase64Url(parts[1], "ciphertext IV");
+	const authTag = decodeBase64Url(parts[2], "ciphertext auth tag");
+	const ciphertext = decodeBase64Url(parts[3], "ciphertext payload");
+	if (iv.length !== IV_LENGTH || authTag.length !== AUTH_TAG_LENGTH || ciphertext.length === 0) {
+		throw new Error("Invalid LLM API key ciphertext lengths");
+	}
+
+	try {
+		const decipher = crypto.createDecipheriv(ALGORITHM, getSecretKey(), iv, {
+			authTagLength: AUTH_TAG_LENGTH,
+		});
+		decipher.setAAD(AAD);
+		decipher.setAuthTag(authTag);
+		return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
+	} catch (error) {
+		throw new Error("Failed to decrypt LLM API key", { cause: error });
+	}
 }

@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Modal, Form, Select, message, Typography } from 'antd';
+import { Alert, App, Modal, Form, Select, Typography } from 'antd';
 import { WarningOutlined } from '@ant-design/icons';
+import { Link } from 'react-router-dom';
 import { api } from '../../../api/api';
+import { getApiErrorMessage } from '../../llm/api-error';
 import { LlmModel } from '../../llm/types';
 
 const { Text } = Typography;
@@ -13,23 +15,30 @@ interface Props {
 }
 
 export const FactorTaskConfigModal: React.FC<Props> = ({ open, onCancel, onSaved }) => {
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [models, setModels] = useState<LlmModel[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const fetchConfigAndModels = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const [modelsRes, configRes] = await Promise.all([
         api.llm.get(),
         api.config.get(),
       ]);
 
-      if (modelsRes.data) {
-        setModels(modelsRes.data);
+      if (modelsRes.error || !modelsRes.data) {
+        throw new Error(getApiErrorMessage(modelsRes.error?.value, '获取大模型列表失败'));
       }
+      setModels(modelsRes.data as LlmModel[]);
 
+      if (configRes.error) {
+        throw new Error(getApiErrorMessage(configRes.error.value, '获取因子任务配置失败'));
+      }
       if (configRes.data) {
         const factorConfig = configRes.data.find(
           (c: { key: string; value: string }) => c.key === 'FACTOR_TASK_LLM_MODEL'
@@ -38,8 +47,10 @@ export const FactorTaskConfigModal: React.FC<Props> = ({ open, onCancel, onSaved
           llmModelId: factorConfig?.value ?? undefined,
         });
       }
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      const detail = getApiErrorMessage(error, '加载任务配置失败，请检查网络连接');
+      setLoadError(detail);
+      message.error(detail);
     } finally {
       setLoading(false);
     }
@@ -68,10 +79,12 @@ export const FactorTaskConfigModal: React.FC<Props> = ({ open, onCancel, onSaved
         onSaved?.();
         onCancel();
       } else {
-        message.error('保存失败，请重试');
+        message.error(getApiErrorMessage(error?.value, '保存失败，请重试'));
       }
-    } catch (e) {
-      // Validation error — do nothing
+    } catch (error) {
+      if (!(error && typeof error === 'object' && 'errorFields' in error)) {
+        message.error(getApiErrorMessage(error, '保存失败，请检查网络连接'));
+      }
     } finally {
       setSaving(false);
     }
@@ -87,6 +100,7 @@ export const FactorTaskConfigModal: React.FC<Props> = ({ open, onCancel, onSaved
       cancelText="取消"
       confirmLoading={saving}
     >
+      {loadError ? <Alert title={loadError} type="error" showIcon className="mt-4" /> : null}
       <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
         <Form.Item
           name="llmModelId"
@@ -95,7 +109,9 @@ export const FactorTaskConfigModal: React.FC<Props> = ({ open, onCancel, onSaved
           extra={
             !loading && models.length === 0 ? (
               <Text type="warning">
-                <WarningOutlined /> 暂无可用大模型，请先前往「大模型配置」添加
+                <WarningOutlined /> 暂无可用大模型，请先
+                <Link to="/llm" onClick={onCancel}>前往大模型配置</Link>
+                添加
               </Text>
             ) : null
           }

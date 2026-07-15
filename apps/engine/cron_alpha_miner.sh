@@ -28,8 +28,6 @@ log_fail() {
 # --─ 环境准备 --─
 log_step "环境准备"
 source /opt/data/daily_stock_analysis/venv/bin/activate
-export XIAOMI_API_KEY=$(grep '^XIAOMI_API_KEY=' /opt/data/.env | cut -d'=' -f2-)
-export XIAOMI_BASE_URL=$(grep '^XIAOMI_BASE_URL=' /opt/data/.env | cut -d'=' -f2-)
 export PYTHONUNBUFFERED=1
 cd /opt/data/alpha_miner
 log_done "环境准备"
@@ -60,6 +58,8 @@ T3=$(date +%s)
 python3 alpha_miner.py \
     --self-optimize \
     --auto-direction \
+    --user-id "${FACTOR_USER_ID:?FACTOR_USER_ID is required}" \
+    --llm-model-id "${FACTOR_LLM_MODEL_ID:?FACTOR_LLM_MODEL_ID is required}" \
     --rounds "$ROUNDS" \
     --factors-per-round "$FACTORS_PER_ROUND"
 T4=$(date +%s)

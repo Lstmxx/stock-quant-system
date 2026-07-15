@@ -44,4 +44,49 @@ describe("EngineClient", () => {
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 		expect(consoleSpy).toHaveBeenCalled();
 	});
+
+	it("returns the typed project DTO for unified LLM chat", async () => {
+		const fetchMock = mock(async () =>
+			new Response(
+				JSON.stringify({
+					content: "hello",
+					provider: "openai",
+					model: "openai/gpt-5",
+					usage: null,
+				}),
+				{ status: 200 },
+			),
+		) as any;
+		global.fetch = fetchMock;
+
+		const result = await engineClient.chatLlm({
+			userId: "user-1",
+			modelId: "model-1",
+			messages: [{ role: "user", content: "hi" }],
+		});
+
+		expect(result.content).toBe("hello");
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
+	it("normalizes sanitized Engine LLM errors without fail-soft fallback", async () => {
+		global.fetch = mock(async () =>
+			new Response(
+				JSON.stringify({
+					code: "LLM_CONFIG_NOT_FOUND",
+					message: "大模型配置不存在或无权访问",
+				}),
+				{ status: 404 },
+			),
+		) as any;
+
+		await expect(
+			engineClient.testLlm("user-1", "model-1"),
+		).rejects.toEqual(
+			expect.objectContaining({
+				code: "LLM_CONFIG_NOT_FOUND",
+				status: 404,
+			}),
+		);
+	});
 });

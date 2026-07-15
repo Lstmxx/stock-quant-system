@@ -25,14 +25,22 @@ export const watchlists = pgTable("watchlists", {
 	updatedAt: timestamp("updatedAt").defaultNow().notNull()
 });
 
-export const userConfigs = pgTable("user_configs", {
-	id: uuid("id").defaultRandom().primaryKey(),
-	userId: text("userId").notNull().references(() => user.id),
-	key: text("key").notNull(), // e.g. "LLM_API_KEY", "LLM_MODEL_NAME"
-	value: text("value").notNull(), // encrypted or plain depending on impl
-	createdAt: timestamp("createdAt").defaultNow().notNull(),
-	updatedAt: timestamp("updatedAt").defaultNow().notNull()
-});
+export const userConfigs = pgTable(
+	"user_configs",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		userId: text("userId")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		key: text("key").notNull(),
+		value: text("value").notNull(),
+		createdAt: timestamp("createdAt").defaultNow().notNull(),
+		updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+	},
+	(table) => [
+		uniqueIndex("user_configs_user_key_unique").on(table.userId, table.key),
+	],
+);
 
 export const dataCollectionConfigs = pgTable(
 	"data_collection_configs",
@@ -178,15 +186,26 @@ export const quantStrategies = pgTable("quant_strategies", {
 	updatedAt: timestamp("updatedAt").defaultNow().notNull()
 });
 
-export const llmModels = pgTable("llm_models", {
-	id: uuid("id").defaultRandom().primaryKey(),
-	userId: text("userId").notNull().references(() => user.id),
-	provider: text("provider").notNull(), // 'openai', 'anthropic', 'ollama', etc.
-	modelName: text("modelName").notNull(), // 'gpt-4o', etc.
-	name: text("name").notNull(), // User-friendly name
-	baseUrl: text("baseUrl"), // Optional custom base URL
-	apiKey: text("apiKey"), // Encrypted API key
-	isDefault: boolean("isDefault").default(false),
-	createdAt: timestamp("createdAt").defaultNow().notNull(),
-	updatedAt: timestamp("updatedAt").defaultNow().notNull()
-});
+export const llmModels = pgTable(
+	"llm_models",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		userId: text("userId")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		provider: text("provider").notNull(),
+		modelName: text("modelName").notNull(),
+		name: text("name").notNull(),
+		baseUrl: text("baseUrl"),
+		apiKey: text("apiKey"),
+		isDefault: boolean("isDefault").default(false).notNull(),
+		createdAt: timestamp("createdAt").defaultNow().notNull(),
+		updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+	},
+	(table) => [
+		uniqueIndex("llm_models_user_default_unique")
+			.on(table.userId)
+			.where(sql`${table.isDefault} = true`),
+		index("llm_models_user_created_idx").on(table.userId, table.createdAt),
+	],
+);

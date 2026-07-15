@@ -1,51 +1,69 @@
-import React, { useState } from 'react';
-import { Button, Card } from 'antd';
+import { useCallback, useState } from 'react';
+import { Alert, Button, Card } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
-import { useLlmModels } from './hooks/useLlmModels';
-import { LlmModelTable } from './components/LlmModelTable';
-import { LlmModelFormModal } from './components/LlmModelFormModal';
-import { LlmModel } from './types';
 
-const LlmManagement: React.FC = () => {
-  const { data, loading, fetchData, handleDelete, handleSetDefault } = useLlmModels();
-  
+import { LlmModelFormModal } from './components/LlmModelFormModal';
+import { LlmModelTable } from './components/LlmModelTable';
+import { useLlmModels } from './hooks/useLlmModels';
+import type { LlmModel } from './types';
+
+export default function LlmManagement() {
+  const {
+    data,
+    loading,
+    error,
+    rowActions,
+    fetchData,
+    handleDelete,
+    handleSetDefault,
+    handleTest,
+  } = useLlmModels();
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingConfig, setEditingConfig] = useState<LlmModel | null>(null);
 
-  const handleAdd = () => {
+  const handleAdd = useCallback(() => {
     setEditingConfig(null);
     setIsModalVisible(true);
-  };
+  }, []);
 
-  const handleEdit = (record: LlmModel) => {
+  const handleEdit = useCallback((record: LlmModel) => {
     setEditingConfig(record);
     setIsModalVisible(true);
-  };
+  }, []);
+
+  const handleClose = useCallback(() => {
+    setIsModalVisible(false);
+    setEditingConfig(null);
+  }, []);
 
   return (
     <Card
-      extra={
+      title="大模型配置"
+      extra={(
         <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
           新增配置
         </Button>
-      }
+      )}
     >
-      <LlmModelTable 
-        data={data} 
-        loading={loading} 
-        onEdit={handleEdit} 
-        onDelete={handleDelete} 
-        onSetDefault={handleSetDefault} 
+      {error ? <Alert title={error} type="error" showIcon className="mb-4" /> : null}
+
+      <LlmModelTable
+        data={data}
+        loading={loading}
+        rowActions={rowActions}
+        onAdd={handleAdd}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        onSetDefault={handleSetDefault}
+        onTest={handleTest}
       />
 
       <LlmModelFormModal
         open={isModalVisible}
-        onCancel={() => setIsModalVisible(false)}
+        onCancel={handleClose}
         onSuccess={fetchData}
         initialValues={editingConfig}
       />
     </Card>
   );
-};
-
-export default LlmManagement;
+}

@@ -8,25 +8,29 @@
 
 参考QuantaAlpha的进化策略，但简化实现。
 """
+
 import random
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional
 
 from .config import EvolutionConfig
 from .factor_library import FactorRecord
 
+if TYPE_CHECKING:
+    from .llm_backend import LLMBackend
+
 
 class EvolutionStrategy:
     """进化策略"""
-    
+
     def __init__(self):
         self.mutation_rate = EvolutionConfig.MUTATION_RATE
         self.crossover_rate = EvolutionConfig.CROSSOVER_RATE
         self.elite_ratio = EvolutionConfig.ELITE_RATIO
-        
+
         # 常用参数池
         self.common_params = [3, 5, 10, 15, 20, 30, 60]
-        
+
         # 可替换的算子对（功能相似）
         self.operator_groups = {
             "moving_average": ["TS_MEAN", "EMA", "SMA", "WMA"],
@@ -36,33 +40,33 @@ class EvolutionStrategy:
             "correlation": ["TS_CORR", "TS_COV"],
             "technical": ["RSI", "MACD_DIF", "MACD_HIST", "KDJ_J", "WR", "CCI"],
         }
-        
+
         # 变量池
         self.price_vars = ["open", "high", "low", "close"]
         self.volume_vars = ["volume", "amount", "turn"]
         self.all_vars = self.price_vars + self.volume_vars + ["pctChg"]
-    
+
     def evolve(
         self,
         population: List[FactorRecord],
         n_children: int = 10,
-        llm_config: Optional[Dict] = None,
+        llm_backend: "LLMBackend | None" = None,
     ) -> List[str]:
         """
         执行进化操作
-        
+
         Args:
             population: 当前种群（因子记录列表）
             n_children: 生成子代数量
-            
+
         Returns:
             子代因子表达式列表
         """
         if not population:
             return []
-        
+
         children = []
-        
+
         # 1. 精英保留
         n_elite = max(1, int(len(population) * self.elite_ratio))
         elite = sorted(
@@ -71,33 +75,37 @@ class EvolutionStrategy:
             reverse=True,
         )[:n_elite]
         elite_exprs = []
-        
+
         # 精英直接进入下一代（不变异）
         for e in elite:
             children.append(e.expression)
             elite_exprs.append(e.expression)
-            
+
         # 2. LLM 智能演化 (Semantic Mutation & Crossover)
-        from .llm_backend import llm
         n_llm_target = n_children - len(children)
-        
-        if n_llm_target > 0 and elite_exprs:
-            print(f"  [Evolution] 正在使用 LLM 对 {len(elite_exprs)} 个精英因子进行智能演化...")
-            llm_factors = llm.evolve_factors(elite_exprs, n_children=n_llm_target, llm_config=llm_config)
+
+        if n_llm_target > 0 and elite_exprs and llm_backend is not None:
+            print(
+                f"  [Evolution] 正在使用 LLM 对 {len(elite_exprs)} 个精英因子进行智能演化..."
+            )
+            llm_factors = llm_backend.evolve_factors(
+                elite_exprs,
+                n_children=n_llm_target,
+            )
             for factor_info in llm_factors:
                 expr = factor_info.get("expression")
                 if expr and expr not in children:
                     children.append(expr)
                     if len(children) >= n_children:
                         break
-        
+
         # 3. 随机探索（后备/补充多样性）
         n_random = n_children - len(children)
         for _ in range(max(0, n_random)):
             random_expr = self._generate_random()
             if random_expr and random_expr not in children:
                 children.append(random_expr)
-                
+
         # 补充传统遗传变异，直到满员
         attempts = 0
         while len(children) < n_children and attempts < n_children * 2:
@@ -106,20 +114,18 @@ class EvolutionStrategy:
             if child_expr and child_expr not in children:
                 children.append(child_expr)
             attempts += 1
-        
+
         return children[:n_children]
-    
+
     def _select_parent(self, population: List[FactorRecord]) -> FactorRecord:
         """选择父代（锦标赛选择）"""
         # 锦标赛选择：随机选3个，取最好的
         tournament_size = min(3, len(population))
         tournament = random.sample(population, tournament_size)
         return max(tournament, key=lambda factor: abs(factor.ic_value or 0.0))
-    
+
     def _select_parents(
-        self,
-        population: List[FactorRecord],
-        n: int
+        self, population: List[FactorRecord], n: int
     ) -> List[FactorRecord]:
         """选择多个父代"""
         parents = []
@@ -127,11 +133,11 @@ class EvolutionStrategy:
             parent = self._select_parent(population)
             parents.append(parent)
         return parents
-    
+
     def _mutate(self, expression: str) -> Optional[str]:
         """
         变异操作
-        
+
         变异方式：
         1. 修改参数（窗口期）
         2. 替换算子（同类替换）
@@ -140,7 +146,7 @@ class EvolutionStrategy:
         """
         try:
             mutation_type = random.choice(["param", "operator", "variable", "wrap"])
-            
+
             if mutation_type == "param":
                 return self._mutate_param(expression)
             elif mutation_type == "operator":
@@ -149,32 +155,32 @@ class EvolutionStrategy:
                 return self._mutate_variable(expression)
             elif mutation_type == "wrap":
                 return self._mutate_wrap(expression)
-            
+
         except Exception:
             pass
-        
+
         return None
-    
+
     def _mutate_param(self, expression: str) -> str:
         """修改参数（窗口期）— 只匹配函数调用中的窗口参数"""
         # 匹配函数调用中的数字参数：FUNC(var, 数字) 或 FUNC(var1, var2, 数字)
-        func_param_pattern = r'(\w+\([^)]*?,\s*)(\d+)(\))'
+        func_param_pattern = r"(\w+\([^)]*?,\s*)(\d+)(\))"
         matches = list(re.finditer(func_param_pattern, expression))
         if not matches:
             return expression
-        
+
         # 随机选择一个匹配的窗口参数替换
         match = random.choice(matches)
         old_num = match.group(2)
         new_num = str(random.choice(self.common_params))
-        
+
         if old_num == new_num:
             return expression
-        
+
         # 精确替换该位置
         start, end = match.start(2), match.end(2)
         return expression[:start] + new_num + expression[end:]
-    
+
     def _mutate_operator(self, expression: str) -> str:
         """替换算子"""
         # 查找使用的算子
@@ -183,36 +189,36 @@ class EvolutionStrategy:
             for op in self.operator_groups[op_name]:
                 if op in expression:
                     used_ops.append((op, op_name))
-        
+
         if not used_ops:
             return expression
-        
+
         # 随机选择一个算子替换
         old_op, group_name = random.choice(used_ops)
         group = self.operator_groups[group_name]
-        
+
         # 选择同组的其他算子
         candidates = [op for op in group if op != old_op]
         if not candidates:
             return expression
-        
+
         new_op = random.choice(candidates)
         return expression.replace(old_op, new_op, 1)
-    
+
     def _mutate_variable(self, expression: str) -> str:
         """替换变量"""
         # 查找使用的变量
         used_vars = []
         for var in self.all_vars:
-            if re.search(r'\b' + var + r'\b', expression):
+            if re.search(r"\b" + var + r"\b", expression):
                 used_vars.append(var)
-        
+
         if not used_vars:
             return expression
-        
+
         # 随机选择一个变量替换
         old_var = random.choice(used_vars)
-        
+
         # 根据类型选择替换
         if old_var in self.price_vars:
             new_var = random.choice(self.price_vars)
@@ -220,9 +226,9 @@ class EvolutionStrategy:
             new_var = random.choice(self.volume_vars)
         else:
             new_var = random.choice(self.all_vars)
-        
+
         return expression.replace(old_var, new_var, 1)
-    
+
     def _mutate_wrap(self, expression: str) -> str:
         """嵌套包装"""
         # 包装方式
@@ -235,54 +241,54 @@ class EvolutionStrategy:
             "TS_STD({}, 10)",
             "EMA({}, 10)",
         ]
-        
+
         wrapper = random.choice(wrappers)
-        
+
         # 检查嵌套深度
         new_expr = wrapper.format(expression)
         nesting_depth = self._calc_nesting_depth(new_expr)
-        
+
         if nesting_depth > 3:
             return expression
-        
+
         return new_expr
-    
+
     def _crossover(self, expr1: str, expr2: str) -> Optional[str]:
         """
         交叉操作
-        
+
         方式：
         1. 算术组合：expr1 * expr2, expr1 + expr2 等
         2. 函数组合：将expr2作为expr1的参数
         """
         try:
             crossover_type = random.choice(["arithmetic", "functional"])
-            
+
             if crossover_type == "arithmetic":
                 operators = ["+", "-", "*", "/"]
                 op = random.choice(operators)
-                
+
                 if op == "/":
                     # 除法需要安全处理
                     return f"SAFE_DIVIDE({expr1}, {expr2})"
                 else:
                     return f"({expr1}) {op} ({expr2})"
-            
+
             elif crossover_type == "functional":
                 # 尝试将expr2作为expr1的参数
                 # 查找expr1中的变量
                 for var in self.all_vars:
                     if var in expr1:
                         return expr1.replace(var, f"({expr2})", 1)
-                
+
                 # 如果没有找到变量，使用加法
                 return f"({expr1}) + ({expr2})"
-            
+
         except Exception:
             pass
-        
+
         return None
-    
+
     def _generate_random(self) -> Optional[str]:
         """生成随机因子表达式"""
         try:
@@ -298,15 +304,15 @@ class EvolutionStrategy:
                 "PRICE_VOLUME_CORR({close}, {volume}, {param})",
                 "BIAS({close}, {param})",
             ]
-            
+
             template = random.choice(templates)
-            
+
             # 填充变量
             var1 = random.choice(self.price_vars)
             var2 = random.choice(self.volume_vars)
             param = random.choice(self.common_params)
             param2 = random.choice([p for p in self.common_params if p != param])
-            
+
             expr = template.format(
                 var1=var1,
                 var2=var2,
@@ -318,28 +324,28 @@ class EvolutionStrategy:
                 param1=param,
                 param2=param2,
             )
-            
+
             # 检查嵌套深度
             if self._calc_nesting_depth(expr) <= 3:
                 return expr
-            
+
         except Exception:
             pass
-        
+
         return None
-    
+
     def _calc_nesting_depth(self, expression: str) -> int:
         """计算嵌套深度"""
         max_depth = 0
         current_depth = 0
-        
+
         for char in expression:
-            if char == '(':
+            if char == "(":
                 current_depth += 1
                 max_depth = max(max_depth, current_depth)
-            elif char == ')':
+            elif char == ")":
                 current_depth -= 1
-        
+
         return max_depth
 
 
@@ -351,11 +357,11 @@ if __name__ == "__main__":
     print("=" * 60)
     print("进化策略测试")
     print("=" * 60)
-    
+
     # 创建模拟种群
     from .factor_library import FactorRecord
     from datetime import datetime
-    
+
     mock_population = [
         FactorRecord(
             id="test1",
@@ -400,10 +406,10 @@ if __name__ == "__main__":
             updated_at=datetime.now().isoformat(),
         ),
     ]
-    
+
     # 测试进化
     children = evolution.evolve(mock_population, n_children=10)
-    
+
     print(f"\n生成了 {len(children)} 个子代表达式：")
     for i, expr in enumerate(children, 1):
         print(f"{i}. {expr}")
