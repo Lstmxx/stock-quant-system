@@ -106,3 +106,37 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: 完成大模型配置与多 Provider 调用链
+
+**Date**: 2026-07-15
+**Task**: 完成大模型配置与多 Provider 调用链
+**Branch**: `refactor`
+
+### Summary
+
+完成 v1 AES-GCM 密钥契约、LLM 数据库约束与事务 CRUD、LiteLLM 统一适配层、三类消费者收敛及 Provider 感知 Web 配置体验；全量测试、构建、类型检查和 Ant Design lint 通过。
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a54d95e` | (see git log) |
+| `9880bf0` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
