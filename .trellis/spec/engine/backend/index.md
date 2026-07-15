@@ -21,11 +21,13 @@ This directory contains guidelines for backend development. Fill in each file wi
 | [Logging Guidelines](./logging-guidelines.md) | Structured logging, log levels | To fill |
 | [Factor Workflow Contract](../../api/backend/factor-workflow-contract.md) | Worker, queue, mining, selection, and cancellation contracts | Active |
 | [Data Collection Workflow Contract](../../api/backend/data-collection-workflow-contract.md) | Worker, scheduler, retry, and aggregate-cache contracts | Active |
+| [LLM Workflow Contract](../../api/backend/llm-workflow-contract.md) | Config loading, LiteLLM adapter, Provider, retry, and consumer contracts | Active |
 
 ## Pre-Development Checklist
 
 - When changing factor mining, workers, task queues, or selection calculations, read [Factor Workflow Contract](../../api/backend/factor-workflow-contract.md).
 - When changing stock collection workers, scheduler, retries, or market-data caches, read [Data Collection Workflow Contract](../../api/backend/data-collection-workflow-contract.md).
+- When changing Engine LLM config loading, chat routes, LiteLLM, or factor-mining model calls, read [LLM Workflow Contract](../../api/backend/llm-workflow-contract.md).
 
 ---
 
