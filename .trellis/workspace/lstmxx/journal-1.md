@@ -140,3 +140,37 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 5: 完成大模型选股工作流
+
+**Date**: 2026-07-16
+**Task**: 完成大模型选股工作流
+**Branch**: `refactor`
+
+### Summary
+
+实现可审计的两阶段大模型选股全链路：数据库结果与尝试记录、Engine 量化快照和 LLM 执行、API 创建查询取消重试、Web 配置与结果页面；完成跨层契约、全量测试及提交前检查。
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7deffb0` | (see git log) |
+| `d59e7ae` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
