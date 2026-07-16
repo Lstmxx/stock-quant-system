@@ -22,12 +22,14 @@ This directory contains guidelines for backend development. Fill in each file wi
 | [Factor Workflow Contract](../../api/backend/factor-workflow-contract.md) | Factor schema, user isolation, and result snapshot contracts | Active |
 | [Data Collection Workflow Contract](../../api/backend/data-collection-workflow-contract.md) | Global config, nullable scheduler actor, and active-task uniqueness | Active |
 | [LLM Workflow Contract](../../api/backend/llm-workflow-contract.md) | Model table, default uniqueness, user cascade, and config-key uniqueness | Active |
+| [LLM Stock Selection Workflow Contract](../../api/backend/llm-stock-selection-workflow-contract.md) | Per-stock outcomes, attempt history, active uniqueness, and migration contract | Active |
 
 ## Pre-Development Checklist
 
 - When changing factor or task tables and migrations, read [Factor Workflow Contract](../../api/backend/factor-workflow-contract.md).
 - When changing collection config/task schema or migrations, read [Data Collection Workflow Contract](../../api/backend/data-collection-workflow-contract.md).
 - When changing `llm_models`, `user_configs`, defaults, or LLM migrations, read [LLM Workflow Contract](../../api/backend/llm-workflow-contract.md).
+- When changing LLM stock-selection results, attempts, task uniqueness, or migrations, read [LLM Stock Selection Workflow Contract](../../api/backend/llm-stock-selection-workflow-contract.md).
 
 ---
 
