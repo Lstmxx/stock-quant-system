@@ -11,6 +11,7 @@ const DataManagement = React.lazy(() => import('../features/data/DataManagement'
 const FactorTasksPage = React.lazy(() => import('../features/factor/FactorTasksPage'));
 const FactorListPage = React.lazy(() => import('../features/factor/FactorListPage'));
 const FactorSelectionPage = React.lazy(() => import('../features/factor/FactorSelectionPage'));
+const LlmStockSelectionPage = React.lazy(() => import('../features/llm-selection/LlmStockSelectionPage'));
 
 export const router = createBrowserRouter([
   {
@@ -46,6 +47,10 @@ export const router = createBrowserRouter([
       {
         path: 'llm',
         element: <Suspense fallback={<div>Loading...</div>}><LlmManagement /></Suspense>,
+      },
+      {
+        path: 'llm-selection',
+        element: <Suspense fallback={<div>Loading...</div>}><LlmStockSelectionPage /></Suspense>,
       },
       {
         path: 'data',

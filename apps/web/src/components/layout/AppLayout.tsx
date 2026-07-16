@@ -21,6 +21,7 @@ const { Text } = Typography;
 const pageMap: Record<string, { icon: React.ReactNode; title: string }> = {
   '/dashboard': { icon: <DashboardOutlined />, title: 'Dashboard' },
   '/llm': { icon: <RobotOutlined />, title: '大模型管理' },
+  '/llm-selection': { icon: <FundProjectionScreenOutlined />, title: 'LLM 选股' },
   '/data': { icon: <DatabaseOutlined />, title: '股票数据管理' },
   '/factor/tasks': { icon: <AppstoreOutlined />, title: '因子任务' },
   '/factor/list': { icon: <UnorderedListOutlined />, title: '因子列表' },
@@ -49,6 +50,11 @@ const AppLayout: React.FC = () => {
       key: '/llm',
       icon: <RobotOutlined />,
       label: '大模型管理',
+    },
+    {
+      key: '/llm-selection',
+      icon: <FundProjectionScreenOutlined />,
+      label: 'LLM 选股',
     },
     {
       key: '/data',

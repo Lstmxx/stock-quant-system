@@ -1,5 +1,5 @@
-import { db, llmModels, userConfigs } from "@stock-quant/database";
-import { and, asc, eq } from "drizzle-orm";
+import { alphaTasks, db, llmModels, userConfigs } from "@stock-quant/database";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
 import { encrypt } from "../../lib/crypto";
 import {
@@ -182,6 +182,26 @@ export abstract class LlmService {
 				throw new LlmServiceError(
 					"LLM_CONFIG_REFERENCED",
 					"该模型正被因子挖掘配置使用，请先选择其他模型",
+					409,
+				);
+			}
+
+			const [activeSelectionReference] = await tx
+				.select({ id: alphaTasks.id })
+				.from(alphaTasks)
+				.where(
+					and(
+						eq(alphaTasks.userId, userId),
+						eq(alphaTasks.type, "LLM_STOCK_SELECTION"),
+						inArray(alphaTasks.status, ["PENDING", "RUNNING", "CANCELLING"]),
+						sql`${alphaTasks.params}->>'llmModelId' = ${id}`,
+					),
+				)
+				.limit(1);
+			if (activeSelectionReference) {
+				throw new LlmServiceError(
+					"LLM_CONFIG_REFERENCED",
+					"该模型正被运行中的 LLM 选股任务使用，请等待完成或先取消任务",
 					409,
 				);
 			}

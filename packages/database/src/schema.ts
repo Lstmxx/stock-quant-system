@@ -77,6 +77,11 @@ export const alphaTasks = pgTable(
 			.where(
 				sql`${table.type} = 'DATA_COLLECTION' AND ${table.status} IN ('PENDING', 'RUNNING', 'CANCELLING')`,
 			),
+		uniqueIndex("alpha_tasks_active_llm_stock_selection_user_unique")
+			.on(table.userId)
+			.where(
+				sql`${table.type} = 'LLM_STOCK_SELECTION' AND ${table.status} IN ('PENDING', 'RUNNING', 'CANCELLING') AND ${table.userId} IS NOT NULL`,
+			),
 	],
 );
 
@@ -169,6 +174,211 @@ export const factorSelectionResults = pgTable(
 		index("factor_selection_results_task_rank_idx").on(
 			table.taskId,
 			table.rank,
+		),
+	],
+);
+
+export type LlmStockSelectionUniverseStatus = "ELIGIBLE" | "EXCLUDED";
+export type LlmStockSelectionCandidateSource = "QUANTITATIVE" | "WATCHLIST";
+export type LlmStockSelectionStatus =
+	| "NOT_REQUESTED"
+	| "PENDING"
+	| "SUCCEEDED"
+	| "FAILED"
+	| "CANCELLED";
+export type LlmStockSelectionAttemptStatus = "RUNNING" | "SUCCEEDED" | "FAILED";
+export type LlmStockSelectionOutlook = "BULLISH" | "NEUTRAL" | "BEARISH";
+export type LlmStockSelectionSignalCategory =
+	| "PRICE"
+	| "VOLUME"
+	| "TECHNICAL"
+	| "FACTOR";
+
+export interface LlmStockSelectionBar {
+	date: string;
+	open: number;
+	high: number;
+	low: number;
+	close: number;
+	volume: number;
+	amount: number;
+	turnover: number;
+	percentageChange: number;
+}
+
+export interface LlmStockSelectionIndicatorSnapshot {
+	returns: {
+		oneDay: number | null;
+		fiveDay: number | null;
+		twentyDay: number | null;
+		sixtyDay: number | null;
+	};
+	trend: {
+		ma5: number | null;
+		ma10: number | null;
+		ma20: number | null;
+		ma60: number | null;
+		macdDif: number | null;
+		macdDea: number | null;
+		macdHist: number | null;
+	};
+	momentum: {
+		rsi14: number | null;
+		kdjK: number | null;
+		kdjD: number | null;
+		kdjJ: number | null;
+		roc20: number | null;
+	};
+	risk: {
+		atr14: number | null;
+		bollingerPosition: number | null;
+		bollingerBandwidth: number | null;
+		volatility20: number | null;
+		maxDrawdown60: number | null;
+	};
+	volume: {
+		volumeRatio5: number | null;
+		volumeRatio20: number | null;
+		amountChange: number | null;
+		turnover5: number | null;
+		turnover20: number | null;
+	};
+}
+
+export interface LlmStockSelectionInputSnapshot {
+	schemaVersion: "llm-stock-selection-input/v1";
+	indicatorProfileVersion: "market-technical/v1";
+	horizonTradingDays: 20;
+	lookbackDays: number;
+	dataDate: string;
+	symbol: string;
+	stockName: string | null;
+	candidateSources: LlmStockSelectionCandidateSource[];
+	quantitativeScore: number;
+	quantitativeRank: number;
+	recentBars: LlmStockSelectionBar[];
+	indicators: LlmStockSelectionIndicatorSnapshot;
+	factorContributions: FactorContribution[];
+}
+
+export interface LlmStockSelectionJudgment {
+	selectionScore: number;
+	confidence: number;
+	outlook: LlmStockSelectionOutlook;
+	summary: string;
+	strengths: string[];
+	risks: string[];
+	keySignals: Array<{
+		category: LlmStockSelectionSignalCategory;
+		name: string;
+		interpretation: string;
+	}>;
+}
+
+/** One auditable per-stock outcome for an LLM_STOCK_SELECTION task. */
+export const llmStockSelectionResults = pgTable(
+	"llm_stock_selection_results",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		taskId: uuid("taskId")
+			.notNull()
+			.references(() => alphaTasks.id, { onDelete: "cascade" }),
+		userId: text("userId")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		symbol: text("symbol").notNull(),
+		stockName: text("stockName"),
+		dataDate: text("dataDate").notNull(),
+		universeStatus: text("universeStatus")
+			.$type<LlmStockSelectionUniverseStatus>()
+			.notNull(),
+		exclusionStage: text("exclusionStage"),
+		exclusionCode: text("exclusionCode"),
+		exclusionMessage: text("exclusionMessage"),
+		excludedAt: timestamp("excludedAt"),
+		quantitativeScore: doublePrecision("quantitativeScore"),
+		quantitativeRank: integer("quantitativeRank"),
+		candidateSources: jsonb("candidateSources")
+			.$type<LlmStockSelectionCandidateSource[]>()
+			.default(sql`'[]'::jsonb`)
+			.notNull(),
+		isLlmCandidate: boolean("isLlmCandidate").default(false).notNull(),
+		inputSnapshot: jsonb("inputSnapshot").$type<LlmStockSelectionInputSnapshot>(),
+		llmStatus: text("llmStatus")
+			.$type<LlmStockSelectionStatus>()
+			.default("NOT_REQUESTED")
+			.notNull(),
+		judgment: jsonb("judgment").$type<LlmStockSelectionJudgment>(),
+		attemptCount: integer("attemptCount").default(0).notNull(),
+		latestErrorCode: text("latestErrorCode"),
+		latestErrorMessage: text("latestErrorMessage"),
+		latestErrorAt: timestamp("latestErrorAt"),
+		selected: boolean("selected").default(false).notNull(),
+		finalRank: integer("finalRank"),
+		promptTokens: integer("promptTokens").default(0).notNull(),
+		completionTokens: integer("completionTokens").default(0).notNull(),
+		totalTokens: integer("totalTokens").default(0).notNull(),
+		createdAt: timestamp("createdAt").defaultNow().notNull(),
+		updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+	},
+	(table) => [
+		uniqueIndex("llm_stock_selection_results_task_symbol_unique").on(
+			table.taskId,
+			table.symbol,
+		),
+		index("llm_stock_selection_results_task_selected_rank_idx").on(
+			table.taskId,
+			table.selected,
+			table.finalRank,
+		),
+		index("llm_stock_selection_results_task_status_idx").on(
+			table.taskId,
+			table.llmStatus,
+		),
+		index("llm_stock_selection_results_user_date_idx").on(
+			table.userId,
+			table.dataDate,
+		),
+	],
+);
+
+/** Immutable execution attempts for one LLM stock-selection candidate. */
+export const llmStockSelectionAttempts = pgTable(
+	"llm_stock_selection_attempts",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		resultId: uuid("resultId")
+			.notNull()
+			.references(() => llmStockSelectionResults.id, { onDelete: "cascade" }),
+		taskId: uuid("taskId")
+			.notNull()
+			.references(() => alphaTasks.id, { onDelete: "cascade" }),
+		userId: text("userId")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		attemptNo: integer("attemptNo").notNull(),
+		status: text("status").$type<LlmStockSelectionAttemptStatus>().notNull(),
+		llmModelId: uuid("llmModelId"),
+		provider: text("provider"),
+		modelName: text("modelName"),
+		modelDisplayName: text("modelDisplayName"),
+		judgment: jsonb("judgment").$type<LlmStockSelectionJudgment>(),
+		errorCode: text("errorCode"),
+		errorMessage: text("errorMessage"),
+		promptTokens: integer("promptTokens").default(0).notNull(),
+		completionTokens: integer("completionTokens").default(0).notNull(),
+		totalTokens: integer("totalTokens").default(0).notNull(),
+		startedAt: timestamp("startedAt").defaultNow().notNull(),
+		completedAt: timestamp("completedAt"),
+	},
+	(table) => [
+		uniqueIndex("llm_stock_selection_attempts_result_attempt_unique").on(
+			table.resultId,
+			table.attemptNo,
+		),
+		index("llm_stock_selection_attempts_task_idx").on(
+			table.taskId,
+			table.startedAt,
 		),
 	],
 );

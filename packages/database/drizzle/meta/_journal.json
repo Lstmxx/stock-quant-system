@@ -29,6 +29,13 @@
       "when": 1784016910069,
       "tag": "0003_llm_configuration_contract",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784187881350,
+      "tag": "0004_llm_stock_selection_contract",
+      "breakpoints": true
     }
   ]
 }

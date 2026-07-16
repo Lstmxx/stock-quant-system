@@ -2,6 +2,7 @@ import pytest
 
 import app.worker as worker_module
 from app.core.alpha_miner import MiningResult
+from app.core.llm_stock_selection_runner import LlmStockSelectionRunResult
 
 
 class FakeRedis:
@@ -108,6 +109,47 @@ async def test_worker_dispatches_factor_selection_without_starting_miner(monkeyp
 
     assert observed["selection"] == ("task-selection", "user-a", params)
     assert observed["statuses"][-1][1] == "COMPLETED"
+
+
+@pytest.mark.asyncio
+async def test_worker_dispatches_llm_stock_selection_status(monkeypatch) -> None:
+    observed: dict[str, object] = {}
+
+    def run_selection(task_id: str, user_id: str, params: dict):
+        observed["selection"] = (task_id, user_id, params)
+        return LlmStockSelectionRunResult(
+            status="PARTIAL_SUCCESS",
+            summary={"successCount": 49, "failedCount": 1},
+        )
+
+    class FailingMiner:
+        def __init__(self, **_kwargs) -> None:
+            raise AssertionError("LLM selection task must not start AlphaMiner")
+
+    async def record_status(task_id: str, status: str, result=None) -> None:
+        observed.setdefault("statuses", []).append((task_id, status, result))
+
+    monkeypatch.setattr(worker_module, "run_llm_stock_selection", run_selection)
+    monkeypatch.setattr(worker_module, "AlphaMiner", FailingMiner)
+    monkeypatch.setattr(worker_module, "update_task_status", record_status)
+    monkeypatch.setattr(worker_module.aioredis, "from_url", lambda _url: FakeRedis())
+
+    params = {"factorIds": ["factor-1"], "llmModelId": "model-1"}
+    await worker_module.process_task(
+        {
+            "taskId": "task-llm-selection",
+            "userId": "user-a",
+            "type": "LLM_STOCK_SELECTION",
+            "params": params,
+        }
+    )
+
+    assert observed["selection"] == ("task-llm-selection", "user-a", params)
+    assert observed["statuses"][-1] == (
+        "task-llm-selection",
+        "PARTIAL_SUCCESS",
+        {"successCount": 49, "failedCount": 1},
+    )
 
 
 @pytest.mark.asyncio

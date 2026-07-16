@@ -43,7 +43,7 @@ export function getRedis() {
 	return new Redis(redisUrl);
 }
 
-function isUniqueViolation(error: unknown): boolean {
+export function isUniqueViolation(error: unknown): boolean {
 	if (!error || typeof error !== "object") return false;
 	const candidate = error as { code?: string; cause?: { code?: string } };
 	return candidate.code === "23505" || candidate.cause?.code === "23505";

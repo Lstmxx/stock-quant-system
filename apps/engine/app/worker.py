@@ -13,6 +13,7 @@ from .config import settings
 
 from .core.alpha_miner import AlphaMiner, TaskCancelledError
 from .core.factor_selection_runner import run_factor_selection
+from .core.llm_stock_selection_runner import run_llm_stock_selection
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -136,6 +137,24 @@ async def process_task(task_data: dict) -> None:
                 await update_task_status(task_id, final_status, result)
                 logger.info(f"Data Collection Task {task_id} finished with {final_status}")
         
+        elif task_type == "LLM_STOCK_SELECTION":
+            selection_result = await asyncio.to_thread(
+                run_llm_stock_selection,
+                task_id,
+                user_id,
+                params,
+            )
+            await update_task_status(
+                task_id,
+                selection_result.status,
+                selection_result.summary,
+            )
+            logger.info(
+                "LLM stock selection task %s finished with %s",
+                task_id,
+                selection_result.status,
+            )
+
         elif task_type == "FACTOR_SELECTION":
             result = await asyncio.to_thread(
                 run_factor_selection,
