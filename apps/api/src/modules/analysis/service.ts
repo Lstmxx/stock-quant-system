@@ -165,14 +165,14 @@ async function getMarketDataFromRedis(_symbol: string, days: number): Promise<ob
 	return { cached: true, key };
 }
 
-async function getPriceSummary(symbol: string): Promise<object> {
+async function getPriceSummary(symbol: string): Promise<object | null> {
 	// We store daily price stats as a lightweight JSON summary alongside the heavy pickle
 	const key = `price_summary:${symbol}:${new Date().toISOString().slice(0, 10)}`;
 	const client = new Redis(redisUrl);
 	const raw = await client.get(key).finally(() => client.quit());
 	if (raw) return JSON.parse(raw);
 	// Fallback: return minimal placeholder (Engine has not yet written stats)
-	return { symbol, note: "stats pending — data fetch in progress" };
+		return null;
 }
 
 // ─── Main Service ───
@@ -225,12 +225,14 @@ export abstract class AnalysisService {
 			if (!cached) {
 				await engineClient.triggerDataFetch(symbol, days);
 				// Wait up to 60s for engine to publish data ready signal
-				await new Promise<void>((resolve) => {
+					await new Promise<void>((resolve, reject) => {
 					const sub = new Redis(redisUrl);
 					const channel = `data_ready:${symbol}`;
 					const timeout = setTimeout(() => {
 						sub.quit();
-						resolve(); // proceed anyway with empty stats
+						clearTimeout(timeout);
+						sub.quit();
+						reject(new Error("行情数据准备超时，请稍后重试"));
 					}, 60_000);
 					sub.subscribe(channel);
 					sub.on("message", () => {
@@ -243,7 +245,8 @@ export abstract class AnalysisService {
 
 			// 4. Fetch price summary stats and the same persisted factor exposure
 			// snapshot used by the selection UI.
-			const priceStats = await getPriceSummary(symbol);
+				const priceStats = await getPriceSummary(symbol);
+				if (!priceStats) throw new Error("行情数据不可用，无法生成分析");
 			const factorContext = await getOrCreateFactorContext(userId, symbol);
 
 			// 5. Resolve the current user's default model and call the Engine adapter.

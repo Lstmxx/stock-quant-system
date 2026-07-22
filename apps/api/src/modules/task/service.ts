@@ -40,7 +40,11 @@ type DataCollectionParams = {
 };
 
 export function getRedis() {
-	return new Redis(redisUrl);
+	const client = new Redis(redisUrl);
+	client.on("error", () => {
+		// Callers surface operation failures through their own result/error contract.
+	});
+	return client;
 }
 
 export function isUniqueViolation(error: unknown): boolean {
@@ -50,6 +54,24 @@ export function isUniqueViolation(error: unknown): boolean {
 }
 
 export abstract class TaskService {
+	static async failInterruptedAnalysisTasks(): Promise<number> {
+		const rows = await db
+			.update(alphaTasks)
+			.set({
+				status: "FAILED",
+				result: { error: "API 服务重启，分析任务已中断，请重新发起" },
+				updatedAt: new Date(),
+			})
+			.where(
+				and(
+					eq(alphaTasks.type, "LLM_ANALYSIS"),
+					inArray(alphaTasks.status, ["PENDING", "RUNNING"]),
+				),
+			)
+			.returning({ id: alphaTasks.id });
+		return rows.length;
+	}
+
 	static async enqueueTask(
 		taskId: string,
 		payload: Record<string, unknown>,

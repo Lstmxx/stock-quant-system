@@ -13,7 +13,6 @@ from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 
-from .config import FactorCriteria
 from .factor_calculator import calculate_factor
 from .factor_evaluator import evaluate_factor, FactorMetrics
 from .factor_library import library, FactorRecord
@@ -145,7 +144,7 @@ class ParamSearcher:
         )
         
         if not results:
-            print(f"    无有效变体")
+            print("    无有效变体")
             return None
         
         # 找最佳变体
@@ -158,7 +157,7 @@ class ParamSearcher:
         
         # 检查是否已存在
         if library.exists(best_expr):
-            print(f"    变体已存在")
+            print("    变体已存在")
             return None
         
         # 保存优化后的因子

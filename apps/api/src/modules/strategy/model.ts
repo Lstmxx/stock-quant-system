@@ -15,3 +15,6 @@ export const strategyModel = {
 		simulationResult: t.Any(),
 	}),
 };
+
+export type SimulateBody = typeof strategyModel.simulateBody.static;
+export type GenerateReportBody = typeof strategyModel.generateReportBody.static;

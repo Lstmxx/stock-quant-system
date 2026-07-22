@@ -3,16 +3,13 @@
 ==============
 从因子库加载有效因子，IC加权合成综合评分，输出每日Top N选股。
 """
-import sys
-from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
-import numpy as np
 import pandas as pd
 
 from .data_loader import load_market_data
 from .factor_calculator import calculate_factor
-from .factor_library import library, FactorRecord
+from .factor_library import library
 
 
 class MultiFactorSelector:

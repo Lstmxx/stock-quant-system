@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     database_url: str
     queue_name: str = "stock:tasks:queue"
     llm_selection_concurrency: int = 4
+    internal_service_token: str | None = None
 
 
 settings = Settings()

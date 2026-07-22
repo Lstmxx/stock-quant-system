@@ -149,6 +149,19 @@ def update_scheduler_config(
 
 def start_scheduler() -> None:
     logger.info("Starting background scheduler")
-    update_scheduler_config()
+    cron_expression = DEFAULT_CRON_EXPRESSION
+    engine = create_engine(settings.database_url)
+    try:
+        with engine.connect() as connection:
+            value = connection.execute(
+                text("SELECT \"cronExpression\" FROM data_collection_configs WHERE scope = 'GLOBAL' LIMIT 1")
+            ).scalar_one_or_none()
+            if value:
+                cron_expression = str(value)
+    except Exception:
+        logger.exception("Failed to load persisted scheduler config; using default")
+    finally:
+        engine.dispose()
+    update_scheduler_config(cron_expression)
     if not scheduler.running:
         scheduler.start()

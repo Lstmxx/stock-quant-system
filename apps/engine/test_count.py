@@ -1,15 +1,12 @@
-import asyncio
 import redis
-import json
-import pandas as pd
 import baostock as bs
+import pickle
 from app.config import settings
 
 redis_url = settings.redis_url
 r = redis.Redis.from_url(redis_url, decode_responses=True)
 
 keys = r.keys("market_data:*")
-import pickle
 r_bytes = redis.Redis.from_url(redis_url)
 data = pickle.loads(r_bytes.get(keys[0]))
 close_df = data.get('close')

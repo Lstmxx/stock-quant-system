@@ -8,8 +8,7 @@
 - 安全性验证
 """
 import ast
-import re
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 from dataclasses import dataclass
 
 from .config import FactorCriteria

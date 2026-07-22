@@ -9,7 +9,6 @@ import { watchlistModule } from "./modules/watchlist";
 import { taskModule } from "./modules/task";
 import { factorModule } from "./modules/factor";
 import { factorSelectionModule } from "./modules/factor-selection";
-import { analysisModule } from "./modules/analysis";
 import { strategyModule } from "./modules/strategy";
 import { llmModule } from "./modules/llm";
 import { llmStockSelectionModule } from "./modules/llm-stock-selection";
@@ -31,7 +30,6 @@ const app = new Elysia()
 			.use(taskModule)
 			.use(factorModule)
 			.use(factorSelectionModule)
-			.use(analysisModule)
 			.use(strategyModule)
 			.use(llmModule)
 			.use(llmStockSelectionModule)
@@ -48,6 +46,10 @@ console.log(
 // Push the cron config to Engine on startup
 setTimeout(async () => {
 	try {
+		const interrupted = await TaskService.failInterruptedAnalysisTasks();
+		if (interrupted > 0) {
+			console.warn(`[API] Marked ${interrupted} interrupted analysis tasks as failed`);
+		}
 		const collectionConfig = await TaskService.getDataCollectionConfig();
 		console.log(
 			`[API] Pushing global data collection cron to Engine: ${collectionConfig.cronExpression}`,

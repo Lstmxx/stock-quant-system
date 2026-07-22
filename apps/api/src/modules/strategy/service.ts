@@ -2,6 +2,7 @@ import { db, alphaFactors, quantStrategies } from "@stock-quant/database";
 import { and, eq, desc } from "drizzle-orm";
 import { engineClient } from "../../lib/engine-client";
 import { LlmService } from "../llm/service";
+import type { GenerateReportBody, SimulateBody } from "./model";
 
 export class StrategyService {
 	/**
@@ -21,7 +22,11 @@ export class StrategyService {
 		return factors.slice(0, 3);
 	}
 
-	static async simulateFactor(userId: string, factorId: string, _constraints: any) {
+	static async simulateFactor(
+		userId: string,
+		factorId: string,
+		_constraints: SimulateBody["constraints"],
+	) {
 		const factor = await db
 			.select()
 			.from(alphaFactors)
@@ -46,7 +51,7 @@ export class StrategyService {
 	/**
 	 * Beat 3: Generate structured JSON report via LLM and save it
 	 */
-	static async generateReportStructured(userId: string, body: any) {
+	static async generateReportStructured(userId: string, body: GenerateReportBody) {
 		const prompt = `你是一个资深的量化金融分析师。
 用户经过交互式策略构建选择了以下因子：
 投资风格：${body.style}
@@ -95,7 +100,7 @@ export class StrategyService {
 			constraints: body.constraints,
 			reportMarkdown: reportContent,
 			performance: body.simulationResult
-		}).catch(console.error);
+		});
 
 		return structuredReport;
 	}

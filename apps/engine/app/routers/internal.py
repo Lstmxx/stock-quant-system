@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Literal, Optional
 
 import redis.asyncio as aioredis
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -23,7 +23,22 @@ from ..scheduler import update_scheduler_config
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/internal", tags=["internal"])
+async def require_internal_token(
+    authorization: str | None = Header(default=None),
+) -> None:
+    """Require an API-to-Engine bearer token."""
+    expected = settings.internal_service_token
+    if not expected:
+        raise HTTPException(status_code=503, detail="Engine internal token is not configured")
+    if authorization != f"Bearer {expected}":
+        raise HTTPException(status_code=401, detail="Invalid internal service token")
+
+
+router = APIRouter(
+    prefix="/internal",
+    tags=["internal"],
+    dependencies=[Depends(require_internal_token)],
+)
 
 
 # ─── Request Models ───
@@ -261,11 +276,11 @@ async def simulate_factor(body: SimulateFactorRequest):
                 "annualReturn": float(metrics.long_short_return * 252)
                 if metrics.long_short_return
                 else 0.0,
-                "maxDrawdown": -0.15,  # Note: A real max drawdown calc would need cumulative returns array
-                "sharpeRatio": float(metrics.icir) * 1.5,  # Approximation for now
+                "maxDrawdown": None,
+                "sharpeRatio": None,
                 "winRate": float(metrics.ic_positive_ratio)
                 if hasattr(metrics, "ic_positive_ratio")
-                else 0.55,
+                else None,
                 "ic": float(metrics.ic_mean) if metrics.ic_mean else 0.0,
             }
 

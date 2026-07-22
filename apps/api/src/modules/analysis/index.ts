@@ -30,7 +30,7 @@ export const analysisModule = new Elysia({ prefix: "/analysis", name: "analysis"
 	// Get a single analysis result (for polling or initial load)
 	.get(
 		"/:id",
-		async ({ user, params, status }) => {
+			async ({ user, params, status }) => {
 			const task = await AnalysisService.getById(user.id, params.id);
 			if (!task) return status(404);
 			return task;
@@ -41,36 +41,52 @@ export const analysisModule = new Elysia({ prefix: "/analysis", name: "analysis"
 	// SSE stream for real-time task status updates
 	.get(
 		"/:id/stream",
-		async ({ user, params, status }) => {
+			async ({ user, params, status, request }) => {
 			const task = await AnalysisService.getById(user.id, params.id);
 			if (!task) return status(404);
 
-			return new Stream(async (stream) => {
-				const redis = getRedis();
-				const channel = `task_log:${params.id}`;
+				return new Stream(async (stream) => {
+					const redis = getRedis();
+					const channel = `task_log:${params.id}`;
+					let closed = false;
+					let interval: ReturnType<typeof setInterval> | undefined;
+					const cleanup = async () => {
+						if (closed) return;
+						closed = true;
+						if (interval) clearInterval(interval);
+						request.signal.removeEventListener("abort", handleAbort);
+						await redis.unsubscribe(channel).catch(() => undefined);
+						redis.removeAllListeners("message");
+						await redis.quit().catch(() => undefined);
+					};
+					const handleAbort = () => {
+						void cleanup();
+					};
+					request.signal.addEventListener("abort", handleAbort, { once: true });
 
-				await redis.subscribe(channel);
+					try {
+						await redis.subscribe(channel);
 
-				stream.send(
-					JSON.stringify({ type: "connected", taskId: params.id }),
-				);
+						stream.send(
+							JSON.stringify({ type: "connected", taskId: params.id }),
+						);
 
-				redis.on("message", (ch, message) => {
-					if (ch === channel) {
-						stream.send(message);
+						redis.on("message", (ch, message) => {
+							if (ch === channel && !closed) stream.send(message);
+						});
+
+						interval = setInterval(() => {
+							try {
+								if (!closed) stream.send(JSON.stringify({ type: "ping" }));
+							} catch {
+								void cleanup();
+							}
+						}, 5000);
+					} catch (error) {
+						await cleanup();
+						throw error;
 					}
 				});
-
-				// Keepalive ping every 5s
-				const interval = setInterval(() => {
-					try {
-						stream.send(JSON.stringify({ type: "ping" }));
-					} catch {
-						clearInterval(interval);
-						redis.quit();
-					}
-				}, 5000);
-			});
 		},
 		{ auth: true },
 	);

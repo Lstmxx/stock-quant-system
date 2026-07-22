@@ -4,9 +4,11 @@ import { engineClient } from "./engine-client";
 describe("EngineClient", () => {
 	beforeEach(() => {
 		mock.restore();
+		delete process.env.INTERNAL_SERVICE_TOKEN;
 	});
 
 	it("should return ok and not throw when triggerDataFetch succeeds", async () => {
+		process.env.INTERNAL_SERVICE_TOKEN = "test-internal-token";
 		const fetchMock = mock(async () => {
 			return new Response(JSON.stringify({ status: "accepted" }), { status: 200 });
 		}) as any;
@@ -15,6 +17,14 @@ describe("EngineClient", () => {
 		// Should resolve without error
 		await expect(engineClient.triggerDataFetch("sh.600000", 250)).resolves.toBeUndefined();
 		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(fetchMock.mock.calls[0]?.[1]).toEqual(
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					Authorization: "Bearer test-internal-token",
+				}),
+			}),
+		);
+		delete process.env.INTERNAL_SERVICE_TOKEN;
 	});
 
 	it("should use fail-soft strategy and not throw when triggerDataFetch fails (network error)", async () => {

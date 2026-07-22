@@ -15,7 +15,7 @@
 """
 import warnings
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -201,7 +201,7 @@ class FactorEvaluator:
             # 按因子值分组
             try:
                 groups = pd.qcut(fv_common, n_groups, labels=False, duplicates='drop')
-            except:
+            except (ValueError, TypeError):
                 continue
             
             # 计算每组平均收益
@@ -221,7 +221,6 @@ class FactorEvaluator:
         long_short = avg_group_returns.iloc[-1] - avg_group_returns.iloc[0]
         
         # 年化（假设每日都有信号）
-        trading_days = len(group_returns_list)
         long_short_annual = long_short * 252  # 简化年化
         
         # 单调性检查

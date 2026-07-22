@@ -295,7 +295,7 @@ def build_factor_generation_prompt(
     operator_docs = get_operator_docs()
     
     # 先构建system（包含算子文档）
-    system = FACTOR_GENERATION_SYSTEM.format(operator_docs=operator_docs)
+    FACTOR_GENERATION_SYSTEM.format(operator_docs=operator_docs)
     
     # 再构建user prompt
     prompt = FACTOR_GENERATION_PROMPT.format(

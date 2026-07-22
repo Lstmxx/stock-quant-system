@@ -4,6 +4,9 @@
 
 ## 核心特性
 
+Engine 的 `/internal/*` 接口必须配置 `INTERNAL_SERVICE_TOKEN`，API 通过
+`Authorization: Bearer <token>` 调用；不要把 Engine 端口暴露到公网。
+
 - **LLM驱动**：使用mimo-v2.5-pro自动生成研究假设和因子表达式
 - **量价专注**：专注量价关系、资金流向、市场情绪，不做基本面假设
 - **自动进化**：参考QuantaAlpha/RD-Agent的进化策略，自动迭代优化因子

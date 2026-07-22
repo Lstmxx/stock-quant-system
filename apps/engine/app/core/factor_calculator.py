@@ -8,7 +8,6 @@
 - NaN处理
 """
 import sys
-import warnings
 from io import StringIO
 from typing import Dict, Optional, Tuple
 
@@ -233,7 +232,7 @@ class FactorCalculator:
                 # 填回
                 neutralized_values.loc[date, df_cross.index] = residuals
                 
-            except Exception as e:
+            except Exception:
                 # 回归失败时不作处理
                 pass
                 

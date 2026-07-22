@@ -9,17 +9,13 @@
 3. 衰退/失效因子不再参与选股和进化
 """
 import json
-from datetime import datetime
-from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-import numpy as np
 import pandas as pd
 
-from .config import FACTORS_DIR, FactorCriteria
+from .config import FACTORS_DIR
 from .factor_calculator import calculate_factor
-from .factor_evaluator import evaluator
-from .factor_library import library, FactorRecord
+from .factor_library import library
 
 # IC历史记录路径
 IC_HISTORY_PATH = FACTORS_DIR / "ic_history.json"
@@ -200,7 +196,7 @@ class FactorDecayMonitor:
         for fid in decayed:
             record = library.get(fid)
             if record:
-                library.update(fid, notes=f"[衰退] IC连续下降")
+                library.update(fid, notes="[衰退] IC连续下降")
                 print(f"  [衰退] {record.name}: {record.expression[:50]}...")
         
         # 删除失效因子

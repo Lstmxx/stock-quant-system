@@ -3,7 +3,31 @@ from httpx import AsyncClient, ASGITransport
 from unittest.mock import Mock
 
 from app.main import app
+from app.config import settings
 from app.core.llm_types import ChatResult, LlmConfigNotFoundError, LlmModelConfig
+
+
+@pytest.fixture(autouse=True)
+def internal_token():
+    previous = settings.internal_service_token
+    settings.internal_service_token = "test-internal-token"
+    yield
+    settings.internal_service_token = previous
+
+
+def auth_headers():
+    return {"Authorization": "Bearer test-internal-token"}
+
+
+@pytest.mark.asyncio
+async def test_internal_routes_reject_missing_service_token():
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        response = await ac.post(
+            "/internal/reload-config", json={"baostock_cron": "0 20 * * mon-fri"}
+        )
+    assert response.status_code == 401
 
 
 @pytest.mark.asyncio
@@ -12,7 +36,9 @@ async def test_reload_config():
         transport=ASGITransport(app=app), base_url="http://test"
     ) as ac:
         response = await ac.post(
-            "/internal/reload-config", json={"baostock_cron": "0 20 * * mon-fri"}
+            "/internal/reload-config",
+            json={"baostock_cron": "0 20 * * mon-fri"},
+            headers=auth_headers(),
         )
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
@@ -25,7 +51,9 @@ async def test_reload_config_rejects_invalid_cron():
         transport=ASGITransport(app=app), base_url="http://test"
     ) as ac:
         response = await ac.post(
-            "/internal/reload-config", json={"baostock_cron": "invalid"}
+            "/internal/reload-config",
+            json={"baostock_cron": "invalid"},
+            headers=auth_headers(),
         )
     assert response.status_code == 400
 
@@ -42,7 +70,9 @@ async def test_fetch_data_returns_accepted(mocker):
         transport=ASGITransport(app=app), base_url="http://test"
     ) as ac:
         response = await ac.post(
-            "/internal/fetch-data", json={"symbol": "sh.600000", "days": 30}
+            "/internal/fetch-data",
+            json={"symbol": "sh.600000", "days": 30},
+            headers=auth_headers(),
         )
 
     assert response.status_code == 200
@@ -83,6 +113,7 @@ async def test_llm_chat_loads_the_user_scoped_model_and_returns_project_dto(mock
     ) as ac:
         response = await ac.post(
             "/internal/llm/chat",
+            headers=auth_headers(),
             json={
                 "userId": "user-1",
                 "modelId": "model-1",
@@ -123,6 +154,7 @@ async def test_llm_chat_does_not_call_provider_for_foreign_model(mocker):
     ) as ac:
         response = await ac.post(
             "/internal/llm/chat",
+            headers=auth_headers(),
             json={
                 "userId": "user-2",
                 "modelId": "model-1",

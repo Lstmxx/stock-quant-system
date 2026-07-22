@@ -36,6 +36,13 @@
       "when": 1784187881350,
       "tag": "0004_llm_stock_selection_contract",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784714671869,
+      "tag": "0005_overconfident_cannonball",
+      "breakpoints": true
     }
   ]
 }

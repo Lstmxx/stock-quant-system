@@ -34,6 +34,18 @@ export interface EngineChatResult {
 	} | null;
 }
 
+export interface FactorSimulationResult {
+	annualReturn: number;
+	maxDrawdown: number | null;
+	sharpeRatio: number | null;
+	winRate: number | null;
+	ic: number;
+}
+
+export type EngineSimulationResponse =
+	| { status: "ok"; data: FactorSimulationResult }
+	| { status: "error"; message: string };
+
 export class EngineClientError extends Error {
 	readonly code: string;
 	readonly status: number;
@@ -63,9 +75,12 @@ async function engineFetch(
 		const response = await fetch(url, {
 			...options,
 			signal: controller.signal,
-			headers: {
-				"Content-Type": "application/json",
-				...(options.headers ?? {}),
+				headers: {
+					"Content-Type": "application/json",
+					...(process.env.INTERNAL_SERVICE_TOKEN
+						? { Authorization: `Bearer ${process.env.INTERNAL_SERVICE_TOKEN}` }
+						: {}),
+					...(options.headers ?? {}),
 			},
 		});
 		return response;
@@ -162,7 +177,7 @@ export const engineClient = {
 	/**
 	 * 请求 Engine 模拟执行因子
 	 */
-	async simulateFactor(expression: string, days = 250): Promise<any> {
+	async simulateFactor(expression: string, days = 250): Promise<EngineSimulationResponse> {
 		const res = await engineFetch("/internal/simulate-factor", {
 			method: "POST",
 			body: JSON.stringify({ expression, days }),
@@ -170,7 +185,7 @@ export const engineClient = {
 		if (!res || !res.ok) {
 			throw new Error("Factor simulation failed");
 		}
-		return res.json();
+		return res.json() as Promise<EngineSimulationResponse>;
 	},
 
 	async chatLlm(input: EngineChatInput): Promise<EngineChatResult> {

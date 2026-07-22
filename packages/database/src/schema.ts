@@ -18,12 +18,12 @@ import { user } from "./auth-schema";
 
 export const watchlists = pgTable("watchlists", {
 	id: uuid("id").defaultRandom().primaryKey(),
-	userId: text("userId").notNull().references(() => user.id),
+	userId: text("userId").notNull().references(() => user.id, { onDelete: "cascade" }),
 	symbol: text("symbol").notNull(), // e.g. sh.600000
 	name: text("name"), // optional custom name
 	createdAt: timestamp("createdAt").defaultNow().notNull(),
 	updatedAt: timestamp("updatedAt").defaultNow().notNull()
-});
+}, (table) => [uniqueIndex("watchlists_user_symbol_unique").on(table.userId, table.symbol)]);
 
 export const userConfigs = pgTable(
 	"user_configs",
@@ -385,7 +385,7 @@ export const llmStockSelectionAttempts = pgTable(
 
 export const quantStrategies = pgTable("quant_strategies", {
 	id: uuid("id").defaultRandom().primaryKey(),
-	userId: text("userId").notNull().references(() => user.id),
+	userId: text("userId").notNull().references(() => user.id, { onDelete: "cascade" }),
 	name: text("name").notNull(),
 	style: text("style").notNull(), // e.g. "Momentum", "Value"
 	factors: jsonb("factors").notNull(), // Array of factor IDs or configurations

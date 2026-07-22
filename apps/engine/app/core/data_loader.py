@@ -10,8 +10,15 @@ import time
 import warnings
 import json
 import pickle
+import os
 from datetime import datetime, timedelta
 from typing import Dict, Optional
+
+import baostock as bs
+import pandas as pd
+import redis
+
+from ..config import settings
 
 def _fetch_stock_chunk(args):
     worker_id, codes, start_date, end_date, fields, redis_url, task_id = args
@@ -192,14 +199,6 @@ def _fetch_stock_chunk(args):
     # the same machine. The subprocess socket is cleaned up automatically on exit.
     return all_data
 
-import baostock as bs
-import numpy as np
-import pandas as pd
-import redis
-from ..config import settings
-
-import os
-
 REDIS_URL = settings.redis_url
 
 warnings.filterwarnings("ignore")
@@ -248,7 +247,7 @@ class DataLoader:
         cache_key = "stock_list_cache"
         cached = self.r.get(cache_key)
         if cached:
-            print(f"[DataLoader] Redis缓存股票列表")
+            print("[DataLoader] Redis缓存股票列表")
             return json.loads(cached)
 
         stocks = []
