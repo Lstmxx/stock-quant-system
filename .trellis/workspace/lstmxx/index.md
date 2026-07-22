@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 5
-- **Last Active**: 2026-07-16
+- **Total Sessions**: 6
+- **Last Active**: 2026-07-22
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~176 | Active |
+| `journal-1.md` | ~211 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 6 | 2026-07-22 | 全项目审查与问题修复 | `2b0858a`, `e10e10f`, `2f51830` | `refactor` |
 | 5 | 2026-07-16 | 完成大模型选股工作流 | `7deffb0`, `d59e7ae` | `refactor` |
 | 4 | 2026-07-15 | 完成大模型配置与多 Provider 调用链 | `a54d95e`, `9880bf0` | `refactor` |
 | 3 | 2026-07-14 | 移除采集配置硬编码并验证真实数据链路 | `0db66c2`, `f8d2317` | `refactor` |
