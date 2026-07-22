@@ -14,6 +14,8 @@ const ACTIVE_STATUSES = new Set(['PENDING', 'RUNNING', 'CANCELLING']);
 
 export function useLlmStockSelections() {
   const { message } = App.useApp();
+  const messageRef = useRef(message);
+  messageRef.current = message;
   const [tasks, setTasks] = useState<LlmSelectionTask[]>([]);
   const [total, setTotal] = useState(0);
   const [activeTask, setActiveTask] = useState<LlmSelectionTask | null>(null);
@@ -42,12 +44,12 @@ export function useLlmStockSelections() {
       setActiveTask(response.activeTask);
       return Boolean(response.activeTask && ACTIVE_STATUSES.has(response.activeTask.status));
     } catch (error) {
-      message.error(getApiErrorMessage(error, '加载 LLM 选股任务失败'));
+      messageRef.current.error(getApiErrorMessage(error, '加载 LLM 选股任务失败'));
       return false;
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  }, [message, page, pageSize]);
+  }, [page, pageSize]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -80,17 +82,17 @@ export function useLlmStockSelections() {
       if (error || !data || 'success' in data && data.success === false) {
         throw error?.value ?? data;
       }
-      message.success('LLM 选股任务已创建');
+      messageRef.current.success('LLM 选股任务已创建');
       setPage(1);
       await fetchTasks();
       return true;
     } catch (error) {
-      message.error(getApiErrorMessage(error, '创建 LLM 选股任务失败'));
+      messageRef.current.error(getApiErrorMessage(error, '创建 LLM 选股任务失败'));
       return false;
     } finally {
       setSubmitting(false);
     }
-  }, [fetchTasks, message]);
+  }, [fetchTasks]);
 
   const cancelTask = useCallback(async (taskId: string) => {
     if (rowActionId) return;
@@ -98,14 +100,14 @@ export function useLlmStockSelections() {
     try {
       const { error } = await api['llm-stock-selections']({ id: taskId }).cancel.post();
       if (error) throw error.value;
-      message.success('取消请求已提交');
+      messageRef.current.success('取消请求已提交');
       await fetchTasks();
     } catch (error) {
-      message.error(getApiErrorMessage(error, '取消任务失败'));
+      messageRef.current.error(getApiErrorMessage(error, '取消任务失败'));
     } finally {
       setRowActionId(null);
     }
-  }, [fetchTasks, message, rowActionId]);
+  }, [fetchTasks, rowActionId]);
 
   const retryFailed = useCallback(async (taskId: string, symbols?: string[]) => {
     if (rowActionId) return false;
@@ -115,16 +117,16 @@ export function useLlmStockSelections() {
         symbols?.length ? { symbols } : {},
       );
       if (error) throw error.value;
-      message.success('失败项重试已提交');
+      messageRef.current.success('失败项重试已提交');
       await fetchTasks();
       return true;
     } catch (error) {
-      message.error(getApiErrorMessage(error, '重试失败项失败'));
+      messageRef.current.error(getApiErrorMessage(error, '重试失败项失败'));
       return false;
     } finally {
       setRowActionId(null);
     }
-  }, [fetchTasks, message, rowActionId]);
+  }, [fetchTasks, rowActionId]);
 
   return {
     tasks,

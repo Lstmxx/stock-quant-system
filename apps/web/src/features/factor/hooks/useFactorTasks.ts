@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { message } from 'antd';
+import { App } from 'antd';
 import { api } from '../../../api/api';
 import { FactorTask } from '../types';
 import type { ResearchDirection } from '../components/CreateMiningTaskModal';
 
 export const useFactorTasks = () => {
+  const { message } = App.useApp();
   const [tasks, setTasks] = useState<FactorTask[]>([]);
   const [loading, setLoading] = useState(false);
 

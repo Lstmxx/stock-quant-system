@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { message } from 'antd';
+import { App } from 'antd';
 import { api } from '../../../api/api';
 import { Factor } from '../types';
 
 export const useFactors = () => {
+  const { message } = App.useApp();
   const [factors, setFactors] = useState<Factor[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);

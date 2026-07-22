@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Layout, Menu, Typography, Avatar, Dropdown } from 'antd';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { 
-  DashboardOutlined, 
   LogoutOutlined, 
   StockOutlined,
   RobotOutlined,
@@ -19,7 +18,6 @@ const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
 
 const pageMap: Record<string, { icon: React.ReactNode; title: string }> = {
-  '/dashboard': { icon: <DashboardOutlined />, title: 'Dashboard' },
   '/llm': { icon: <RobotOutlined />, title: '大模型管理' },
   '/llm-selection': { icon: <FundProjectionScreenOutlined />, title: 'LLM 选股' },
   '/data': { icon: <DatabaseOutlined />, title: '股票数据管理' },
@@ -41,11 +39,6 @@ const AppLayout: React.FC = () => {
   };
 
   const menuItems = [
-    {
-      key: '/dashboard',
-      icon: <DashboardOutlined />,
-      label: 'Dashboard',
-    },
     {
       key: '/llm',
       icon: <RobotOutlined />,

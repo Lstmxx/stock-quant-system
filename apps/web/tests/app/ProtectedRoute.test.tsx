@@ -25,7 +25,7 @@ describe('ProtectedRoute', () => {
             </ProtectedRoute>
           } />
           <Route path="/login" element={<div data-testid="login-page">Login Page</div>} />
-          <Route path="/dashboard" element={<div data-testid="dashboard-page">Dashboard Page</div>} />
+          <Route path="/data" element={<div data-testid="data-page">Data Page</div>} />
         </Routes>
       </MemoryRouter>
     );
@@ -58,7 +58,7 @@ describe('ProtectedRoute', () => {
     });
   });
 
-  it('redirects to dashboard if requireGuest is true and user exists', async () => {
+  it('redirects to data management if requireGuest is true and user exists', async () => {
     vi.mocked(useAuthStore).mockReturnValue({
       isReady: true,
       user: { id: '1', name: 'Test', email: 'test@example.com', createdAt: new Date(), updatedAt: new Date() },
@@ -68,7 +68,7 @@ describe('ProtectedRoute', () => {
 
     renderRoute(false, true);
     await waitFor(() => {
-      expect(screen.getByTestId('dashboard-page')).toBeInTheDocument();
+      expect(screen.getByTestId('data-page')).toBeInTheDocument();
     });
   });
 

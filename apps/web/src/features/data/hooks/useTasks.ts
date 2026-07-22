@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { message } from 'antd';
+import { App } from 'antd';
 import { api } from '../../../api/api';
 import { isActiveTaskStatus, Task } from '../types';
 
@@ -13,6 +13,7 @@ function getApiError(value: unknown, fallback: string): string {
 }
 
 export const useTasks = () => {
+  const { message } = App.useApp();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);

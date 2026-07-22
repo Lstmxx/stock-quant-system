@@ -1,2 +1,6 @@
-@import "tailwindcss";
-@import "@nuxt/ui";
+/* Ant Design owns the application component styles. Keep this file free of
+   unprocessed Tailwind directives so production CSS remains valid. */
+html, body, #root {
+  min-height: 100%;
+  margin: 0;
+}

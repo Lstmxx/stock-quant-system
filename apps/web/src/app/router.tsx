@@ -3,7 +3,6 @@ import { ProtectedRoute } from './ProtectedRoute';
 import React, { Suspense } from 'react';
 
 const Login = React.lazy(() => import('../features/auth/Login'));
-const Dashboard = React.lazy(() => import('../features/dashboard/Dashboard'));
 const AuthLayout = React.lazy(() => import('../features/auth/AuthLayout'));
 const AppLayout = React.lazy(() => import('../components/layout/AppLayout'));
 const LlmManagement = React.lazy(() => import('../features/llm/LlmManagement'));
@@ -38,11 +37,7 @@ export const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: <Navigate to="/dashboard" replace />,
-      },
-      {
-        path: 'dashboard',
-        element: <Suspense fallback={<div>Loading...</div>}><Dashboard /></Suspense>,
+        element: <Navigate to="/data" replace />,
       },
       {
         path: 'llm',
@@ -77,6 +72,6 @@ export const router = createBrowserRouter([
   },
   {
     path: '*',
-    element: <Navigate to="/dashboard" replace />,
+    element: <Navigate to="/data" replace />,
   }
 ]);

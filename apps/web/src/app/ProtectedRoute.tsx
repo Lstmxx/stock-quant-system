@@ -31,7 +31,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   if (requireGuest && user) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/data" replace />;
   }
 
   return <>{children}</>;

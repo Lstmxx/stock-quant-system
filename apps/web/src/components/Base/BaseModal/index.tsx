@@ -4,8 +4,8 @@ import { Modal, ModalProps } from 'antd';
 export const BaseModal: React.FC<ModalProps> = (props) => {
   return (
     <Modal
-      destroyOnClose
-      maskClosable={false}
+      destroyOnHidden
+      mask={{ closable: false }}
       centered
       {...props}
     />

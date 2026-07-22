@@ -25,12 +25,13 @@ const mockCancelPost = vi.fn();
   },
 }), api.tasks);
 
-vi.mock('antd', () => ({
-  message: {
+vi.mock('antd', () => {
+  const messageApi = {
     success: vi.fn(),
     error: vi.fn(),
-  },
-}));
+  };
+  return { message: messageApi, App: { useApp: () => ({ message: messageApi }) } };
+});
 
 describe('useFactorTasks', () => {
   beforeEach(() => {

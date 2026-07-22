@@ -22,13 +22,14 @@ vi.mock('../../src/api/api', () => {
   return { api: { tasks } };
 });
 
-vi.mock('antd', () => ({
-  message: {
+vi.mock('antd', () => {
+  const messageApi = {
     success: vi.fn(),
     error: vi.fn(),
     warning: vi.fn(),
-  },
-}));
+  };
+  return { message: messageApi, App: { useApp: () => ({ message: messageApi }) } };
+});
 
 const activeTask = {
   id: 'task-1',

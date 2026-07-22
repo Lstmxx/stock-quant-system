@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { message } from 'antd';
+import { App } from 'antd';
 
 import { api } from '../../../api/api';
 import type { FactorSelectionTask } from '../types';
@@ -11,6 +11,7 @@ interface CreateSelectionInput {
 }
 
 export function useFactorSelections() {
+  const { message } = App.useApp();
   const [tasks, setTasks] = useState<FactorSelectionTask[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);

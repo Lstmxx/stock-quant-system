@@ -16,12 +16,13 @@ vi.mock('../../src/api/api', () => ({
   },
 }));
 
-vi.mock('antd', () => ({
-  message: {
+vi.mock('antd', () => {
+  const messageApi = {
     success: vi.fn(),
     error: vi.fn(),
-  },
-}));
+  };
+  return { message: messageApi, App: { useApp: () => ({ message: messageApi }) } };
+});
 
 describe('useFactors', () => {
   beforeEach(() => {

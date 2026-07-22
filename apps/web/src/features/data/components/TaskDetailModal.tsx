@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Button, Typography, Tag, Row, Col, Card, Progress, Table, message, Alert } from 'antd';
+import { Alert, App, Button, Typography, Tag, Row, Col, Card, Progress, Table } from 'antd';
 import { ReloadOutlined, WarningOutlined } from '@ant-design/icons';
 import { BaseModal } from '../../../components/Base/BaseModal';
 import { Task, FailedStocksResponse, isActiveTaskStatus, isTerminalTaskStatus } from '../types';
@@ -17,6 +17,7 @@ interface Props {
 }
 
 export const TaskDetailModal: React.FC<Props> = ({ task, activeTaskId, open, onCancel, onRetryCreated }) => {
+  const { message } = App.useApp();
   // Only poll stream if the modal is open and the selected task is active
   const isActive = Boolean(task && isActiveTaskStatus(task.status) && task.id === activeTaskId);
   const streamTaskId = open && isActive ? activeTaskId : null;

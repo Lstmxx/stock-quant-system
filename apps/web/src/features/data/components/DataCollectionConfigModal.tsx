@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Form, Input, InputNumber, message, Spin } from 'antd';
+import { Alert, App, Form, Input, InputNumber, Spin } from 'antd';
 import { api } from '../../../api/api';
 import { BaseModal } from '../../../components/Base/BaseModal';
 
@@ -16,6 +16,7 @@ interface ConfigFormValues {
 }
 
 export const DataCollectionConfigModal: React.FC<Props> = ({ open, onCancel, onSuccess }) => {
+  const { message } = App.useApp();
   const [form] = Form.useForm<ConfigFormValues>();
   const [saving, setSaving] = useState(false);
   const [fetching, setFetching] = useState(false);

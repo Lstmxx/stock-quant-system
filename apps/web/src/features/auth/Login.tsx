@@ -7,6 +7,11 @@ import { useNavigate } from 'react-router-dom';
 
 const { Text, Link } = Typography;
 
+interface LoginValues {
+  email: string;
+  password: string;
+}
+
 const Login: React.FC = () => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -16,7 +21,7 @@ const Login: React.FC = () => {
   const { fetchSession } = useAuthStore();
   const navigate = useNavigate();
 
-  const handleSubmit = async (values: any) => {
+  const handleSubmit = async (values: LoginValues) => {
     setLoading(true);
     setErrorMessage('');
     try {
@@ -33,9 +38,9 @@ const Login: React.FC = () => {
         });
       }
       await fetchSession();
-      navigate('/dashboard');
-    } catch (e: any) {
-      setErrorMessage(e.message || 'An error occurred during login');
+      navigate('/data');
+    } catch (error: unknown) {
+      setErrorMessage(error instanceof Error ? error.message : 'An error occurred during login');
     } finally {
       setLoading(false);
     }
@@ -51,7 +56,7 @@ const Login: React.FC = () => {
       </div>
 
       {errorMessage && (
-        <Alert message={errorMessage} type="error" showIcon style={{ marginBottom: 24 }} />
+        <Alert title={errorMessage} type="error" showIcon style={{ marginBottom: 24 }} />
       )}
 
       <Form form={form} onFinish={handleSubmit} layout="vertical">
