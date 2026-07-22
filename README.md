@@ -10,7 +10,6 @@
 - 使用 DSL 表达、计算和评估量价因子
 - 通过 LLM 生成研究假设并迭代挖掘因子
 - 发起、取消和跟踪数据采集及因子挖掘任务
-- 对个股或自选股执行 LLM 辅助分析
 - 组合因子、模拟策略并生成研究报告
 - 以用户维度管理 LLM 模型、密钥和研究数据
 
@@ -97,6 +96,9 @@ docker compose -f docker-compose.example.yml up -d
 DATABASE_URL=postgresql://postgres:password@localhost:5432/stock_quant
 REDIS_URL=redis://localhost:6379
 ENCRYPTION_KEY=replace-with-a-long-random-secret
+BETTER_AUTH_SECRET=replace-with-at-least-32-random-characters
+BETTER_AUTH_URL=http://localhost:3000
+INTERNAL_SERVICE_TOKEN=replace-with-a-random-api-engine-token
 
 # 可选：服务地址与端口
 PORT_WEB=5173
@@ -134,6 +136,8 @@ bun run dev
 - Engine 健康检查：<http://localhost:8000/health>
 
 首次使用时，在 Web 界面注册账户并配置 LLM 模型；因子挖掘任务需要先选择一个可用的模型。
+
+> 旧版 Dashboard 与旧版个股 Analysis API 已暂时下线。新版 Dashboard 和基于统一任务队列的分析流程将另行设计。
 
 也可以分别启动服务：
 

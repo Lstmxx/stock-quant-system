@@ -24,6 +24,7 @@ This directory contains guidelines for frontend development. Fill in each file w
 | [Data Collection Workflow Contract](../../api/backend/data-collection-workflow-contract.md) | Global collection UI, status, pagination, and polling contracts | Active |
 | [LLM Workflow Contract](../../api/backend/llm-workflow-contract.md) | Provider forms, key actions, connection tests, errors, and accessible row actions | Active |
 | [LLM Stock Selection Workflow Contract](../../api/backend/llm-stock-selection-workflow-contract.md) | Creation modal, task polling, result tabs, evidence drawer, cancel, and retry | Active |
+| [Platform Hardening Contract](../../api/backend/platform-hardening-contract.md) | Root routing, retired Dashboard, feedback APIs, and legacy analysis boundary | Active |
 
 ## Pre-Development Checklist
 
@@ -31,6 +32,7 @@ This directory contains guidelines for frontend development. Fill in each file w
 - When changing the data-management page, collection status, failures, or polling, read [Data Collection Workflow Contract](../../api/backend/data-collection-workflow-contract.md).
 - When changing LLM management or missing-model recovery UI, read [LLM Workflow Contract](../../api/backend/llm-workflow-contract.md).
 - When changing the LLM stock-selection page, polling, evidence rendering, cancel, or retry, read [LLM Stock Selection Workflow Contract](../../api/backend/llm-stock-selection-workflow-contract.md).
+- When changing the root route, navigation, Dashboard, analysis entry points, or Ant Design feedback APIs, read [Platform Hardening Contract](../../api/backend/platform-hardening-contract.md).
 
 ---
 

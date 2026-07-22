@@ -23,6 +23,7 @@ This directory contains guidelines for backend development. Fill in each file wi
 | [Data Collection Workflow Contract](../../api/backend/data-collection-workflow-contract.md) | Worker, scheduler, retry, and aggregate-cache contracts | Active |
 | [LLM Workflow Contract](../../api/backend/llm-workflow-contract.md) | Config loading, LiteLLM adapter, Provider, retry, and consumer contracts | Active |
 | [LLM Stock Selection Workflow Contract](../../api/backend/llm-stock-selection-workflow-contract.md) | Snapshot builder, candidate runner, ranking, cancellation, and retry contracts | Active |
+| [Platform Hardening Contract](../../api/backend/platform-hardening-contract.md) | Internal service authentication, CORS boundary, simulation truthfulness, and recovery | Active |
 
 ## Pre-Development Checklist
 
@@ -30,6 +31,7 @@ This directory contains guidelines for backend development. Fill in each file wi
 - When changing stock collection workers, scheduler, retries, or market-data caches, read [Data Collection Workflow Contract](../../api/backend/data-collection-workflow-contract.md).
 - When changing Engine LLM config loading, chat routes, LiteLLM, or factor-mining model calls, read [LLM Workflow Contract](../../api/backend/llm-workflow-contract.md).
 - When changing the LLM selection snapshot, indicators, runner, persistence, or retry, read [LLM Stock Selection Workflow Contract](../../api/backend/llm-stock-selection-workflow-contract.md).
+- When changing `/internal/*`, Engine CORS, simulation metrics, or service environment variables, read [Platform Hardening Contract](../../api/backend/platform-hardening-contract.md).
 
 ---
 
