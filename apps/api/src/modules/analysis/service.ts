@@ -5,6 +5,7 @@ import { and, eq, desc } from "drizzle-orm";
 import Redis from "ioredis";
 import { redisUrl } from "../../lib/env";
 import { engineClient } from "../../lib/engine-client";
+import { logger } from "../../lib/logger";
 import { FactorSelectionService, resolveFactorSet } from "../factor-selection/service";
 import { LlmService } from "../llm/service";
 import type { AnalysisReport, FactorAnalysisContext, StartAnalysisBody } from "./model";
@@ -198,7 +199,7 @@ export abstract class AnalysisService {
 
 		// 2. Launch analysis in background (don't await)
 		AnalysisService._runAnalysis(task.id, userId, symbol, days).catch((err) => {
-			console.error(`[AnalysisService] Background task ${task.id} failed:`, err);
+			logger.error({ taskId: task.id, error: err }, "analysis background task failed");
 		});
 
 		return { taskId: task.id };

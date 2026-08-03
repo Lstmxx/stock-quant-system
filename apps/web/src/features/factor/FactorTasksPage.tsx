@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Alert, Button, Card, Space, Drawer, Typography } from 'antd';
-import { PlusOutlined, SettingOutlined } from '@ant-design/icons';
+import { Plus, Settings2 } from 'lucide-react';
 import { useFactorTasks } from './hooks/useFactorTasks';
 import { useTaskLogsPolling } from './hooks/useTaskLogsPolling';
 import { FactorTaskTable } from './components/FactorTaskTable';
@@ -43,14 +43,14 @@ const FactorTasksPage: React.FC = () => {
         extra={
           <Space>
             <Button
-              icon={<SettingOutlined />}
+              icon={<Settings2 size={16} />}
               onClick={() => setIsConfigVisible(true)}
             >
               任务配置
             </Button>
             <Button
               type="primary"
-              icon={<PlusOutlined />}
+              icon={<Plus size={16} />}
               onClick={() => setIsModalVisible(true)}
             >
               发起挖掘任务
@@ -83,12 +83,12 @@ const FactorTasksPage: React.FC = () => {
         size="large"
         onClose={() => setActiveLogTaskId(null)}
         open={!!activeLogTaskId}
-        styles={{ body: { backgroundColor: '#1e1e1e', padding: '16px' } }}
+        classNames={{ body: 'factor-log-drawer' }}
       >
         {logsError ? <Alert type="error" showIcon title={logsError} className="mb-4" /> : null}
-        <div style={{ fontFamily: 'monospace', color: '#00ff00', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
+        <div className="factor-log-output">
           {logs.length === 0 ? (
-            <Text style={{ color: '#00ff00' }}>Waiting for logs...</Text>
+            <Text className="factor-log-muted">Waiting for logs...</Text>
           ) : (
             logs.map((log, index) => (
               <div key={index}>{log}</div>

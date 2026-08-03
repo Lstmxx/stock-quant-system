@@ -48,7 +48,11 @@ Use this contract when changing API-to-Engine HTTP calls, authentication runtime
 - Database tests assert the migration contains Watchlist uniqueness and two cascade foreign keys.
 - Full gates: Bun API/DB tests, Web Vitest/build, Engine Pytest/Ruff, and `antd lint`.
 
-## 7. Wrong vs Correct
+## 7. Auth Schema Naming Compatibility
+
+The Better Auth adapter consumes the shared Drizzle auth schema, whose PostgreSQL columns use snake_case (`email_verified`, `created_at`, `updated_at`, `user_id`, etc.). Migration `0006_auth_column_naming_compatibility.sql` conditionally renames legacy camelCase auth columns when the snake_case target is absent. It is idempotent and must run before sign-in/session queries against a database created by an older schema.
+
+## 8. Wrong vs Correct
 
 ### Wrong
 

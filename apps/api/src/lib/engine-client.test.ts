@@ -1,5 +1,6 @@
 import { describe, expect, it, mock, beforeEach, spyOn } from "bun:test";
 import { engineClient } from "./engine-client";
+import { logger } from "./logger";
 
 describe("EngineClient", () => {
 	beforeEach(() => {
@@ -33,12 +34,12 @@ describe("EngineClient", () => {
 		}) as any;
 		global.fetch = fetchMock;
 		
-		const consoleSpy = spyOn(console, "error").mockImplementation(() => {});
+		const loggerSpy = spyOn(logger, "error").mockImplementation(() => {});
 
 		// Should resolve without error (fail-soft)
 		await expect(engineClient.triggerDataFetch("sh.600000", 250)).resolves.toBeUndefined();
 		expect(fetchMock).toHaveBeenCalledTimes(1);
-		expect(consoleSpy).toHaveBeenCalled();
+		expect(loggerSpy).toHaveBeenCalled();
 	});
 
 	it("should use fail-soft strategy and not throw when triggerDataFetch returns 500", async () => {
@@ -47,12 +48,12 @@ describe("EngineClient", () => {
 		}) as any;
 		global.fetch = fetchMock;
 		
-		const consoleSpy = spyOn(console, "error").mockImplementation(() => {});
+		const loggerSpy = spyOn(logger, "warn").mockImplementation(() => {});
 
 		// Should resolve without error (fail-soft)
 		await expect(engineClient.triggerDataFetch("sh.600000", 250)).resolves.toBeUndefined();
 		expect(fetchMock).toHaveBeenCalledTimes(1);
-		expect(consoleSpy).toHaveBeenCalled();
+		expect(loggerSpy).toHaveBeenCalled();
 	});
 
 	it("returns the typed project DTO for unified LLM chat", async () => {

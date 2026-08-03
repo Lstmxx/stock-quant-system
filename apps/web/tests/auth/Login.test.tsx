@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Login from '../../src/features/auth/Login';
+import { App as AntdApp } from 'antd';
 import { authClient } from '../../src/api/auth-client';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
@@ -37,7 +38,9 @@ describe('Login Page', () => {
 
   const renderLogin = () => render(
     <MemoryRouter>
-      <Login />
+      <AntdApp>
+        <Login />
+      </AntdApp>
     </MemoryRouter>
   );
 

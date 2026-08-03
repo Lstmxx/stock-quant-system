@@ -5,6 +5,8 @@
  * - 调度/数据辅助调用保持 fail-soft；LLM 调用 fail-closed 并返回领域错误
  */
 
+import { logger } from "./logger";
+
 const ENGINE_BASE_URL = process.env.ENGINE_URL ?? `http://localhost:${process.env.PORT_ENGINE || "8000"}`;
 const TIMEOUT_MS = 5000;
 const LLM_TIMEOUT_MS = 190_000;
@@ -86,9 +88,9 @@ async function engineFetch(
 		return response;
 	} catch (err) {
 		if (err instanceof Error && err.name === "AbortError") {
-			console.error(`[EngineClient] Request to ${url} timed out after ${timeoutMs}ms`);
+			logger.warn({ url, timeoutMs }, "Engine request timed out");
 		} else {
-			console.error(`[EngineClient] Request to ${url} failed:`, err);
+			logger.error({ url, error: err }, "Engine request failed");
 		}
 		return null;
 	} finally {
@@ -143,7 +145,7 @@ export const engineClient = {
 		});
 		if (!res) return false;
 		if (!res.ok) {
-			console.error(`[EngineClient] reloadConfig failed: HTTP ${res.status}`);
+			logger.warn({ status: res.status }, "Engine config reload failed");
 			return false;
 		}
 		return true;
@@ -161,7 +163,7 @@ export const engineClient = {
 		});
 		if (!res) return;
 		if (!res.ok) {
-			console.error(`[EngineClient] triggerDataFetch(${symbol}) failed: HTTP ${res.status}`);
+			logger.warn({ symbol, status: res.status }, "Engine data fetch failed");
 		}
 	},
 

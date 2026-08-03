@@ -19,6 +19,7 @@ This directory contains guidelines for frontend development. Fill in each file w
 | [Hook Guidelines](./hook-guidelines.md) | Custom hooks, data fetching patterns | To fill |
 | [State Management](./state-management.md) | Local state, global state, server state | To fill |
 | [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | To fill |
+| [Color System](./color-system.md) | Semantic color tokens and contrast contract | Active |
 | [Type Safety](./type-safety.md) | Type patterns, validation | To fill |
 | [Factor Workflow Contract](../../api/backend/factor-workflow-contract.md) | Factor task UI, status, selection, and log-polling contracts | Active |
 | [Data Collection Workflow Contract](../../api/backend/data-collection-workflow-contract.md) | Global collection UI, status, pagination, and polling contracts | Active |

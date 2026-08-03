@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Button, Card, Space, Tag } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { Plus } from 'lucide-react';
 
 import { api } from '../../api/api';
 import { CreateFactorSelectionModal } from './components/CreateFactorSelectionModal';
@@ -44,7 +44,7 @@ export default function FactorSelectionPage() {
           </Space>
         )}
         extra={(
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
+          <Button type="primary" icon={<Plus size={16} />} onClick={() => setCreateOpen(true)}>
             新建选股任务
           </Button>
         )}

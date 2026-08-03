@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Alert, Button, Card, Space, Tooltip } from 'antd';
-import { SettingOutlined, SyncOutlined } from '@ant-design/icons';
+import { RefreshCw, Settings2 } from 'lucide-react';
 import { DataCollectionConfigModal } from './components/DataCollectionConfigModal';
 import { TaskDetailModal } from './components/TaskDetailModal';
 import { TaskTable } from './components/TaskTable';
@@ -44,13 +44,13 @@ const DataManagement: React.FC = () => {
       <Card
         extra={(
           <Space>
-            <Button icon={<SettingOutlined />} onClick={() => setIsConfigModalVisible(true)}>
+            <Button icon={<Settings2 size={16} />} onClick={() => setIsConfigModalVisible(true)}>
               全局设置
             </Button>
             <Tooltip title={activeTask ? '已有全局采集任务正在执行' : undefined}>
               <Button
                 type="primary"
-                icon={<SyncOutlined spin={running} />}
+                icon={<RefreshCw size={16} className={running ? 'icon-spin' : undefined} />}
                 loading={running}
                 disabled={Boolean(activeTask)}
                 onClick={handleRunNow}

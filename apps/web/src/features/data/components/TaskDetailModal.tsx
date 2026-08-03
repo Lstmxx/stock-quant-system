@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Alert, App, Button, Typography, Tag, Row, Col, Card, Progress, Table } from 'antd';
-import { ReloadOutlined, WarningOutlined } from '@ant-design/icons';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { BaseModal } from '../../../components/Base/BaseModal';
 import { Task, FailedStocksResponse, isActiveTaskStatus, isTerminalTaskStatus } from '../types';
 import { useTaskStream } from '../hooks/useTaskStream';
@@ -188,7 +188,7 @@ export const TaskDetailModal: React.FC<Props> = ({ task, activeTaskId, open, onC
                   })}
                   {Object.keys(workers).length === 0 && (
                     <Col span={24}>
-                      <div style={{ textAlign: 'center', color: '#999', padding: 20 }}>
+                      <div className="empty-progress-state">
                         {task.type === 'DATA_COLLECTION' ? '等待 Engine 分配 Worker...' : '此任务类型暂不支持详细进度展示，后台正在执行中...'}
                       </div>
                     </Col>
@@ -199,12 +199,12 @@ export const TaskDetailModal: React.FC<Props> = ({ task, activeTaskId, open, onC
 
             {/* Non-active task: show summary */}
             {!isActive && (
-              <div style={{ padding: '12px 0', color: '#666', marginBottom: 16 }}>
+              <div className="task-summary-state">
                 <p>该任务当前状态: <Tag>{task.status}</Tag></p>
                 {isRecord(task.result) ? (
                   <div style={{ marginTop: 12 }}>
                     <Text strong>执行总结: </Text>
-                    <div style={{ background: '#f5f5f5', padding: 12, marginTop: 8, borderRadius: 4 }}>
+                    <div className="task-result-summary">
                       {Object.entries(task.result).map(([key, value]) => (
                         <div key={key} style={{ marginBottom: 4 }}>
                           <Text type="secondary">{key}: </Text>
@@ -225,7 +225,7 @@ export const TaskDetailModal: React.FC<Props> = ({ task, activeTaskId, open, onC
                     <Alert
                       title={`发现 ${failedDataSource.length} 只股票采集失败`}
                       type="warning"
-                      icon={<WarningOutlined />}
+                      icon={<AlertTriangle size={16} />}
                       showIcon
                       style={{ marginBottom: 12 }}
                       action={
@@ -233,7 +233,7 @@ export const TaskDetailModal: React.FC<Props> = ({ task, activeTaskId, open, onC
                           size="small"
                           type="primary"
                           danger
-                          icon={<ReloadOutlined />}
+                          icon={<RefreshCw size={16} />}
                           loading={retrying}
                           onClick={handleRetryFailed}
                         >

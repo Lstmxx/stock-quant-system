@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Button, Card, Space, Tag } from 'antd';
-import { PlusOutlined, RobotOutlined } from '@ant-design/icons';
+import { BrainCircuit, Plus } from 'lucide-react';
 
 import { api } from '../../api/api';
 import type { LlmModel } from '../llm/types';
@@ -70,8 +70,8 @@ export default function LlmStockSelectionPage() {
         />
       ) : null}
       <Card
-        title={<Space><RobotOutlined />LLM 选股任务{selections.activeTask ? <Tag color="processing">运行中</Tag> : null}</Space>}
-        extra={<Button type="primary" icon={<PlusOutlined />} disabled={Boolean(selections.activeTask)} onClick={handleOpenCreate}>发起分析</Button>}
+        title={<Space><BrainCircuit size={17} />LLM 选股任务{selections.activeTask ? <Tag color="processing">运行中</Tag> : null}</Space>}
+        extra={<Button type="primary" icon={<Plus size={16} />} disabled={Boolean(selections.activeTask)} onClick={handleOpenCreate}>发起分析</Button>}
       >
         <LlmSelectionTaskTable
           tasks={selections.tasks}

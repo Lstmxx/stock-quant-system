@@ -1,12 +1,5 @@
 import { Button, Empty, Popconfirm, Space, Tag, Tooltip, type TableColumnsType } from 'antd';
-import {
-  ApiOutlined,
-  DeleteOutlined,
-  EditOutlined,
-  PlusOutlined,
-  StarFilled,
-  StarOutlined,
-} from '@ant-design/icons';
+import { Link2, Pencil, Plus, Star, Trash2 } from 'lucide-react';
 
 import { BaseTable } from '../../../components/Base/BaseTable';
 import type { LlmRowAction } from '../hooks/useLlmModels';
@@ -79,7 +72,7 @@ export function LlmModelTable({
             <Tooltip title={record.isDefault ? '当前默认模型' : '设为默认模型'}>
               <Button
                 type="text"
-                icon={record.isDefault ? <StarFilled className="text-amber-500" /> : <StarOutlined />}
+                icon={<Star size={16} fill={record.isDefault ? 'currentColor' : 'none'} />}
                 aria-label={record.isDefault ? '当前默认模型' : `将 ${record.name} 设为默认模型`}
                 disabled={record.isDefault || actionDisabled}
                 loading={activeAction === 'default'}
@@ -89,7 +82,7 @@ export function LlmModelTable({
             <Tooltip title="测试连接">
               <Button
                 type="text"
-                icon={<ApiOutlined />}
+                icon={<Link2 size={16} />}
                 aria-label={`测试 ${record.name} 连接`}
                 disabled={actionDisabled}
                 loading={activeAction === 'test'}
@@ -99,7 +92,7 @@ export function LlmModelTable({
             <Tooltip title="编辑配置">
               <Button
                 type="text"
-                icon={<EditOutlined />}
+                icon={<Pencil size={16} />}
                 aria-label={`编辑 ${record.name}`}
                 disabled={actionDisabled}
                 onClick={() => onEdit(record)}
@@ -118,7 +111,7 @@ export function LlmModelTable({
                 <Button
                   type="text"
                   danger
-                  icon={<DeleteOutlined />}
+                  icon={<Trash2 size={16} />}
                   aria-label={`删除 ${record.name}`}
                   disabled={actionDisabled}
                   loading={activeAction === 'delete'}
@@ -139,7 +132,7 @@ export function LlmModelTable({
       locale={{
         emptyText: (
           <Empty description="尚未配置大模型">
-            <Button type="primary" icon={<PlusOutlined />} onClick={onAdd}>
+            <Button type="primary" icon={<Plus size={16} />} onClick={onAdd}>
               新增配置
             </Button>
           </Empty>

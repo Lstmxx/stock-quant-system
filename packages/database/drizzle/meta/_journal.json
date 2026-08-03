@@ -43,6 +43,13 @@
       "when": 1784714671869,
       "tag": "0005_overconfident_cannonball",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785749617316,
+      "tag": "0006_auth_column_naming_compatibility",
+      "breakpoints": true
     }
   ]
 }

@@ -1,36 +1,40 @@
-import React, { useState } from 'react';
-import { Layout, Menu, Typography, Avatar, Dropdown } from 'antd';
+import React, { useMemo, useState } from 'react';
+import { Layout, Menu, Avatar, Dropdown, Button } from 'antd';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { 
-  LogoutOutlined, 
-  StockOutlined,
-  RobotOutlined,
-  DatabaseOutlined,
-  FunctionOutlined,
-  AppstoreOutlined,
-  UnorderedListOutlined,
-  FundProjectionScreenOutlined
-} from '@ant-design/icons';
+import {
+  Activity,
+  BrainCircuit,
+  ChevronLeft,
+  ChevronRight,
+  Database,
+  FlaskConical,
+  Layers3,
+  LogOut,
+  Menu as MenuIcon,
+  Network,
+  ScanSearch,
+  Sparkles,
+} from 'lucide-react';
 import { authClient } from '../../api/auth-client';
 import { useAuthStore } from '../../features/auth/store';
 
 const { Header, Sider, Content } = Layout;
-const { Text } = Typography;
-
-const pageMap: Record<string, { icon: React.ReactNode; title: string }> = {
-  '/llm': { icon: <RobotOutlined />, title: '大模型管理' },
-  '/llm-selection': { icon: <FundProjectionScreenOutlined />, title: 'LLM 选股' },
-  '/data': { icon: <DatabaseOutlined />, title: '股票数据管理' },
-  '/factor/tasks': { icon: <AppstoreOutlined />, title: '因子任务' },
-  '/factor/list': { icon: <UnorderedListOutlined />, title: '因子列表' },
-  '/factor/selection': { icon: <FundProjectionScreenOutlined />, title: '因子选股' },
+const pageMap: Record<string, { icon: React.ReactNode; title: string; eyebrow: string }> = {
+  '/llm': { icon: <BrainCircuit size={17} />, title: '大模型管理', eyebrow: 'MODEL OPS' },
+  '/llm-selection': { icon: <ScanSearch size={17} />, title: 'LLM 选股', eyebrow: 'SIGNAL LAB' },
+  '/data': { icon: <Database size={17} />, title: '股票数据管理', eyebrow: 'DATA STREAM' },
+  '/factor/tasks': { icon: <Layers3 size={17} />, title: '因子任务', eyebrow: 'FACTOR LAB' },
+  '/factor/list': { icon: <Network size={17} />, title: '因子列表', eyebrow: 'FACTOR INDEX' },
+  '/factor/selection': { icon: <ScanSearch size={17} />, title: '因子选股', eyebrow: 'SIGNAL LAB' },
 };
 
 const AppLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { user, setUser } = useAuthStore();
+  const currentPage = pageMap[location.pathname] ?? pageMap['/data'];
 
   const handleLogout = async () => {
     await authClient.signOut();
@@ -38,105 +42,68 @@ const AppLayout: React.FC = () => {
     navigate('/login');
   };
 
-  const menuItems = [
+  const menuItems = useMemo(() => [
+    { key: '/llm', icon: <BrainCircuit size={17} />, label: '大模型管理' },
+    { key: '/llm-selection', icon: <ScanSearch size={17} />, label: 'LLM 选股' },
+    { key: '/data', icon: <Database size={17} />, label: '股票数据管理' },
     {
-      key: '/llm',
-      icon: <RobotOutlined />,
-      label: '大模型管理',
-    },
-    {
-      key: '/llm-selection',
-      icon: <FundProjectionScreenOutlined />,
-      label: 'LLM 选股',
-    },
-    {
-      key: '/data',
-      icon: <DatabaseOutlined />,
-      label: '股票数据管理',
-    },
-    {
-      key: '/factor',
-      icon: <FunctionOutlined />,
-      label: '因子管理',
+      key: '/factor', icon: <FlaskConical size={17} />, label: '因子管理',
       children: [
-        {
-          key: '/factor/tasks',
-          icon: <AppstoreOutlined />,
-          label: '因子任务',
-        },
-        {
-          key: '/factor/list',
-          icon: <UnorderedListOutlined />,
-          label: '因子列表',
-        },
-        {
-          key: '/factor/selection',
-          icon: <FundProjectionScreenOutlined />,
-          label: '因子选股',
-        },
-      ]
-    }
-  ];
-
-  const currentPage = pageMap[location.pathname];
+        { key: '/factor/tasks', icon: <Layers3 size={16} />, label: '因子任务' },
+        { key: '/factor/list', icon: <Network size={16} />, label: '因子列表' },
+        { key: '/factor/selection', icon: <ScanSearch size={16} />, label: '因子选股' },
+      ],
+    },
+  ], []);
 
   return (
-    <Layout style={{ height: '100vh', overflow: 'hidden' }}>
-      <Sider 
-        collapsible 
-        collapsed={collapsed} 
-        onCollapse={(value) => setCollapsed(value)}
+    <Layout className="app-shell">
+      <Sider
+        className="app-sider"
+        collapsible
+        collapsed={collapsed}
+        trigger={null}
+        width={248}
+        collapsedWidth={76}
+        breakpoint="lg"
+        onBreakpoint={(broken) => setCollapsed(broken)}
         theme="light"
       >
-        <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 16px', borderBottom: '1px solid #f0f0f0' }}>
-          <StockOutlined style={{ fontSize: 24, color: '#1677ff', marginRight: collapsed ? 0 : 8 }} />
-          {!collapsed && <Text strong style={{ fontSize: 16 }}>Stock Quant</Text>}
+        <div className="brand-mark">
+          <div className="brand-symbol"><Activity size={21} strokeWidth={2.5} /></div>
+          {!collapsed && <div><div className="brand-name">STOCK<span>QUANT</span></div><div className="brand-subtitle">RESEARCH OS / 01</div></div>}
         </div>
-        <Menu 
-          theme="light" 
-          mode="inline" 
+        <div className="nav-caption">WORKSPACE</div>
+        <Menu
+          className="app-menu"
+          mode="inline"
           selectedKeys={[location.pathname]}
+          defaultOpenKeys={['/factor']}
           items={menuItems}
-          onClick={({ key }) => navigate(key)}
+          onClick={({ key }) => { navigate(key); setMobileOpen(false); }}
         />
+        <div className="sider-footer">
+          <div className="system-status"><span className="status-dot" />{!collapsed && <span>SYSTEMS NOMINAL</span>}</div>
+          {!collapsed && <div className="version-label">BUILD 2026.08 / CN-SH</div>}
+        </div>
       </Sider>
-      <Layout style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <Header style={{ padding: '0 24px', background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 1px 4px rgba(0,21,41,0.08)', zIndex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {currentPage && (
-              <>
-                <span style={{ fontSize: 18, color: '#1677ff', display: 'flex', alignItems: 'center' }}>
-                  {currentPage.icon}
-                </span>
-                <Text strong style={{ fontSize: 16 }}>{currentPage.title}</Text>
-              </>
-            )}
+      <Layout className="app-main">
+        <Header className="app-header">
+          <div className="header-context">
+            <Button className="mobile-menu-button" type="text" icon={<MenuIcon size={19} />} onClick={() => setMobileOpen(!mobileOpen)} aria-label="打开导航" />
+            <div className="page-kicker"><span className="kicker-line" />{currentPage.eyebrow}</div>
+            <div className="page-title">{currentPage.title}</div>
           </div>
-          {user && (
-            <Dropdown 
-              menu={{ 
-                items: [
-                  {
-                    key: 'logout',
-                    icon: <LogoutOutlined />,
-                    label: '退出登录',
-                    danger: true,
-                    onClick: handleLogout
-                  }
-                ] 
-              }} 
-              placement="bottomRight"
-            >
-              <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, padding: '0 8px', borderRadius: 6, transition: 'background-color 0.3s' }} className="user-dropdown-trigger">
-                <Avatar size="small" style={{ backgroundColor: '#1677ff' }}>{user.name?.charAt(0) || user.email?.charAt(0)}</Avatar>
-                <Text style={{ fontSize: 14 }}>{user.name || user.email}</Text>
-              </div>
-            </Dropdown>
-          )}
+          <div className="header-actions">
+            <div className="live-chip"><Sparkles size={13} /> LIVE / SHANGHAI</div>
+            {user && <Dropdown menu={{ items: [{ key: 'logout', icon: <LogOut size={15} />, label: '退出登录', danger: true, onClick: handleLogout }] }} placement="bottomRight">
+              <button className="user-trigger" type="button"><Avatar size={30} className="user-avatar">{user.name?.charAt(0) || user.email?.charAt(0)}</Avatar><span>{user.name || user.email}</span><ChevronRight size={14} /></button>
+            </Dropdown>}
+            <Button className="collapse-button" type="text" icon={collapsed ? <ChevronRight size={17} /> : <ChevronLeft size={17} />} onClick={() => setCollapsed(!collapsed)} aria-label={collapsed ? '展开导航' : '收起导航'} />
+          </div>
         </Header>
-        <Content style={{ margin: '24px', flex: 1, minHeight: 0, overflow: 'auto' }}>
-          <Outlet />
-        </Content>
+        {mobileOpen && <div className="mobile-nav-overlay" onClick={() => setMobileOpen(false)}><div className="mobile-nav-panel" onClick={(event) => event.stopPropagation()}><Menu className="app-menu" mode="inline" selectedKeys={[location.pathname]} items={menuItems} onClick={({ key }) => { navigate(key); setMobileOpen(false); }} /></div></div>}
+        <Content className="app-content"><div className="content-canvas"><Outlet /></div></Content>
       </Layout>
     </Layout>
   );

@@ -15,5 +15,9 @@ if (!databaseUrl) {
 
 const queryClient = postgres(databaseUrl);
 export const db = drizzle(queryClient, { schema: { ...schema, ...authSchema } });
+
+export async function closeDatabase() {
+  await queryClient.end({ timeout: 5 });
+}
 export * from './schema';
 export * from './auth-schema';

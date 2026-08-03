@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Alert, App, Modal, Form, Select, Typography } from 'antd';
-import { WarningOutlined } from '@ant-design/icons';
+import { AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../../../api/api';
 import { getApiErrorMessage } from '../../llm/api-error';
@@ -109,7 +109,7 @@ export const FactorTaskConfigModal: React.FC<Props> = ({ open, onCancel, onSaved
           extra={
             !loading && models.length === 0 ? (
               <Text type="warning">
-                <WarningOutlined /> 暂无可用大模型，请先
+                <AlertTriangle size={14} /> 暂无可用大模型，请先
                 <Link to="/llm" onClick={onCancel}>前往大模型配置</Link>
                 添加
               </Text>

@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { Alert, Button, Card } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { Plus } from 'lucide-react';
 
 import { LlmModelFormModal } from './components/LlmModelFormModal';
 import { LlmModelTable } from './components/LlmModelTable';
@@ -40,7 +40,7 @@ export default function LlmManagement() {
     <Card
       title="大模型配置"
       extra={(
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
+        <Button type="primary" icon={<Plus size={16} />} onClick={handleAdd}>
           新增配置
         </Button>
       )}
