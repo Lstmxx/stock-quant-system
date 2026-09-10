@@ -147,7 +147,9 @@ def _fetch_stock_chunk(args):
                 time.sleep(1)
                 
         if success:
-            key = f"kline:{code}:{start_date}_{end_date}"
+            # Keep one stable per-symbol cache entry.  A date-range suffix made
+            # every daily refresh create another full copy of the same history.
+            key = f"kline:{code}"
             r.set(key, json.dumps(stock_data), ex=7 * 24 * 3600)
             all_data.extend(stock_data)
             success_count += 1
@@ -248,7 +250,11 @@ class DataLoader:
         cached = self.r.get(cache_key)
         if cached:
             print("[DataLoader] Redis缓存股票列表")
-            return json.loads(cached)
+            cached_stocks = json.loads(cached)
+            stocks = list(dict.fromkeys(cached_stocks))
+            if len(stocks) != len(cached_stocks):
+                self.r.set(cache_key, json.dumps(stocks), ex=7 * 24 * 3600)
+            return stocks
 
         stocks = []
         names = {}  # code -> code_name
@@ -279,6 +285,7 @@ class DataLoader:
             prev = (datetime.strptime(date, '%Y-%m-%d') - timedelta(days=1)).strftime('%Y-%m-%d')
             return self.get_main_board_stocks(prev, depth + 1)
 
+        stocks = list(dict.fromkeys(stocks))
         self.r.set(cache_key, json.dumps(stocks), ex=7 * 24 * 3600)
         # Persist stock names into a Redis Hash (no TTL — names rarely change)
         if names:
@@ -305,8 +312,22 @@ class DataLoader:
                         task_id: Optional[str] = None, force_update: bool = False,
                         worker_count: int = 4,
                         allow_fetch_missing: bool = True) -> pd.DataFrame:
-        keys = [f"kline:{code}:{start_date}_{end_date}" for code in stocks]
-        cached_values = [None] * len(stocks) if force_update else self.r.mget(keys)
+        # A collection can receive duplicate symbols from an old stock-list
+        # cache or from a provider response.  Deduplicate before reading and
+        # partitioning so one symbol is never fetched twice.
+        stocks = list(dict.fromkeys(stocks))
+        keys = [f"kline:{code}" for code in stocks]
+        legacy_keys = [f"kline:{code}:{start_date}_{end_date}" for code in stocks]
+        if force_update:
+            cached_values = [None] * len(stocks)
+        else:
+            cached_values = self.r.mget(keys)
+            if any(value is None for value in cached_values):
+                legacy_values = self.r.mget(legacy_keys)
+                cached_values = [
+                    current if current is not None else legacy
+                    for current, legacy in zip(cached_values, legacy_values)
+                ]
         
         missing_stocks = []
         all_data = []
@@ -344,15 +365,25 @@ class DataLoader:
             raise ValueError("未获取到K线数据")
 
         df = pd.DataFrame(all_data, columns=fields.split(","))
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        df = df[df["date"].between(start_date, end_date)]
         for col in ["open", "high", "low", "close", "volume", "amount", "turn", "pctChg"]:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
         df = df.dropna(subset=["close"])
         df = df[df["close"] > 0]
+        # Baostock/cache data must have one value per (date, code) before it
+        # can be reshaped.  Keep the last valid row so a newly fetched value
+        # wins over an older duplicate encountered earlier in all_data.
+        df = df.drop_duplicates(subset=["date", "code"], keep="last")
         return df
 
     def pivot_data(self, df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
         df['date'] = pd.to_datetime(df['date'])
+        # Keep the last valid observation for each reshape key.  This is also
+        # enforced here (rather than only in load_kline_data) because callers
+        # may provide a DataFrame assembled outside the cache-loading path.
+        df = df.drop_duplicates(subset=['date', 'code'], keep='last')
         df = df.sort_values(['date', 'code'])
         result = {}
         for field in ['open', 'high', 'low', 'close', 'volume', 'amount', 'turn', 'pctChg']:

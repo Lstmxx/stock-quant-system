@@ -54,6 +54,11 @@ All `/api/*` business results below are payloads inside `ApiSuccess.data`; failu
 - Worker progress: `task_progress:{taskId}` hash; worker status is `running | completed | partial | failed | cancelled`
 - Failure codes: `task_failed_stocks:{taskId}` set
 - Failure reasons: `task_failed_stock_errors:{taskId}` hash
+- Per-symbol K-line cache: `kline:{code}` contains the latest fetched date-range
+  rows as JSON and expires after 7 days. Writers replace this stable key; readers
+  may fall back to the legacy `kline:{code}:{startDate}_{endDate}` key during
+  migration. Duplicate `(date, code)` rows are resolved by keeping the last
+  valid row before aggregation.
 - Aggregate market data: `market_data:{endDate}_{lookbackDays}`
 
 ### Database
@@ -96,6 +101,9 @@ All `/api/*` business results below are payloads inside `ApiSuccess.data`; failu
 | Redis enqueue fails | task becomes `FAILED`; return a retryable service error |
 | progress hash contains malformed JSON or invalid worker fields | ignore that worker snapshot; do not fail the endpoint |
 | retry source is not a terminal data-collection task | reject retry |
+| stable per-symbol cache is present | prefer it over legacy data; filter rows to the requested date range |
+| stable per-symbol cache is missing | fall back to the matching legacy date-range key |
+| duplicate symbols or duplicate `(date, code)` rows | deduplicate symbols before reads/fetches; drop invalid closing prices before keeping the last row per key |
 | all retry targets fail | task is `FAILED`; preserve the previous aggregate cache |
 | some symbols fail | publish reasons and finish as `PARTIAL_SUCCESS` after rebuilding usable aggregate data |
 | cancellation requested while running | database status becomes `CANCELLING`, then worker finishes as `CANCELLED` |
@@ -119,6 +127,8 @@ All `/api/*` business results below are payloads inside `ApiSuccess.data`; failu
 - Database schema test: assert nullable task actor, singleton config index, and partial active-task unique index.
 - API service tests: active-slot conflict does not insert/cancel; free slot enqueues; enqueue failure marks `FAILED`; global config defaults/upsert are stable.
 - Engine loader tests: aggregate cache uses temporary-key rename; retry rebuilds from the full cache set and clears repaired source failures.
+- Engine per-symbol cache tests: successive fetches with different date ranges replace the same `kline:{code}` payload, retain the seven-day TTL, and create no new legacy keys; reads prefer stable keys and fall back to legacy keys when missing.
+- Engine deduplication tests: repeated stock codes produce one cache read per symbol; out-of-range or invalid rows are discarded, and duplicate `(date, code)` rows retain the last valid close before pivoting.
 - Worker tests: mixed counts map to `PARTIAL_SUCCESS`; retry calls the aggregate rebuild path.
 - Scheduler tests: timezone is `Asia/Shanghai`; invalid cron does not replace the job; enqueue failure is compensated.
 - Web hook tests: polling requests do not overlap; failed worker remains failed; `CANCELLING` blocks duplicate start; cancellation copy matches the intermediate state.
