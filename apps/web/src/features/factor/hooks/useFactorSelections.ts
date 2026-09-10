@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { App } from 'antd';
 
 import { api } from '../../../api/api';
+import { getApiErrorMessage, request } from '../../../api/request';
 import type { FactorSelectionTask } from '../types';
 
 interface CreateSelectionInput {
@@ -21,19 +22,17 @@ export function useFactorSelections() {
   const fetchTasks = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await api['factor-selections'].get({
+      const data = await request(api['factor-selections'].get({
         query: { limit: pageSize, offset: (current - 1) * pageSize },
-      });
-      if (data) {
-        setTasks(data.data);
-        setTotal(data.total);
-      } else if (error) {
-        message.error('获取选股任务失败');
-      }
+      }));
+      setTasks(data.data);
+      setTotal(data.total);
+    } catch (error) {
+      message.error(getApiErrorMessage(error, '获取选股任务失败'));
     } finally {
       setLoading(false);
     }
-  }, [current, pageSize]);
+  }, [current, message, pageSize]);
 
   useEffect(() => {
     let active = true;
@@ -50,19 +49,17 @@ export function useFactorSelections() {
   }, [fetchTasks]);
 
   const createTask = useCallback(async (input: CreateSelectionInput) => {
-    const { data, error } = await api['factor-selections'].post(input);
-    if (error || !data?.success) {
-      const value = error?.value;
-      const detail = value && typeof value === 'object' && 'error' in value
-        ? String(value.error)
-        : '创建选股任务失败';
-      message.error(detail);
+    try {
+      await request(api['factor-selections'].post(input));
+      message.success('选股任务已创建');
+      await fetchTasks();
+      return true;
+    } catch (error) {
+      message.error(getApiErrorMessage(error, '创建选股任务失败'));
+      await fetchTasks();
       return false;
     }
-    message.success('选股任务已创建');
-    await fetchTasks();
-    return true;
-  }, [fetchTasks]);
+  }, [fetchTasks, message]);
 
   return {
     tasks,

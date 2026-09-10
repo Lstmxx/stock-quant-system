@@ -16,7 +16,8 @@ This directory contains guidelines for backend development. Fill in each file wi
 |-------|-------------|--------|
 | [Directory Structure](./directory-structure.md) | Module organization and file layout | To fill |
 | [Database Guidelines](./database-guidelines.md) | ORM patterns, queries, migrations | To fill |
-| [Error Handling](./error-handling.md) | Error types, handling strategies | To fill |
+| [Error Handling](./error-handling.md) | Error types, handling strategies | Active |
+| [API Response Contract](./api-response-contract.md) | Typed JSON envelopes, numeric codes, Eden inference, and protocol exclusions | Active |
 | [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | To fill |
 | [Logging Guidelines](./logging-guidelines.md) | Structured logging, log levels | To fill |
 | [Factor Workflow Contract](./factor-workflow-contract.md) | Mining, queue, selection, cancellation, and analysis contracts | Active |
@@ -27,6 +28,7 @@ This directory contains guidelines for backend development. Fill in each file wi
 
 ## Pre-Development Checklist
 
+- When changing business routes, response types, public errors, or API consumers, read [API Response Contract](./api-response-contract.md) and [Error Handling](./error-handling.md).
 - When changing factor mining, task queues, selection, or stock analysis, read [Factor Workflow Contract](./factor-workflow-contract.md).
 - When changing stock collection, scheduler, retries, or market-data caches, read [Data Collection Workflow Contract](./data-collection-workflow-contract.md).
 - When changing LLM configuration, factor/analysis/strategy model calls, or model-management UI, read [LLM Workflow Contract](./llm-workflow-contract.md).

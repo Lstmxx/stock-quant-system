@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { App } from 'antd';
 
 import { api } from '../../../api/api';
-import { getApiErrorMessage } from '../api-error';
+import { getApiErrorMessage, request } from '../../../api/request';
 import type { LlmModel } from '../types';
 
 export type LlmRowAction = 'delete' | 'default' | 'test';
@@ -19,14 +19,7 @@ export function useLlmModels() {
     setLoading(true);
     setError(null);
     try {
-      const { data: responseData, error: responseError } = await api.llm.get();
-      if (responseError || !responseData) {
-        const detail = getApiErrorMessage(responseError?.value, '获取大模型配置失败');
-        setError(detail);
-        message.error(detail);
-        return;
-      }
-      setData(responseData as LlmModel[]);
+      setData(await request(api.llm.get()));
     } catch (requestError) {
       const detail = getApiErrorMessage(requestError, '获取大模型配置失败，请检查网络连接');
       setError(detail);
@@ -43,7 +36,7 @@ export function useLlmModels() {
   const runRowAction = useCallback(async (
     id: string,
     action: LlmRowAction,
-    operation: () => Promise<{ error?: { value?: unknown } | null }>,
+    operation: () => Promise<unknown>,
     successMessage: string,
   ) => {
     if (activeRowsRef.current.has(id)) return false;
@@ -51,13 +44,7 @@ export function useLlmModels() {
     setRowActions((current) => ({ ...current, [id]: action }));
     setError(null);
     try {
-      const { error: responseError } = await operation();
-      if (responseError) {
-        const detail = getApiErrorMessage(responseError.value, `${successMessage}失败`);
-        setError(detail);
-        message.error(detail);
-        return false;
-      }
+      await operation();
       message.success(successMessage);
       await fetchData();
       return true;
@@ -75,21 +62,21 @@ export function useLlmModels() {
   const handleDelete = useCallback((id: string) => runRowAction(
     id,
     'delete',
-    () => api.llm({ id }).delete(),
+    () => request(api.llm({ id }).delete()),
     '已删除大模型配置',
   ), [runRowAction]);
 
   const handleSetDefault = useCallback((id: string) => runRowAction(
     id,
     'default',
-    () => api.llm({ id }).default.post(),
+    () => request(api.llm({ id }).default.post()),
     '已设置为默认模型',
   ), [runRowAction]);
 
   const handleTest = useCallback((id: string) => runRowAction(
     id,
     'test',
-    () => api.llm({ id }).test.post(),
+    () => request(api.llm({ id }).test.post()),
     '连接测试成功',
   ), [runRowAction]);
 

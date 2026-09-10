@@ -1,3 +1,6 @@
+import type { api } from '../../api/api';
+import type { ApiData } from '../../api/request';
+
 export const LLM_PROVIDERS = [
   'openai',
   'anthropic',
@@ -8,17 +11,7 @@ export const LLM_PROVIDERS = [
 export type LlmProvider = (typeof LLM_PROVIDERS)[number];
 export type ApiKeyAction = 'keep' | 'replace' | 'clear';
 
-export interface LlmModel {
-  id: string;
-  provider: LlmProvider;
-  modelName: string;
-  name: string;
-  baseUrl: string | null;
-  hasApiKey: boolean;
-  isDefault: boolean;
-  createdAt: string | Date;
-  updatedAt: string | Date;
-}
+export type LlmModel = ApiData<typeof api.llm.get>[number];
 
 export interface LlmModelFormValues {
   name: string;

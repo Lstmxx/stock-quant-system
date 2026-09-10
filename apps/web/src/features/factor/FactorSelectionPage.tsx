@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Button, Card, Space, Tag } from 'antd';
+import { Alert, App, Button, Card, Space, Tag } from 'antd';
 import { Plus } from 'lucide-react';
 
 import { api } from '../../api/api';
+import { getApiErrorMessage, request } from '../../api/request';
 import { CreateFactorSelectionModal } from './components/CreateFactorSelectionModal';
 import { FactorSelectionResultModal } from './components/FactorSelectionResultModal';
 import { FactorSelectionTaskTable } from './components/FactorSelectionTaskTable';
@@ -14,15 +15,20 @@ interface FactorSetSummary {
 }
 
 export default function FactorSelectionPage() {
+  const { message } = App.useApp();
   const selections = useFactorSelections();
   const [createOpen, setCreateOpen] = useState(false);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [factorSet, setFactorSet] = useState<FactorSetSummary | null>(null);
 
   const fetchFactorSet = useCallback(async () => {
-    const { data } = await api.factors.selection.get();
-    if (data) setFactorSet({ mode: data.mode, factorIds: data.factorIds });
-  }, []);
+    try {
+      const data = await request(api.factors.selection.get());
+      setFactorSet({ mode: data.mode, factorIds: data.factorIds });
+    } catch (error) {
+      message.error(getApiErrorMessage(error, '获取选股因子集合失败'));
+    }
+  }, [message]);
 
   useEffect(() => {
     void fetchFactorSet();

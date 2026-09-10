@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { App } from 'antd';
 import { api } from '../../../api/api';
+import { getApiErrorMessage, request } from '../../../api/request';
 import { Factor } from '../types';
 
 export const useFactors = () => {
@@ -20,21 +21,17 @@ export const useFactors = () => {
     setLoading(true);
     try {
       const offset = (page - 1) * size;
-      const { data, error } = await api.factors.get({
+      const data = await request(api.factors.get({
         query: {
           limit: size,
           offset,
           keyword: kw || undefined
         }
-      });
-      if (data) {
-        setFactors(data.data || []);
-        setTotal(data.total || 0);
-      } else if (error) {
-        message.error('获取因子列表失败');
-      }
-    } catch {
-      message.error('获取因子列表失败，请检查网络连接');
+      }));
+      setFactors(data.data);
+      setTotal(data.total);
+    } catch (error) {
+      message.error(getApiErrorMessage(error, '获取因子列表失败'));
     } finally {
       setLoading(false);
     }
@@ -46,15 +43,11 @@ export const useFactors = () => {
 
   const fetchSelection = async () => {
     try {
-      const { data, error } = await api.factors.selection.get();
-      if (data) {
-        setSelectionMode(data.mode);
-        setSelectedFactorIds(data.factorIds);
-      } else if (error) {
-        message.error('获取选股因子集合失败');
-      }
-    } catch {
-      message.error('获取选股因子集合失败，请检查网络连接');
+      const data = await request(api.factors.selection.get());
+      setSelectionMode(data.mode);
+      setSelectedFactorIds(data.factorIds);
+    } catch (error) {
+      message.error(getApiErrorMessage(error, '获取选股因子集合失败'));
     }
   };
 
@@ -65,11 +58,7 @@ export const useFactors = () => {
   const saveSelection = async (factorIds: string[]) => {
     setSelectionSaving(true);
     try {
-      const { data, error } = await api.factors.selection.put({ factorIds });
-      if (error || !data?.success) {
-        message.error('保存选股因子失败');
-        return false;
-      }
+      await request(api.factors.selection.put({ factorIds }));
       setSelectionMode(factorIds.length > 0 ? 'MANUAL' : 'AUTO');
       if (factorIds.length === 0) {
         await fetchSelection();
@@ -78,8 +67,8 @@ export const useFactors = () => {
       }
       message.success(factorIds.length > 0 ? '已启用手选因子集合' : '已恢复自动优选 Top 5');
       return true;
-    } catch {
-      message.error('保存选股因子失败，请检查网络连接');
+    } catch (error) {
+      message.error(getApiErrorMessage(error, '保存选股因子失败'));
       return false;
     } finally {
       setSelectionSaving(false);

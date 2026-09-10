@@ -1,99 +1,21 @@
-export type LlmSelectionStatus =
-  | 'PENDING'
-  | 'RUNNING'
-  | 'CANCELLING'
-  | 'CANCELLED'
-  | 'COMPLETED'
-  | 'PARTIAL_SUCCESS'
-  | 'FAILED';
+import type { api } from '../../api/api';
+import type { ApiData } from '../../api/request';
 
-export interface LlmSelectionParams {
-  llmModelId: string;
-  llmProvider: string;
-  llmModelName: string;
-  llmModelDisplayName: string;
-  candidateCount: number;
-  finalTopN: number;
-  lookbackDays: number;
-  factorIds: string[];
-  selectionMode: 'AUTO' | 'MANUAL';
-  watchlistSymbols: string[];
-}
+type SelectionCall = ReturnType<typeof api['llm-stock-selections']>;
+type TaskPayload = ApiData<typeof api['llm-stock-selections']['get']>['items'][number];
+type ResultsPayload = ApiData<SelectionCall['results']['get']>;
+type StockDetailCall = ReturnType<SelectionCall['results']>;
 
-export interface LlmSelectionSummary {
-  dataDate?: string;
-  universeCount?: number;
-  eligibleCount?: number;
-  excludedCount?: number;
-  coverageRate?: number;
-  candidateCount?: number;
-  successCount?: number;
-  failedCount?: number;
-  finalTopN?: number;
-  totalTokens?: number;
-  error?: string;
-  message?: string;
-}
-
-export interface LlmSelectionTask {
-  id: string;
+export type LlmSelectionStatus = (typeof selectionStatuses)[number];
+export type LlmSelectionParams = NonNullable<TaskPayload['params']>;
+export type LlmSelectionSummary = TaskPayload['result'];
+export type LlmSelectionTask = Omit<TaskPayload, 'status'> & {
   status: LlmSelectionStatus;
-  params: LlmSelectionParams | null;
-  result: LlmSelectionSummary;
-  createdAt: string | Date;
-  updatedAt: string | Date;
-}
-
-export interface LlmJudgment {
-  selectionScore: number;
-  confidence: number;
-  outlook: 'BULLISH' | 'NEUTRAL' | 'BEARISH';
-  summary: string;
-  strengths: string[];
-  risks: string[];
-  keySignals: Array<{
-    category: 'PRICE' | 'VOLUME' | 'TECHNICAL' | 'FACTOR';
-    name: string;
-    interpretation: string;
-  }>;
-}
-
-export interface LlmSelectionResult {
-  id: string;
-  symbol: string;
-  stockName: string | null;
-  dataDate: string;
-  universeStatus: 'ELIGIBLE' | 'EXCLUDED';
-  exclusionStage: string | null;
-  exclusionCode: string | null;
-  exclusionMessage: string | null;
-  quantitativeScore: number | null;
-  quantitativeRank: number | null;
-  candidateSources: Array<'QUANTITATIVE' | 'WATCHLIST'>;
-  isLlmCandidate: boolean;
-  inputSnapshot: unknown;
-  llmStatus: 'NOT_REQUESTED' | 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
-  judgment: LlmJudgment | null;
-  attemptCount: number;
-  latestErrorCode: string | null;
-  latestErrorMessage: string | null;
-  selected: boolean;
-  finalRank: number | null;
-  totalTokens: number;
-}
-
-export interface LlmSelectionAttempt {
-  id: string;
-  attemptNo: number;
-  status: 'RUNNING' | 'SUCCEEDED' | 'FAILED';
-  provider: string | null;
-  modelName: string | null;
-  errorCode: string | null;
-  errorMessage: string | null;
-  totalTokens: number;
-  startedAt: string | Date;
-  completedAt: string | Date | null;
-}
+};
+export type LlmSelectionResult = ResultsPayload['items'][number];
+export type LlmJudgment = NonNullable<LlmSelectionResult['judgment']>;
+export type LlmSelectionStockDetail = ApiData<StockDetailCall['get']>;
+export type LlmSelectionAttempt = LlmSelectionStockDetail['attempts'][number];
 
 export interface LlmSelectionListResponse {
   items: LlmSelectionTask[];
@@ -101,16 +23,9 @@ export interface LlmSelectionListResponse {
   activeTask: LlmSelectionTask | null;
 }
 
-export interface LlmSelectionResultsResponse {
+export type LlmSelectionResultsResponse = Omit<ResultsPayload, 'task'> & {
   task: LlmSelectionTask;
-  items: LlmSelectionResult[];
-  total: number;
-}
-
-export interface LlmSelectionStockDetail {
-  result: LlmSelectionResult;
-  attempts: LlmSelectionAttempt[];
-}
+};
 
 export interface CreateLlmSelectionValues {
   llmModelId: string;
@@ -119,7 +34,7 @@ export interface CreateLlmSelectionValues {
   lookbackDays: number;
 }
 
-const selectionStatuses = new Set<LlmSelectionStatus>([
+const selectionStatuses = [
   'PENDING',
   'RUNNING',
   'CANCELLING',
@@ -127,13 +42,18 @@ const selectionStatuses = new Set<LlmSelectionStatus>([
   'COMPLETED',
   'PARTIAL_SUCCESS',
   'FAILED',
-]);
+] as const;
+
+function isSelectionStatus(status: string): status is LlmSelectionStatus {
+  return selectionStatuses.some((knownStatus) => knownStatus === status);
+}
 
 export function normalizeLlmSelectionTask(
-  task: Omit<LlmSelectionTask, 'status'> & { status: string },
+  task: TaskPayload,
 ): LlmSelectionTask {
-  if (!selectionStatuses.has(task.status as LlmSelectionStatus)) {
+  const status = task.status;
+  if (!isSelectionStatus(status)) {
     throw new Error(`未知 LLM 选股任务状态: ${task.status}`);
   }
-  return { ...task, status: task.status as LlmSelectionStatus };
+  return { ...task, status };
 }

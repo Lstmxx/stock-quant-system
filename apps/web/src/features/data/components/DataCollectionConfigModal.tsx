@@ -3,6 +3,7 @@ import { Alert, App, Form, InputNumber, Spin, TimePicker } from 'antd';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
 import { api } from '../../../api/api';
+import { getApiErrorMessage, request } from '../../../api/request';
 import { BaseModal } from '../../../components/Base/BaseModal';
 
 interface Props {
@@ -56,19 +57,15 @@ export const DataCollectionConfigModal: React.FC<Props> = ({ open, onCancel, onS
       setFetching(true);
       setLoadError(null);
       try {
-        const { data, error } = await api.tasks['data-collection'].config.get();
+        const data = await request(api.tasks['data-collection'].config.get());
         if (cancelled) return;
-        if (error || !data || !('lookbackDays' in data)) {
-          setLoadError('全局采集配置加载失败，请稍后重试');
-          return;
-        }
         form.setFieldsValue({
           lookbackDays: data.lookbackDays,
           workerCount: data.workerCount,
           scheduleTime: parseScheduleTime(data.cronExpression),
         });
-      } catch {
-        if (!cancelled) setLoadError('网络异常，无法加载全局采集配置');
+      } catch (error) {
+        if (!cancelled) setLoadError(getApiErrorMessage(error, '全局采集配置加载失败，请稍后重试'));
       } finally {
         if (!cancelled) setFetching(false);
       }
@@ -83,19 +80,15 @@ export const DataCollectionConfigModal: React.FC<Props> = ({ open, onCancel, onS
       const values = await form.validateFields();
       setSaving(true);
       const { scheduleTime, ...config } = values;
-      const { data, error } = await api.tasks['data-collection'].config.put({
+      await request(api.tasks['data-collection'].config.put({
         ...config,
         cronExpression: toCronExpression(scheduleTime),
-      });
-      if (error || !data || !data.success) {
-        message.error('保存失败，请检查 cron 表达式或 Engine 状态');
-        return;
-      }
+      }));
       message.success('全局采集配置已保存');
       onSuccess();
       onCancel();
     } catch (error) {
-      if (error instanceof Error) message.error('保存配置失败，请稍后重试');
+      if (error instanceof Error) message.error(getApiErrorMessage(error, '保存配置失败，请稍后重试'));
     } finally {
       setSaving(false);
     }

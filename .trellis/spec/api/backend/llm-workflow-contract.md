@@ -8,20 +8,21 @@ Use this contract when changing LLM model persistence, secret encryption, Provid
 
 ## 2. Signatures
 
-API routes:
+API routes use [API Response Contract](./api-response-contract.md); the following payloads are inside success `data`:
 
-- `GET /llm -> LlmModelView[]`
-- `POST /llm` with `{ name, provider, modelName, baseUrl?, apiKey?, isDefault? }`
-- `PUT /llm/:id` with `{ name?, provider?, modelName?, baseUrl?, isDefault?, apiKeyAction?, apiKey? }`
-- `DELETE /llm/:id -> { success: true }`
-- `POST /llm/:id/default -> LlmModelView`
-- `POST /llm/:id/test -> { success: true, provider, model }`
+- `GET /api/llm -> LlmModelView[]`
+- `POST /api/llm` with `{ name, provider, modelName, baseUrl?, apiKey?, isDefault? }`
+- `PUT /api/llm/:id` with `{ name?, provider?, modelName?, baseUrl?, isDefault?, apiKeyAction?, apiKey? }`
+- `DELETE /api/llm/:id -> null`
+- `POST /api/llm/:id/default -> LlmModelView`
+- `POST /api/llm/:id/test -> { provider, model }`
 
 Engine internal routes:
 
 - `POST /internal/llm/chat` with `{ userId, modelId, messages, temperature?, maxTokens?, jsonMode? }`
 - `POST /internal/llm/test` with `{ userId, modelId }`
 - Chat response: `{ content, provider, model, usage }`
+- Test response: `{ success: true, provider, model }`; private errors remain `{ code: string, message }` with HTTP error status. Only Gateway responses translate these codes into numeric `ApiCode` values.
 
 Queue and consumer signatures:
 
@@ -74,6 +75,8 @@ Custom URLs allow only HTTP/HTTPS, with no embedded credentials or fragment. API
 - Web forms use the Provider union, Provider-aware Base URL/key rules, explicit key actions, visible request errors, test connection, row-level loading, duplicate-action prevention, empty state, and accessible icon labels.
 
 ## 4. Validation & Error Matrix
+
+Named reasons below remain strings inside Engine and storage; public Gateway error envelopes use the matching numeric `ApiCode` entry. Elysia schema/parse errors are HTTP 400; explicit LLM domain validation is 422.
 
 | Condition | Required result |
 | --- | --- |

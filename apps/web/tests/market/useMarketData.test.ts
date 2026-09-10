@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useMarketData } from '../../src/features/market/hooks/use-market-data';
+import { successResponse } from '../helpers/api-response';
 
 const mocks = vi.hoisted(() => ({
   search: vi.fn(),
@@ -34,8 +35,8 @@ const chart = (symbol: string) => ({
 describe('useMarketData', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.search.mockResolvedValue({ data: stocks });
-    mocks.kline.mockResolvedValue({ data: chart('sh.600519') });
+    mocks.search.mockResolvedValue(successResponse(stocks));
+    mocks.kline.mockResolvedValue(successResponse(chart('sh.600519')));
   });
 
   it('debounces a query and exposes stock suggestions', async () => {
@@ -51,7 +52,7 @@ describe('useMarketData', () => {
     let resolveFirst: ((value: unknown) => void) | undefined;
     mocks.kline
       .mockReturnValueOnce(new Promise((resolve) => { resolveFirst = resolve; }))
-      .mockResolvedValueOnce({ data: chart('sz.000001') });
+      .mockResolvedValueOnce(successResponse(chart('sz.000001')));
 
     const { result } = renderHook(() => useMarketData());
     await waitFor(() => expect(result.current.searchLoading).toBe(false));
@@ -61,7 +62,7 @@ describe('useMarketData', () => {
     await waitFor(() => expect(result.current.chartData?.symbol).toBe('sz.000001'));
 
     await act(async () => {
-      resolveFirst?.({ data: chart('sh.600519') });
+      resolveFirst?.(successResponse(chart('sh.600519')));
     });
     expect(result.current.chartData?.symbol).toBe('sz.000001');
   });

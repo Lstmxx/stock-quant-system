@@ -16,7 +16,7 @@ Questions to answer:
 - How are errors returned to clients?
 -->
 
-The API separates request errors from process-level failures. Expected domain and HTTP errors return an explicit `status(...)` response. Unexpected errors may be thrown and are normalized by the global Elysia `onError` hook in `apps/api/src/index.ts`.
+The API separates request errors from process-level failures. Business JSON follows [API Response Contract](./api-response-contract.md). Expected failures return `apiFailure(...)` or throw `ApiDomainError`; the typed global hook in `apps/api/src/plugins/api-errors.ts` normalizes thrown errors. `apps/api/src/app.ts` assembles routes without listening; `index.ts` owns process startup/shutdown and detached work.
 
 ---
 
@@ -24,7 +24,7 @@ The API separates request errors from process-level failures. Expected domain an
 
 <!-- Custom error classes/types -->
 
-Domain errors should use a dedicated error class when callers need a stable code and status. Do not expose database, Redis, Engine, or stack-trace details in HTTP responses.
+HTTP-facing domain errors extend `ApiDomainError` with a registered `ApiCode`, safe message, and literal HTTP error status. Result-returning services may retain private string reason keys; controllers translate them with `apiFailure`. Engine string codes and persisted candidate errors are not public wire codes. Do not expose database, Redis, Engine, or stack-trace details in HTTP responses.
 
 ---
 
@@ -32,7 +32,7 @@ Domain errors should use a dedicated error class when callers need a stable code
 
 <!-- Try-catch patterns, error propagation -->
 
-Register the global `onError` hook before route modules. It logs method, path, request ID, Elysia error code, and the normalized error, then returns a stable `{ success: false, code, message }` payload. Detached timers, Redis callbacks, and background jobs must use `runBackgroundTask` or an equivalent local catch; request-level `onError` does not catch those failures.
+Register `apiErrors` before route modules. It logs method, path, request ID, Elysia error code, and the normalized error, then returns typed HTTP status with `{ success: false, code: ApiErrorCode, message, data: null }`. Do not mutate `set.status` and return a plain business failure: Eden would infer it as 2xx data. Detached timers, Redis callbacks, and background jobs must use `runBackgroundTask` or an equivalent local catch; request-level `onError` does not catch those failures.
 
 ---
 
@@ -40,7 +40,7 @@ Register the global `onError` hook before route modules. It logs method, path, r
 
 <!-- Standard error response format -->
 
-Validation and parse failures return HTTP 400, missing routes return 404, and unknown failures return HTTP 500 with `INTERNAL_ERROR`. Health readiness failures return HTTP 503. Error details remain in structured server logs only.
+Validation and parse failures return HTTP 400, missing routes return 404, and unknown failures return HTTP 500 with numeric `ApiCode.INTERNAL_ERROR`. Explicit LLM domain validation retains 422. Engine service-auth 401/403 maps to upstream 502 rather than browser 401. Health readiness failures retain their native HTTP 503 body. Auth SDK, health, root text, and stream bodies are not wrapped. Error details remain in structured server logs only.
 
 ---
 

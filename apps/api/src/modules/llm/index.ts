@@ -1,60 +1,41 @@
-import { Elysia, status } from "elysia";
+import { Elysia } from "elysia";
+import { apiSuccess } from "../../lib/api-response";
 
 import { betterAuthPlugin } from "../../plugins/auth";
-import { EngineClientError } from "../../lib/engine-client";
 import { CreateLlmBody, UpdateLlmBody } from "./model";
-import {
-	LlmService,
-	LlmServiceError,
-	LlmValidationError,
-} from "./service";
-
-async function handleLlmRequest<T>(operation: () => Promise<T>) {
-	try {
-		return await operation();
-	} catch (error) {
-		if (error instanceof LlmServiceError) {
-			return status(error.status, { code: error.code, message: error.message });
-		}
-		if (error instanceof LlmValidationError) {
-			return status(422, { code: error.code, message: error.message });
-		}
-		if (error instanceof EngineClientError) {
-			return status(error.status, { code: error.code, message: error.message });
-		}
-		throw error;
-	}
-}
+import { LlmService } from "./service";
 
 export const llmModule = new Elysia({ prefix: "/llm", name: "llm" })
 	.use(betterAuthPlugin)
-	.get("/", ({ user }) => LlmService.listByUser(user.id), { auth: true })
+	.get("/", async ({ user }) => apiSuccess(await LlmService.listByUser(user.id)), { auth: true })
 	.post(
 		"/",
-		({ user, body }) => handleLlmRequest(() => LlmService.create(user.id, body)),
+		async ({ user, body }) => apiSuccess(await LlmService.create(user.id, body)),
 		{ auth: true, body: CreateLlmBody },
 	)
 	.put(
 		"/:id",
-		({ user, params, body }) =>
-			handleLlmRequest(() => LlmService.update(user.id, params.id, body)),
+		async ({ user, params, body }) => apiSuccess(await LlmService.update(user.id, params.id, body)),
 		{ auth: true, body: UpdateLlmBody },
 	)
 	.delete(
 		"/:id",
-		({ user, params }) =>
-			handleLlmRequest(() => LlmService.delete(user.id, params.id)),
+		async ({ user, params }) => {
+			await LlmService.delete(user.id, params.id);
+			return apiSuccess(null);
+		},
 		{ auth: true },
 	)
 	.post(
 		"/:id/default",
-		({ user, params }) =>
-			handleLlmRequest(() => LlmService.setDefault(user.id, params.id)),
+		async ({ user, params }) => apiSuccess(await LlmService.setDefault(user.id, params.id)),
 		{ auth: true },
 	)
 	.post(
 		"/:id/test",
-		({ user, params }) =>
-			handleLlmRequest(() => LlmService.testConnection(user.id, params.id)),
+		async ({ user, params }) => {
+			const { provider, model } = await LlmService.testConnection(user.id, params.id);
+			return apiSuccess({ provider, model });
+		},
 		{ auth: true },
 	);

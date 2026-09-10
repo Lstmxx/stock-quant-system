@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../../../api/api';
-import { getApiErrorMessage } from '../../llm/api-error';
+import { getApiErrorMessage, request } from '../../../api/request';
 import {
   isMarketKlineData,
-  isStockSearchItem,
+  isStockSearchData,
   type MarketKlineData,
   type StockSearchItem,
 } from '../types';
@@ -45,17 +45,8 @@ export function useMarketData() {
     }));
 
     try {
-      const response = await api['market-data']({ symbol: stock.code }).kline.get();
-      const data: unknown = response.data;
+      const data = await request(api['market-data']({ symbol: stock.code }).kline.get(), isMarketKlineData);
       if (generation !== generationRef.current) return;
-      if (!isMarketKlineData(data)) {
-        setState((previous) => ({
-          ...previous,
-          chartLoading: false,
-          chartError: getApiErrorMessage(response.error ?? response.data, '行情数据加载失败，请稍后重试'),
-        }));
-        return;
-      }
       setState((previous) => ({ ...previous, chartData: data, chartLoading: false }));
     } catch (error) {
       if (generation !== generationRef.current) return;
@@ -80,20 +71,11 @@ export function useMarketData() {
     if (!query) return;
 
     try {
-      const response = await api['market-data'].search.get({ query: { q: query } });
-      const data: unknown = response.data;
+      const data = await request(api['market-data'].search.get({ query: { q: query } }), isStockSearchData);
       if (generation !== generationRef.current) return;
-      if (!Array.isArray(data)) {
-        setState((previous) => ({
-          ...previous,
-          searchLoading: false,
-          searchError: getApiErrorMessage(response.error ?? response.data, '股票搜索失败，请稍后重试'),
-        }));
-        return;
-      }
       setState((previous) => ({
         ...previous,
-        suggestions: data.filter(isStockSearchItem),
+        suggestions: data,
         searchLoading: false,
       }));
     } catch (error) {

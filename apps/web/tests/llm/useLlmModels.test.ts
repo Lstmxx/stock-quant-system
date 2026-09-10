@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { message } from 'antd';
 
 import { useLlmModels } from '../../src/features/llm/hooks/useLlmModels';
+import { failureResponse, successResponse } from '../helpers/api-response';
 
 const mocks = vi.hoisted(() => ({
   list: vi.fn(),
@@ -51,13 +52,11 @@ const model = {
 describe('useLlmModels', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.list.mockResolvedValue({ data: [model] });
+    mocks.list.mockResolvedValue(successResponse([model]));
   });
 
   it('keeps request errors visible instead of swallowing them', async () => {
-    mocks.list.mockResolvedValue({
-      error: { value: { message: 'Engine unavailable' } },
-    });
+    mocks.list.mockResolvedValue(failureResponse('Engine unavailable'));
 
     const { result } = renderHook(() => useLlmModels());
 
@@ -67,7 +66,7 @@ describe('useLlmModels', () => {
   });
 
   it('tests one row through the API and refreshes the list', async () => {
-    mocks.testConnection.mockResolvedValue({ data: { success: true } });
+    mocks.testConnection.mockResolvedValue(successResponse({ provider: 'openai', model: 'gpt-5' }));
     const { result } = renderHook(() => useLlmModels());
     await waitFor(() => expect(result.current.data).toHaveLength(1));
 
@@ -80,8 +79,23 @@ describe('useLlmModels', () => {
     expect(message.success).toHaveBeenCalledWith('连接测试成功');
   });
 
+  it('accepts a null delete acknowledgement and releases a failed row operation', async () => {
+    mocks.remove.mockResolvedValueOnce(failureResponse('配置仍被引用'))
+      .mockResolvedValueOnce(successResponse(null));
+    const { result } = renderHook(() => useLlmModels());
+    await waitFor(() => expect(result.current.data).toHaveLength(1));
+
+    await act(async () => { expect(await result.current.handleDelete('model-1')).toBe(false); });
+    expect(result.current.rowActions['model-1']).toBeUndefined();
+    expect(message.error).toHaveBeenCalledTimes(1);
+
+    await act(async () => { expect(await result.current.handleDelete('model-1')).toBe(true); });
+    expect(mocks.remove).toHaveBeenCalledTimes(2);
+    expect(message.success).toHaveBeenCalledWith('已删除大模型配置');
+  });
+
   it('blocks duplicate row actions while the first request is pending', async () => {
-    let finishRequest: ((value: { data: { success: true } }) => void) | undefined;
+    let finishRequest: ((value: unknown) => void) | undefined;
     mocks.testConnection.mockReturnValue(new Promise((resolve) => {
       finishRequest = resolve;
     }));
@@ -99,7 +113,7 @@ describe('useLlmModels', () => {
     expect(mocks.testConnection).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      finishRequest?.({ data: { success: true } });
+      finishRequest?.(successResponse({ provider: 'openai', model: 'gpt-5' }));
       await firstRequest!;
     });
   });

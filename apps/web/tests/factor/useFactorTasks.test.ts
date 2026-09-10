@@ -3,27 +3,18 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { useFactorTasks } from '../../src/features/factor/hooks/useFactorTasks';
 import { api } from '../../src/api/api';
 import { message } from 'antd';
+import { failureResponse, successResponse } from '../helpers/api-response';
+
+const mocks = vi.hoisted(() => ({ list: vi.fn(), create: vi.fn(), cancel: vi.fn() }));
 
 vi.mock('../../src/api/api', () => ({
   api: {
-    tasks: {
-      get: vi.fn(),
-      mining: {
-        post: vi.fn(),
-      },
-      // Since it's a dynamic path function `api.tasks({ id }).cancel.post()`
-      // We'll mock the whole api.tasks structure accordingly below
-    },
+    tasks: Object.assign(vi.fn(() => ({ cancel: { post: mocks.cancel } })), {
+      get: mocks.list,
+      mining: { post: mocks.create },
+    }),
   },
 }));
-
-// Better mocking for dynamic paths
-const mockCancelPost = vi.fn();
-(api.tasks as any) = Object.assign(vi.fn().mockReturnValue({
-  cancel: {
-    post: mockCancelPost,
-  },
-}), api.tasks);
 
 vi.mock('antd', () => {
   const messageApi = {
@@ -44,7 +35,7 @@ describe('useFactorTasks', () => {
       { id: '2', type: 'FACTOR_MINING', createdAt: '2023-01-02' },
       { id: '3', type: 'FACTOR_MINING', createdAt: '2023-01-01' },
     ];
-    (api.tasks.get as any).mockResolvedValue({ data: mockTasks });
+    mocks.list.mockResolvedValue(successResponse(mockTasks));
 
     const { result } = renderHook(() => useFactorTasks());
 
@@ -57,7 +48,7 @@ describe('useFactorTasks', () => {
   });
 
   it('should handle fetch tasks error', async () => {
-    (api.tasks.get as any).mockResolvedValue({ error: { value: 'err' } });
+    mocks.list.mockResolvedValue(failureResponse('获取任务列表失败'));
 
     const { result } = renderHook(() => useFactorTasks());
 
@@ -68,8 +59,8 @@ describe('useFactorTasks', () => {
   });
 
   it('handleCreateTask should call api and refetch on success', async () => {
-    (api.tasks.get as any).mockResolvedValue({ data: [] });
-    (api.tasks.mining.post as any).mockResolvedValue({ data: { id: 'new-task' } });
+    mocks.list.mockResolvedValue(successResponse([]));
+    mocks.create.mockResolvedValue(successResponse({ taskId: 'new-task' }));
 
     const { result } = renderHook(() => useFactorTasks());
 
@@ -83,8 +74,8 @@ describe('useFactorTasks', () => {
   });
 
   it('handleCreateTask should show error on failure', async () => {
-    (api.tasks.get as any).mockResolvedValue({ data: [] });
-    (api.tasks.mining.post as any).mockResolvedValue({ error: { value: 'err' } });
+    mocks.list.mockResolvedValue(successResponse([]));
+    mocks.create.mockResolvedValue(failureResponse('触发失败，请重试'));
 
     const { result } = renderHook(() => useFactorTasks());
 
@@ -96,8 +87,8 @@ describe('useFactorTasks', () => {
   });
 
   it('handleCancelTask should call api and refetch on success', async () => {
-    (api.tasks.get as any).mockResolvedValue({ data: [] });
-    mockCancelPost.mockResolvedValue({ data: { success: true } });
+    mocks.list.mockResolvedValue(successResponse([]));
+    mocks.cancel.mockResolvedValue(successResponse({ status: 'CANCELLING' }));
 
     const { result } = renderHook(() => useFactorTasks());
 
@@ -106,13 +97,13 @@ describe('useFactorTasks', () => {
     });
 
     expect(api.tasks).toHaveBeenCalledWith({ id: 'task-1' });
-    expect(mockCancelPost).toHaveBeenCalled();
+    expect(mocks.cancel).toHaveBeenCalled();
     expect(message.success).toHaveBeenCalledWith('取消请求已提交，任务将在下一个检查点停止');
   });
 
   it('handleCancelTask should show error on failure', async () => {
-    (api.tasks.get as any).mockResolvedValue({ data: [] });
-    mockCancelPost.mockResolvedValue({ error: { value: 'err' } });
+    mocks.list.mockResolvedValue(successResponse([]));
+    mocks.cancel.mockResolvedValue(failureResponse('终止任务失败'));
 
     const { result } = renderHook(() => useFactorTasks());
 

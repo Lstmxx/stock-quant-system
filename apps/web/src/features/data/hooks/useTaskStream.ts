@@ -1,19 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { API_BASE_URL } from '../../../constant/config';
+import { api } from '../../../api/api';
+import { getApiErrorMessage, request } from '../../../api/request';
 import { isTerminalTaskStatus, WorkerState } from '../types';
-
-interface ProgressResponse {
-  taskId: string;
-  status: string;
-  workers: Array<{
-    worker_id: number;
-    total: number;
-    success: number;
-    failed: number;
-    current_code: string | null;
-    status: 'running' | 'partial' | 'failed' | 'completed' | 'cancelled';
-  }>;
-}
 
 const POLL_INTERVAL_MS = 2000;
 
@@ -34,13 +22,9 @@ export const useTaskStream = (activeTaskId: string | null) => {
 
     const poll = async () => {
       try {
-        const response = await fetch(
-          `${API_BASE_URL}/api/tasks/${activeTaskId}/progress`,
-          { credentials: 'include', signal: controller.signal },
-        );
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-        const data: ProgressResponse = await response.json();
+        const data = await request(api.tasks({ id: activeTaskId }).progress.get({
+          fetch: { signal: controller.signal },
+        }));
         if (stopped || generation !== generationRef.current || data.taskId !== activeTaskId) return;
 
         const workerMap: Record<number, WorkerState> = {};
@@ -59,7 +43,7 @@ export const useTaskStream = (activeTaskId: string | null) => {
         if (isTerminalTaskStatus(data.status)) stopped = true;
       } catch (pollError) {
         if (!controller.signal.aborted && generation === generationRef.current) {
-          setError('进度暂时无法加载，系统将自动重试');
+          setError(getApiErrorMessage(pollError, '进度暂时无法加载，系统将自动重试'));
         }
       }
 

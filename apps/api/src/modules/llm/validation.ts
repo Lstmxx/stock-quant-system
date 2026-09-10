@@ -1,5 +1,6 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { ApiDomainError } from "../../lib/api-response";
 
 import type {
 	ApiKeyAction,
@@ -15,11 +16,9 @@ const KEY_REQUIRED_PROVIDERS = new Set<LlmProvider>([
 	"openai_compatible",
 ]);
 
-export class LlmValidationError extends Error {
-	readonly code = "LLM_CONFIG_INVALID";
-
+export class LlmValidationError extends ApiDomainError {
 	constructor(message: string, options?: ErrorOptions) {
-		super(message, options);
+		super("LLM_CONFIG_INVALID", message, 422, options);
 		this.name = "LlmValidationError";
 	}
 }

@@ -46,7 +46,7 @@ export abstract class FactorService {
 	static async setSelectedFactors(userId: string, requestedIds: string[]) {
 		const factorIds = [...new Set(requestedIds)].sort();
 		if (factorIds.length !== requestedIds.length) {
-			return { success: false as const, error: "因子集合中存在重复项" };
+			return { success: false as const, code: "FACTOR_IDS_DUPLICATED" as const, error: "因子集合中存在重复项" };
 		}
 
 		if (factorIds.length > 0) {
@@ -63,6 +63,7 @@ export abstract class FactorService {
 			if (owned.length !== factorIds.length) {
 				return {
 					success: false as const,
+					code: "FACTOR_IDS_INVALID" as const,
 					error: "所选因子包含不存在、无效或不属于当前用户的记录",
 				};
 			}

@@ -20,21 +20,18 @@ import {
 	validateResolvedLlmConfig,
 } from "./validation";
 
+import { ApiDomainError } from "../../lib/api-response";
+
 type LlmModelRow = typeof llmModels.$inferSelect;
 
-export class LlmServiceError extends Error {
-	readonly code: "LLM_CONFIG_NOT_FOUND" | "LLM_CONFIG_REFERENCED";
-	readonly status: 404 | 409;
-
+export class LlmServiceError extends ApiDomainError {
 	constructor(
 		code: "LLM_CONFIG_NOT_FOUND" | "LLM_CONFIG_REFERENCED",
 		message: string,
 		status: 404 | 409,
 	) {
-		super(message);
+		super(code, message, status);
 		this.name = "LlmServiceError";
-		this.code = code;
-		this.status = status;
 	}
 }
 

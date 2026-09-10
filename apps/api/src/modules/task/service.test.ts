@@ -132,6 +132,7 @@ describe("TaskService", () => {
 			expect(result).toEqual({
 				success: false,
 				conflict: true,
+				code: "ACTIVE_TASK",
 				error: "已有数据采集任务正在执行",
 				taskId: "task-1",
 				status: "RUNNING",
@@ -178,6 +179,7 @@ describe("TaskService", () => {
 			expect(result).toEqual({
 				success: false,
 				conflict: false,
+				code: "QUEUE_UNAVAILABLE",
 				error: "任务入队失败，请稍后重试",
 				taskId: "task-999",
 			});
@@ -298,6 +300,7 @@ describe("TaskService", () => {
 			expect(result).toEqual({
 				success: false,
 				error: "任务入队失败，请稍后重试",
+				code: "QUEUE_UNAVAILABLE",
 				taskId: "task-999",
 			});
 			expect(db.update).toHaveBeenCalled();

@@ -1,6 +1,7 @@
 import { db, alphaFactors, quantStrategies } from "@stock-quant/database";
 import { and, eq, desc } from "drizzle-orm";
 import { engineClient } from "../../lib/engine-client";
+import { ApiDomainError } from "../../lib/api-response";
 import { LlmService } from "../llm/service";
 import type { GenerateReportBody, SimulateBody } from "./model";
 
@@ -34,12 +35,12 @@ export class StrategyService {
 			.limit(1)
 			.then((res) => res[0]);
 
-		if (!factor) throw new Error("Factor not found");
+		if (!factor) throw new ApiDomainError("NOT_FOUND", "因子不存在或无权访问", 404);
 
 		const result = await engineClient.simulateFactor(factor.expression, 250);
 
 		if (result.status !== "ok") {
-			throw new Error(result.message || "Simulation failed");
+			throw new ApiDomainError("UPSTREAM_ERROR", "因子模拟失败，请稍后重试", 502);
 		}
 
 		return {
@@ -84,7 +85,7 @@ export class StrategyService {
 			jsonMode: true,
 		});
 		const reportContent = llmResult.content;
-		let structuredReport;
+		let structuredReport: unknown;
 		try {
 			structuredReport = JSON.parse(reportContent);
 		} catch (e) {

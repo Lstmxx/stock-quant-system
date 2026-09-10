@@ -1,19 +1,15 @@
-import { api } from '../../api/api';
+import type { api } from '../../api/api';
+import type { ApiData } from '../../api/request';
 
-type FactorResponse = NonNullable<Awaited<ReturnType<typeof api.factors.get>>['data']>;
+type FactorResponse = ApiData<typeof api.factors.get>;
 export type Factor = FactorResponse['data'][number];
 
-type TaskResponse = NonNullable<Awaited<ReturnType<typeof api.tasks.get>>['data']>;
+type TaskResponse = ApiData<typeof api.tasks.get>;
 export type FactorTask = TaskResponse[number];
 
-type FactorSelectionListResponse = NonNullable<
-  Awaited<ReturnType<typeof api['factor-selections']['get']>>['data']
->;
+type FactorSelectionListResponse = ApiData<typeof api['factor-selections']['get']>;
 export type FactorSelectionTask = FactorSelectionListResponse['data'][number];
 
 type FactorSelectionDetailCall = ReturnType<typeof api['factor-selections']>;
-type FactorSelectionDetailResponse = NonNullable<
-  Awaited<ReturnType<FactorSelectionDetailCall['get']>>['data']
->;
-export type FactorSelectionDetail = Extract<FactorSelectionDetailResponse, { task: unknown }>;
+export type FactorSelectionDetail = ApiData<FactorSelectionDetailCall['get']>;
 export type FactorSelectionResult = FactorSelectionDetail['results'][number];

@@ -16,18 +16,23 @@ their math, cache, secret, or Provider ownership.
 
 HTTP:
 
+All routes use [API Response Contract](./api-response-contract.md). Success payloads are inside `data`; failures carry numeric codes and null data. Candidate/attempt error codes remain persisted domain strings.
+
 - `POST /api/llm-stock-selections`
   - body: `{ llmModelId, candidateCount, finalTopN, lookbackDays }`
   - bounds: candidate `20..100`, final `1..20`, lookback `120..500`
   - success: `{ taskId }`
-  - active conflict: HTTP 409 with the current `taskId`
+  - active conflict: HTTP 409 / `ApiCode.ACTIVE_TASK`, null data; list refresh recovers the current `activeTask`
 - `GET /api/llm-stock-selections?limit&offset`
 - `GET /api/llm-stock-selections/:id`
 - `GET /api/llm-stock-selections/:id/results?view=selected|all|failed&limit&offset`
 - `GET /api/llm-stock-selections/:id/results/:symbol`
 - `POST /api/llm-stock-selections/:id/cancel`
+  - success payload: `{ status }`; a service-level cancellation failure must not become a successful envelope
 - `POST /api/llm-stock-selections/:id/retry-failed`
   - body: `{ symbols?: string[] }`, at most 150 unique symbols
+  - success payload: `{ taskId, retryCount }`
+  - create/retry errors keep the modal/action failure visible and refresh history to recover active/failed task identity
 
 Queue:
 
@@ -99,7 +104,7 @@ Database:
 | --- | --- |
 | Foreign/deleted model | 404; no task or retry call |
 | Empty effective factor set | 400; no task |
-| Same user already has active task | 409; return active task; never auto-cancel |
+| Same user already has active task | 409 / `ApiCode.ACTIVE_TASK`; null data, refresh history; never auto-cancel |
 | Concurrent create race | partial unique index rejects one; map to 409 |
 | Redis enqueue failure | task becomes `FAILED`; API returns 503 |
 | Latest market snapshot unavailable | `FAILED` before LLM with actionable data error |

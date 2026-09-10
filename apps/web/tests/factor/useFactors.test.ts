@@ -3,14 +3,17 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { useFactors } from '../../src/features/factor/hooks/useFactors';
 import { api } from '../../src/api/api';
 import { message } from 'antd';
+import { failureResponse, successResponse } from '../helpers/api-response';
+
+const mocks = vi.hoisted(() => ({ list: vi.fn(), selection: vi.fn(), save: vi.fn() }));
 
 vi.mock('../../src/api/api', () => ({
   api: {
     factors: {
-      get: vi.fn(),
+      get: mocks.list,
       selection: {
-        get: vi.fn().mockResolvedValue({ data: { mode: 'AUTO', factorIds: [] } }),
-        put: vi.fn(),
+        get: mocks.selection,
+        put: mocks.save,
       },
     },
   },
@@ -27,12 +30,11 @@ vi.mock('antd', () => {
 describe('useFactors', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.selection.mockResolvedValue(successResponse({ mode: 'AUTO', factorIds: [], factors: [] }));
   });
 
   it('should initialize with default states and fetch on mount', async () => {
-    (api.factors.get as any).mockResolvedValue({
-      data: { data: [], total: 0 },
-    });
+    mocks.list.mockResolvedValue(successResponse({ data: [], total: 0 }));
 
     const { result } = renderHook(() => useFactors());
 
@@ -53,9 +55,7 @@ describe('useFactors', () => {
 
   it('should update factors and total when fetch succeeds', async () => {
     const mockFactors = [{ id: 'f1', name: 'Factor 1' }, { id: 'f2', name: 'Factor 2' }];
-    (api.factors.get as any).mockResolvedValue({
-      data: { data: mockFactors, total: 2 },
-    });
+    mocks.list.mockResolvedValue(successResponse({ data: mockFactors, total: 2 }));
 
     const { result } = renderHook(() => useFactors());
 
@@ -66,9 +66,7 @@ describe('useFactors', () => {
   });
 
   it('should show error message when fetch fails', async () => {
-    (api.factors.get as any).mockResolvedValue({
-      error: { value: 'API Error' },
-    });
+    mocks.list.mockResolvedValue(failureResponse('获取因子列表失败'));
 
     const { result } = renderHook(() => useFactors());
 
@@ -80,9 +78,7 @@ describe('useFactors', () => {
   });
 
   it('should update states when setters are called', async () => {
-    (api.factors.get as any).mockResolvedValue({
-      data: { data: [], total: 0 },
-    });
+    mocks.list.mockResolvedValue(successResponse({ data: [], total: 0 }));
 
     const { result } = renderHook(() => useFactors());
     

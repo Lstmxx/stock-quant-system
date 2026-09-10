@@ -60,7 +60,7 @@ export abstract class FactorSelectionService {
 	static async create(userId: string, body: CreateFactorSelectionBody) {
 		const { mode, factors } = await resolveFactorSet(userId);
 		if (factors.length === 0) {
-			return { success: false as const, error: "暂无有效因子，请先完成因子挖掘" };
+			return { success: false as const, code: "FACTOR_SET_EMPTY" as const, error: "暂无有效因子，请先完成因子挖掘" };
 		}
 
 		const factorIds = [...new Set(factors.map((factor) => factor.id))].sort();
@@ -73,7 +73,7 @@ export abstract class FactorSelectionService {
 				.where(eq(watchlists.userId, userId));
 			symbols = [...new Set(rows.map((row) => row.symbol))].sort();
 			if (symbols.length === 0) {
-				return { success: false as const, error: "自选股为空，请先添加自选股" };
+				return { success: false as const, code: "WATCHLIST_EMPTY" as const, error: "自选股为空，请先添加自选股" };
 			}
 		}
 
@@ -101,6 +101,7 @@ export abstract class FactorSelectionService {
 		if (!enqueued) {
 			return {
 				success: false as const,
+				code: "QUEUE_UNAVAILABLE" as const,
 				error: "任务入队失败，请稍后重试",
 				taskId: task.id,
 			};

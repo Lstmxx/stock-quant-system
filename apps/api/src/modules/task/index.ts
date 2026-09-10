@@ -1,53 +1,55 @@
 import { Elysia, t } from "elysia";
+import { apiFailure, apiSuccess } from "../../lib/api-response";
 import { engineClient } from "../../lib/engine-client";
 import { betterAuthPlugin } from "../../plugins/auth";
 import {
 	CreateMiningTaskBody,
 	DataCollectionConfigBody,
 	DataCollectionListQuery,
+	parseWorkerProgress,
 } from "./model";
 import { getRedis, TaskService } from "./service";
 
 export const taskModule = new Elysia({ prefix: "/tasks", name: "task" })
 	.use(betterAuthPlugin)
-	.get("/", ({ user }) => TaskService.listByUser(user.id), { auth: true })
+	.get("/", async ({ user }) => apiSuccess(await TaskService.listByUser(user.id)), { auth: true })
 	.post(
 		"/mining",
-		async ({ user, body, set }) => {
+		async ({ user, body }) => {
 			const result = await TaskService.createMiningTask(user.id, body);
-			if (!result.success) set.status = 400;
-			return result;
+			if (!result.success) return apiFailure(400, result.code, result.error);
+			return apiSuccess({ taskId: result.taskId });
 		},
 		{ auth: true, body: CreateMiningTaskBody },
 	)
 	.get(
 		"/data-collection",
-		({ query }) =>
-			TaskService.listDataCollectionTasks(query.limit ?? 50, query.offset ?? 0),
+		async ({ query }) =>
+			apiSuccess(await TaskService.listDataCollectionTasks(query.limit ?? 50, query.offset ?? 0)),
 		{ auth: true, query: DataCollectionListQuery },
 	)
 	.get(
 		"/data-collection/config",
-		() => TaskService.getDataCollectionConfig(),
+		async () => apiSuccess(await TaskService.getDataCollectionConfig()),
 		{ auth: true },
 	)
 	.put(
 		"/data-collection/config",
-		async ({ user, body, set }) => {
+		async ({ user, body }) => {
 			const previous = await TaskService.getDataCollectionConfig();
 			const reloaded = await engineClient.reloadConfig(body.cronExpression);
 			if (!reloaded) {
-				set.status = 400;
-				return { success: false, error: "定时表达式无效或 Engine 不可用" };
+				return apiFailure(400, "CONFIG_RELOAD_FAILED", "定时表达式无效或 Engine 不可用");
 			}
 
 			try {
-				return await TaskService.setDataCollectionConfig(
+				await TaskService.setDataCollectionConfig(
 					user.id,
 					body.lookbackDays,
 					body.workerCount,
 					body.cronExpression,
 				);
+				return apiSuccess(null);
 			} catch (error) {
 				await engineClient.reloadConfig(previous.cronExpression);
 				throw error;
@@ -57,10 +59,10 @@ export const taskModule = new Elysia({ prefix: "/tasks", name: "task" })
 	)
 	.post(
 		"/data-collection/run",
-		async ({ user, set }) => {
+		async ({ user }) => {
 			const result = await TaskService.runDataCollectionTask(user.id);
-			if (!result.success) set.status = result.conflict ? 409 : 503;
-			return result;
+			if (!result.success) return apiFailure(result.conflict ? 409 : 503, result.code, result.error);
+			return apiSuccess({ taskId: result.taskId });
 		},
 		{ auth: true },
 	)
@@ -70,7 +72,7 @@ export const taskModule = new Elysia({ prefix: "/tasks", name: "task" })
 			const redis = getRedis();
 			try {
 				const { codes } = query;
-				if (!codes) return (await redis.hgetall("stock_names")) || {};
+				if (!codes) return apiSuccess((await redis.hgetall("stock_names")) || {});
 
 				const codeList = codes
 					.split(",")
@@ -78,9 +80,9 @@ export const taskModule = new Elysia({ prefix: "/tasks", name: "task" })
 					.filter(Boolean)
 					.slice(0, 500);
 				const values = await redis.hmget("stock_names", ...codeList);
-				return Object.fromEntries(
+				return apiSuccess(Object.fromEntries(
 					codeList.map((code, index) => [code, values[index] ?? ""]),
-				);
+				));
 			} finally {
 				await redis.quit().catch(() => undefined);
 			}
@@ -92,46 +94,40 @@ export const taskModule = new Elysia({ prefix: "/tasks", name: "task" })
 	)
 	.get(
 		"/:id/status",
-		async ({ user, params, set }) => {
+		async ({ user, params }) => {
 			const task = await TaskService.getTaskStatus(user.id, params.id);
 			if (!task) {
-				set.status = 404;
-				return { error: "Not Found" };
+				return apiFailure(404, "TASK_NOT_FOUND", "任务不存在或无权访问");
 			}
-			return task;
+			return apiSuccess(task);
 		},
 		{ auth: true },
 	)
 	.post(
 		"/:id/cancel",
-		async ({ user, params, set }) => {
+		async ({ user, params }) => {
 			const result = await TaskService.cancelTask(user.id, params.id);
-			if (!result.success) set.status = 404;
-			return result;
+			if (!result.success) return apiFailure(404, result.code, result.error);
+			return apiSuccess({ status: result.status });
 		},
 		{ auth: true },
 	)
 	.get(
 		"/:id/progress",
-		async ({ user, params, set }) => {
+		async ({ user, params }) => {
 			const task = await TaskService.getTaskStatus(user.id, params.id);
 			if (!task) {
-				set.status = 404;
-				return { error: "Not Found" };
+				return apiFailure(404, "TASK_NOT_FOUND", "任务不存在或无权访问");
 			}
 
 			const redis = getRedis();
 			try {
 				const raw = await redis.hgetall(`task_progress:${params.id}`);
 				const workers = Object.values(raw || {}).flatMap((value) => {
-					try {
-						const parsed: unknown = JSON.parse(value);
-						return parsed && typeof parsed === "object" ? [parsed] : [];
-					} catch {
-						return [];
-					}
+					const worker = parseWorkerProgress(value);
+					return worker ? [worker] : [];
 				});
-				return { taskId: params.id, status: task.status, workers };
+				return apiSuccess({ taskId: params.id, status: task.status, workers });
 			} finally {
 				await redis.quit().catch(() => undefined);
 			}
@@ -140,40 +136,38 @@ export const taskModule = new Elysia({ prefix: "/tasks", name: "task" })
 	)
 	.get(
 		"/:id/failed-stocks",
-		async ({ user, params, set }) => {
+		async ({ user, params }) => {
 			const result = await TaskService.getFailedStocks(user.id, params.id);
 			if (!result) {
-				set.status = 404;
-				return { error: "Not Found" };
+				return apiFailure(404, "TASK_NOT_FOUND", "任务不存在或无权访问");
 			}
-			return result;
+			return apiSuccess(result);
 		},
 		{ auth: true },
 	)
 	.post(
 		"/:id/retry-failed",
-		async ({ user, params, set }) => {
+		async ({ user, params }) => {
 			const result = await TaskService.retryFailedStocks(user.id, params.id);
 			if (!result.success) {
-				set.status = "conflict" in result && result.conflict ? 409 : 400;
+				return apiFailure("conflict" in result && result.conflict ? 409 : 400, result.code, result.error);
 			}
-			return result;
+			return apiSuccess({ taskId: result.taskId, stockCount: result.stockCount });
 		},
 		{ auth: true },
 	)
 	.get(
 		"/:id/logs",
-		async ({ user, params, query, set }) => {
+		async ({ user, params, query }) => {
 			const result = await TaskService.getTaskLogs(
 				user.id,
 				params.id,
 				query.offset,
 			);
 			if (!result) {
-				set.status = 404;
-				return { error: "Not Found" };
+				return apiFailure(404, "TASK_NOT_FOUND", "任务不存在或无权访问");
 			}
-			return result;
+			return apiSuccess(result);
 		},
 		{
 			auth: true,

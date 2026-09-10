@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
 
 import { engineClient } from "../../lib/engine-client";
+import { ApiCode } from "../../contracts/api-response";
 import {
 	LlmService,
 	toLlmModelView,
@@ -56,7 +57,7 @@ describe("LlmService public contract", () => {
 
 		await expect(LlmService.requireDefaultId("user-1")).rejects.toEqual(
 			expect.objectContaining({
-				code: "LLM_CONFIG_NOT_FOUND",
+				code: ApiCode.LLM_CONFIG_NOT_FOUND,
 				status: 404,
 			}),
 		);

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { App } from 'antd';
 import { api } from '../../../api/api';
+import { getApiErrorMessage, request } from '../../../api/request';
 import { FactorTask } from '../types';
 import type { ResearchDirection } from '../components/CreateMiningTaskModal';
 
@@ -12,17 +13,13 @@ export const useFactorTasks = () => {
   const fetchTasks = async () => {
     setLoading(true);
     try {
-      const { data, error } = await api.tasks.get();
-      if (data) {
-        const factorTasks = data
-          .filter((t) => t.type === 'FACTOR_MINING')
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        setTasks(factorTasks);
-      } else if (error) {
-        message.error('获取任务列表失败');
-      }
-    } catch (e) {
-      console.error(e);
+      const data = await request(api.tasks.get());
+      const factorTasks = data
+        .filter((task) => task.type === 'FACTOR_MINING')
+        .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
+      setTasks(factorTasks);
+    } catch (error) {
+      message.error(getApiErrorMessage(error, '获取任务列表失败'));
     } finally {
       setLoading(false);
     }
@@ -36,37 +33,24 @@ export const useFactorTasks = () => {
 
   const handleCreateTask = async (researchDirection: ResearchDirection, days: number) => {
     try {
-      const { error } = await api.tasks.mining.post({ researchDirection, days });
-      if (!error) {
-        message.success('已触发挖掘任务');
-        fetchTasks();
-        return true;
-      } else {
-        const errorMsg =
-          error?.value && typeof error.value === 'object' && 'error' in error.value
-            ? String(error.value.error)
-            : '触发失败，请重试';
-        message.error(errorMsg);
-        return false;
-      }
-    } catch (e) {
-      console.error(e);
-      message.error('触发失败，请检查网络后重试');
+      await request(api.tasks.mining.post({ researchDirection, days }));
+      message.success('已触发挖掘任务');
+      await fetchTasks();
+      return true;
+    } catch (error) {
+      message.error(getApiErrorMessage(error, '触发失败，请检查网络后重试'));
+      await fetchTasks();
       return false;
     }
   };
 
   const handleCancelTask = async (id: string) => {
     try {
-      const { error } = await api.tasks({ id }).cancel.post();
-      if (!error) {
-        message.success('取消请求已提交，任务将在下一个检查点停止');
-        fetchTasks();
-      } else {
-        message.error('终止任务失败');
-      }
-    } catch (e) {
-      console.error(e);
+      await request(api.tasks({ id }).cancel.post());
+      message.success('取消请求已提交，任务将在下一个检查点停止');
+      await fetchTasks();
+    } catch (error) {
+      message.error(getApiErrorMessage(error, '终止任务失败'));
     }
   };
 

@@ -142,7 +142,8 @@ export abstract class TaskService {
 
 		if (configRows.length === 0) {
 			return {
-				success: false,
+				success: false as const,
+				code: "TASK_MODEL_REQUIRED" as const,
 				error: "未选择因子任务的大模型配置，请先在任务配置中选择模型",
 			};
 		}
@@ -156,7 +157,8 @@ export abstract class TaskService {
 			);
 		if (modelRows.length === 0) {
 			return {
-				success: false,
+				success: false as const,
+				code: "TASK_MODEL_NOT_FOUND" as const,
 				error: "所选大模型已不存在，请重新配置",
 			};
 		}
@@ -180,13 +182,14 @@ export abstract class TaskService {
 		});
 		if (!enqueued) {
 			return {
-				success: false,
+				success: false as const,
+				code: "QUEUE_UNAVAILABLE" as const,
 				error: "任务入队失败，请稍后重试",
 				taskId: task.id,
 			};
 		}
 
-		return { success: true, taskId: task.id };
+		return { success: true as const, taskId: task.id };
 	}
 
 	static async getDataCollectionConfig() {
@@ -252,6 +255,7 @@ export abstract class TaskService {
 		if (active) {
 			return {
 				success: false as const,
+				code: "ACTIVE_TASK" as const,
 				conflict: true as const,
 				error: "已有数据采集任务正在执行",
 				taskId: active.id,
@@ -275,6 +279,7 @@ export abstract class TaskService {
 				const current = await this.findActiveDataCollectionTask();
 				return {
 					success: false as const,
+					code: "ACTIVE_TASK" as const,
 					conflict: true as const,
 					error: "已有数据采集任务正在执行",
 					taskId: current?.id,
@@ -293,6 +298,7 @@ export abstract class TaskService {
 		if (!enqueued) {
 			return {
 				success: false as const,
+				code: "QUEUE_UNAVAILABLE" as const,
 				conflict: false as const,
 				error: "任务入队失败，请稍后重试",
 				taskId: task.id,
@@ -330,7 +336,7 @@ export abstract class TaskService {
 
 	static async cancelTask(userId: string, taskId: string) {
 		const task = await this.getTaskStatus(userId, taskId);
-		if (!task) return { success: false, error: "Task not found" };
+		if (!task) return { success: false as const, code: "TASK_NOT_FOUND" as const, error: "任务不存在或无权访问" };
 
 		if (task.status === "PENDING" || task.status === "RUNNING") {
 			const redis = getRedis();
@@ -342,13 +348,13 @@ export abstract class TaskService {
 					.update(alphaTasks)
 					.set({ status: nextStatus, updatedAt: new Date() })
 					.where(eq(alphaTasks.id, task.id));
-				return { success: true, status: nextStatus };
+				return { success: true as const, status: nextStatus };
 			} finally {
 				await redis.quit().catch(() => undefined);
 			}
 		}
 
-		return { success: true, status: task.status };
+		return { success: true as const, status: task.status };
 	}
 
 	static async getFailedStocks(userId: string, taskId: string) {
@@ -383,12 +389,12 @@ export abstract class TaskService {
 				task.status as (typeof RETRYABLE_DATA_COLLECTION_STATUSES)[number],
 			)
 		) {
-			return { success: false as const, error: "任务不可重试" };
+			return { success: false as const, code: "TASK_NOT_RETRYABLE" as const, error: "任务不可重试" };
 		}
 
 		const failed = await this.getFailedStocks(userId, taskId);
 		if (!failed || failed.stocks.length === 0) {
-			return { success: false as const, error: "没有可重试的失败股票" };
+			return { success: false as const, code: "NO_FAILED_STOCKS" as const, error: "没有可重试的失败股票" };
 		}
 
 		const config = await this.getDataCollectionConfig();

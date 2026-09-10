@@ -1,4 +1,5 @@
 import { getRedis } from "../task/service";
+import { ApiDomainError } from "../../lib/api-response";
 
 const STOCK_LIST_KEY = "stock_list_cache";
 const STOCK_NAMES_KEY = "stock_names";
@@ -33,16 +34,8 @@ export interface KlinePayload {
 	range: { start: string; end: string };
 }
 
-class MarketDataError extends Error {
-	readonly status: number;
-	readonly code: string;
-
-	constructor(code: string, message: string, status: number) {
-		super(message);
-		this.name = "MarketDataError";
-		this.code = code;
-		this.status = status;
-	}
+class MarketDataError extends ApiDomainError {
+	name = "MarketDataError";
 }
 
 function parseJson(value: string | null, message: string): unknown {

@@ -1,16 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { App } from 'antd';
 import { api } from '../../../api/api';
+import { getApiErrorMessage, request } from '../../../api/request';
 import { isActiveTaskStatus, Task } from '../types';
 
 const POLL_INTERVAL_MS = 5000;
-
-function getApiError(value: unknown, fallback: string): string {
-  if (value && typeof value === 'object' && 'error' in value) {
-    return String(value.error);
-  }
-  return fallback;
-}
 
 export const useTasks = () => {
   const { message } = App.useApp();
@@ -29,26 +23,22 @@ export const useTasks = () => {
     const generation = ++requestGeneration.current;
     if (showLoading) setLoading(true);
     try {
-      const { data, error: apiError } = await api.tasks['data-collection'].get({
+      const data = await request(api.tasks['data-collection'].get({
         query: { limit: pageSize, offset: (page - 1) * pageSize },
-      });
+      }));
       if (generation !== requestGeneration.current) return;
-      if (apiError || !data || !('items' in data)) {
-        setError('获取数据采集任务失败');
-        return;
-      }
       setTasks(data.items);
       setTotal(data.total);
       setActiveTask(
         data.activeTask ?? data.items.find((task) => isActiveTaskStatus(task.status)) ?? null,
       );
       setError(null);
-    } catch {
+    } catch (fetchError) {
       if (generation === requestGeneration.current) {
-        setError('网络异常，暂时无法获取任务状态');
+        setError(getApiErrorMessage(fetchError, '获取数据采集任务失败'));
       }
     } finally {
-      if (showLoading && generation === requestGeneration.current) setLoading(false);
+      if (generation === requestGeneration.current) setLoading(false);
     }
   }, [page, pageSize]);
 
@@ -73,40 +63,32 @@ export const useTasks = () => {
     if (running || activeTask) return;
     setRunning(true);
     try {
-      const { data, error: apiError } = await api.tasks['data-collection'].run.post();
-      if (apiError || !data || !data.success) {
-        message.warning(getApiError(apiError?.value ?? data, '已有任务正在执行或触发失败'));
-        await fetchTasks();
-        return;
-      }
+      await request(api.tasks['data-collection'].run.post());
       message.success('数据采集任务已创建');
       await fetchTasks();
-    } catch {
-      message.error('触发失败，请检查网络后重试');
+    } catch (runError) {
+      message.error(getApiErrorMessage(runError, '触发失败，请检查网络后重试'));
+      await fetchTasks();
     } finally {
       setRunning(false);
     }
-  }, [activeTask, fetchTasks, running]);
+  }, [activeTask, fetchTasks, message, running]);
 
   const handleCancelTask = useCallback(async (id: string) => {
     if (cancellingId) return;
     setCancellingId(id);
     try {
-      const { data, error: apiError } = await api.tasks({ id }).cancel.post();
-      if (apiError || !data || !data.success) {
-        message.error(getApiError(apiError?.value ?? data, '取消任务失败'));
-        return;
-      }
+      const data = await request(api.tasks({ id }).cancel.post());
       message.success(
         data.status === 'CANCELLED' ? '待执行任务已取消' : '取消请求已提交',
       );
       await fetchTasks();
-    } catch {
-      message.error('取消失败，请检查网络后重试');
+    } catch (cancelError) {
+      message.error(getApiErrorMessage(cancelError, '取消失败，请检查网络后重试'));
     } finally {
       setCancellingId(null);
     }
-  }, [cancellingId, fetchTasks]);
+  }, [cancellingId, fetchTasks, message]);
 
   const changePage = useCallback((nextPage: number, nextPageSize: number) => {
     setPage(nextPageSize === pageSize ? nextPage : 1);

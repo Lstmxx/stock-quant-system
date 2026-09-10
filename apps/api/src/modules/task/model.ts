@@ -41,3 +41,44 @@ export const DataCollectionListQuery = t.Object({
 	limit: t.Optional(t.Numeric({ minimum: 1, maximum: 100, default: 50 })),
 	offset: t.Optional(t.Numeric({ minimum: 0, default: 0 })),
 });
+
+export interface WorkerProgress {
+	worker_id: number;
+	total: number;
+	success: number;
+	failed: number;
+	current_code: string | null;
+	status: "running" | "partial" | "failed" | "completed" | "cancelled";
+}
+
+function isCount(value: unknown): value is number {
+	return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+export function parseWorkerProgress(raw: string): WorkerProgress | null {
+	let value: unknown;
+	try {
+		value = JSON.parse(raw);
+	} catch {
+		return null;
+	}
+	if (!value || typeof value !== "object") return null;
+	if (!("worker_id" in value) || !isCount(value.worker_id)) return null;
+	if (!("total" in value) || !isCount(value.total)) return null;
+	if (!("success" in value) || !isCount(value.success)) return null;
+	if (!("failed" in value) || !isCount(value.failed)) return null;
+	if (!("status" in value)) return null;
+	const currentCode = "current_code" in value ? value.current_code : null;
+	if (currentCode !== null && typeof currentCode !== "string") return null;
+	const workerStatus = value.status;
+	if (workerStatus !== "running" && workerStatus !== "partial" && workerStatus !== "failed"
+		&& workerStatus !== "completed" && workerStatus !== "cancelled") return null;
+	return {
+		worker_id: value.worker_id,
+		total: value.total,
+		success: value.success,
+		failed: value.failed,
+		current_code: currentCode,
+		status: workerStatus,
+	};
+}

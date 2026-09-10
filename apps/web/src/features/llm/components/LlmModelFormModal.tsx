@@ -3,7 +3,7 @@ import { Alert, App, Form, Input, Select, Switch } from 'antd';
 
 import { api } from '../../../api/api';
 import { BaseModal } from '../../../components/Base/BaseModal';
-import { getApiErrorMessage } from '../api-error';
+import { getApiErrorMessage, request } from '../../../api/request';
 import {
   LLM_PROVIDERS,
   PROVIDER_LABELS,
@@ -83,25 +83,18 @@ export function LlmModelFormModal({ open, onCancel, onSuccess, initialValues }: 
         modelName: values.modelName,
         isDefault: values.isDefault ?? false,
       };
-      const response = initialValues
-        ? await api.llm({ id: initialValues.id }).put({
+      await request(initialValues
+        ? api.llm({ id: initialValues.id }).put({
             ...basePayload,
             baseUrl: normalizedBaseUrl,
             apiKeyAction: values.apiKeyAction ?? 'keep',
             ...(values.apiKeyAction === 'replace' ? { apiKey: values.apiKey } : {}),
           })
-        : await api.llm.post({
+        : api.llm.post({
             ...basePayload,
             ...(normalizedBaseUrl ? { baseUrl: normalizedBaseUrl } : {}),
             ...(values.apiKey ? { apiKey: values.apiKey } : {}),
-          });
-
-      if (response.error) {
-        const detail = getApiErrorMessage(response.error.value, '保存大模型配置失败');
-        setSubmitError(detail);
-        message.error(detail);
-        return;
-      }
+          }));
 
       message.success(initialValues ? '更新成功' : '创建成功');
       await onSuccess();

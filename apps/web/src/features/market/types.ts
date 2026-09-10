@@ -1,34 +1,12 @@
-export interface StockSearchItem {
-  code: string;
-  name: string;
-}
+import type { api } from '../../api/api';
+import type { ApiData } from '../../api/request';
 
-export interface MarketKlineBar {
-  time: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-}
-
-export interface MarketVolumeBar {
-  time: string;
-  value: number;
-}
-
-export interface MarketLatestBar extends MarketKlineBar {
-  volume: number;
-  changePercent: number | null;
-}
-
-export interface MarketKlineData {
-  symbol: string;
-  name: string;
-  bars: MarketKlineBar[];
-  volume: MarketVolumeBar[];
-  latest: MarketLatestBar;
-  range: { start: string; end: string };
-}
+export type StockSearchItem = ApiData<typeof api['market-data']['search']['get']>[number];
+type MarketDataCall = ReturnType<typeof api['market-data']>;
+export type MarketKlineData = ApiData<MarketDataCall['kline']['get']>;
+export type MarketKlineBar = MarketKlineData['bars'][number];
+export type MarketVolumeBar = MarketKlineData['volume'][number];
+export type MarketLatestBar = MarketKlineData['latest'];
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
@@ -48,6 +26,10 @@ export function isStockSearchItem(value: unknown): value is StockSearchItem {
   if (!value || typeof value !== 'object') return false;
   const item = value as Record<string, unknown>;
   return typeof item.code === 'string' && typeof item.name === 'string';
+}
+
+export function isStockSearchData(value: unknown): value is StockSearchItem[] {
+  return Array.isArray(value) && value.every(isStockSearchItem);
 }
 
 export function isMarketKlineData(value: unknown): value is MarketKlineData {

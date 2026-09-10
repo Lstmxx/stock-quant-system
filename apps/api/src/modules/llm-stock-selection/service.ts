@@ -29,20 +29,12 @@ import {
 	type LlmStockSelectionTaskParams,
 } from "./model";
 
+import { ApiDomainError } from "../../lib/api-response";
+
 const ACTIVE_STATUSES = ["PENDING", "RUNNING", "CANCELLING"] as const;
 const RETRYABLE_STATUSES = ["COMPLETED", "PARTIAL_SUCCESS", "FAILED"] as const;
 
-export class LlmStockSelectionServiceError extends Error {
-	readonly code:
-		| "ACTIVE_TASK"
-		| "MODEL_NOT_FOUND"
-		| "FACTOR_SET_EMPTY"
-		| "TASK_NOT_FOUND"
-		| "TASK_NOT_RETRYABLE"
-		| "NO_FAILED_CANDIDATES"
-		| "INVALID_RETRY_SYMBOLS"
-		| "QUEUE_UNAVAILABLE";
-	readonly status: 400 | 404 | 409 | 503;
+export class LlmStockSelectionServiceError extends ApiDomainError {
 	readonly taskId?: string;
 
 	constructor(
@@ -59,10 +51,8 @@ export class LlmStockSelectionServiceError extends Error {
 		status: 400 | 404 | 409 | 503,
 		taskId?: string,
 	) {
-		super(message);
+		super(code, message, status);
 		this.name = "LlmStockSelectionServiceError";
-		this.code = code;
-		this.status = status;
 		this.taskId = taskId;
 	}
 }

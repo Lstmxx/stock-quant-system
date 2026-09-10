@@ -1,4 +1,5 @@
 import { Elysia } from "elysia";
+import { apiFailure, apiSuccess } from "../../lib/api-response";
 
 import { betterAuthPlugin } from "../../plugins/auth";
 import { CreateFactorSelectionBody, FactorSelectionListQuery } from "./model";
@@ -11,28 +12,27 @@ export const factorSelectionModule = new Elysia({
 	.use(betterAuthPlugin)
 	.post(
 		"/",
-		async ({ user, body, set }) => {
+		async ({ user, body }) => {
 			const result = await FactorSelectionService.create(user.id, body);
-			if (!result.success) set.status = 400;
-			return result;
+			if (!result.success) return apiFailure(400, result.code, result.error);
+			return apiSuccess({ taskId: result.taskId });
 		},
 		{ auth: true, body: CreateFactorSelectionBody },
 	)
 	.get(
 		"/",
-		({ user, query }) =>
-			FactorSelectionService.list(user.id, query.limit ?? 20, query.offset ?? 0),
+		async ({ user, query }) =>
+			apiSuccess(await FactorSelectionService.list(user.id, query.limit ?? 20, query.offset ?? 0)),
 		{ auth: true, query: FactorSelectionListQuery },
 	)
 	.get(
 		"/:id",
-		async ({ user, params, set }) => {
+		async ({ user, params }) => {
 			const result = await FactorSelectionService.detail(user.id, params.id);
 			if (!result) {
-				set.status = 404;
-				return { error: "选股任务不存在" };
+				return apiFailure(404, "FACTOR_SELECTION_NOT_FOUND", "选股任务不存在");
 			}
-			return result;
+			return apiSuccess(result);
 		},
 		{ auth: true },
 	);

@@ -1,18 +1,11 @@
 import { Elysia } from "elysia";
+import { apiSuccess } from "../../lib/api-response";
 import { betterAuthPlugin } from "../../plugins/auth";
 import {
 	MarketDataSearchQuery,
 	MarketDataSymbolParams,
 } from "./model";
-import { MarketDataError, MarketDataService } from "./service";
-
-function handleMarketDataError(error: unknown, set: { status?: number | string }) {
-	if (error instanceof MarketDataError) {
-		set.status = error.status;
-		return { success: false as const, code: error.code, message: error.message };
-	}
-	throw error;
-}
+import { MarketDataService } from "./service";
 
 export const marketDataModule = new Elysia({
 	prefix: "/market-data",
@@ -21,23 +14,11 @@ export const marketDataModule = new Elysia({
 	.use(betterAuthPlugin)
 	.get(
 		"/search",
-		async ({ query, set }) => {
-			try {
-				return await MarketDataService.search(query.q);
-			} catch (error) {
-				return handleMarketDataError(error, set);
-			}
-		},
+		async ({ query }) => apiSuccess(await MarketDataService.search(query.q)),
 		{ auth: true, query: MarketDataSearchQuery },
 	)
 	.get(
 		"/:symbol/kline",
-		async ({ params, set }) => {
-			try {
-				return await MarketDataService.getKline(params.symbol);
-			} catch (error) {
-				return handleMarketDataError(error, set);
-			}
-		},
+		async ({ params }) => apiSuccess(await MarketDataService.getKline(params.symbol)),
 		{ auth: true, params: MarketDataSymbolParams },
 	);

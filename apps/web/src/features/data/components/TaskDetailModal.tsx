@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Alert, App, Button, Typography, Tag, Row, Col, Card, Progress, Table } from 'antd';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { BaseModal } from '../../../components/Base/BaseModal';
 import { Task, FailedStocksResponse, isActiveTaskStatus, isTerminalTaskStatus } from '../types';
 import { useTaskStream } from '../hooks/useTaskStream';
-import { API_BASE_URL } from '../../../constant/config';
+import { api } from '../../../api/api';
+import { getApiErrorMessage, request } from '../../../api/request';
 
 const { Text } = Typography;
 
@@ -14,9 +15,10 @@ interface Props {
   open: boolean;
   onCancel: () => void;
   onRetryCreated?: (newTaskId: string) => void;
+  onRetryFailed?: () => void;
 }
 
-export const TaskDetailModal: React.FC<Props> = ({ task, activeTaskId, open, onCancel, onRetryCreated }) => {
+export const TaskDetailModal: React.FC<Props> = ({ task, activeTaskId, open, onCancel, onRetryCreated, onRetryFailed }) => {
   const { message } = App.useApp();
   // Only poll stream if the modal is open and the selected task is active
   const isActive = Boolean(task && isActiveTaskStatus(task.status) && task.id === activeTaskId);
@@ -29,55 +31,55 @@ export const TaskDetailModal: React.FC<Props> = ({ task, activeTaskId, open, onC
   const [failedLoading, setFailedLoading] = useState(false);
   const [failedError, setFailedError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
+  const failedGeneration = useRef(0);
 
   const isFinished = Boolean(task && isTerminalTaskStatus(task.status));
 
-  const fetchFailedStocks = useCallback(async () => {
+  const fetchFailedStocks = useCallback(async (signal?: AbortSignal) => {
     if (!task || !isFinished) return;
+    const generation = ++failedGeneration.current;
     setFailedLoading(true);
     setFailedError(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/tasks/${task.id}/failed-stocks`, {
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: FailedStocksResponse = await res.json();
+      const data = await request(api.tasks({ id: task.id })['failed-stocks'].get({
+        fetch: { signal },
+      }));
+      if (signal?.aborted || generation !== failedGeneration.current) return;
       setFailedStocks(data);
-    } catch (e) {
+    } catch (error) {
+      if (signal?.aborted || generation !== failedGeneration.current) return;
       setFailedStocks(null);
-      setFailedError('失败股票明细加载失败，请稍后重试');
+      setFailedError(getApiErrorMessage(error, '失败股票明细加载失败，请稍后重试'));
     } finally {
-      setFailedLoading(false);
+      if (!signal?.aborted && generation === failedGeneration.current) setFailedLoading(false);
     }
   }, [task, isFinished]);
 
   useEffect(() => {
+    const controller = new AbortController();
     if (open && isFinished) {
-      fetchFailedStocks();
+      void fetchFailedStocks(controller.signal);
     } else {
       setFailedStocks(null);
       setFailedError(null);
     }
+    return () => {
+      controller.abort();
+      failedGeneration.current += 1;
+    };
   }, [open, isFinished, fetchFailedStocks]);
 
   const handleRetryFailed = async () => {
-    if (!task) return;
+    if (!task || retrying) return;
     setRetrying(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/tasks/${task.id}/retry-failed`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        message.success(`已创建重试任务，共 ${data.stockCount} 只股票`);
-        onRetryCreated?.(data.taskId);
-        onCancel();
-      } else {
-        message.error(data.error || '创建重试任务失败');
-      }
-    } catch (e) {
-      message.error('网络错误');
+      const data = await request(api.tasks({ id: task.id })['retry-failed'].post());
+      message.success(`已创建重试任务，共 ${data.stockCount} 只股票`);
+      onRetryCreated?.(data.taskId);
+      onCancel();
+    } catch (error) {
+      message.error(getApiErrorMessage(error, '创建重试任务失败'));
+      onRetryFailed?.();
     } finally {
       setRetrying(false);
     }
@@ -254,7 +256,7 @@ export const TaskDetailModal: React.FC<Props> = ({ task, activeTaskId, open, onC
                     title={failedError}
                     type="error"
                     showIcon
-                    action={<Button size="small" onClick={fetchFailedStocks}>重新加载</Button>}
+                    action={<Button size="small" onClick={() => void fetchFailedStocks()}>重新加载</Button>}
                   />
                 ) : !failedLoading && failedStocks ? (
                   recordedFailedCount > 0 ? (

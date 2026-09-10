@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "typecheck:contracts": "tsc --noEmit -p tsconfig.contracts.json",
     "preview": "vite preview"
   },
   "dependencies": {

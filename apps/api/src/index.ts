@@ -1,102 +1,15 @@
 import "./lib/env";
 
-import { Elysia } from "elysia";
+import { createApp } from "./app";
 import { engineClient } from "./lib/engine-client";
-import { cors } from "@elysiajs/cors";
-import { betterAuthPlugin } from "./plugins/auth";
-import { configModule } from "./modules/config";
-import { watchlistModule } from "./modules/watchlist";
-import { taskModule } from "./modules/task";
-import { factorModule } from "./modules/factor";
-import { factorSelectionModule } from "./modules/factor-selection";
-import { strategyModule } from "./modules/strategy";
-import { llmModule } from "./modules/llm";
-import { llmStockSelectionModule } from "./modules/llm-stock-selection";
-import { marketDataModule } from "./modules/market-data";
 import { TaskService } from "./modules/task/service";
 import { runBackgroundTask } from "./lib/background";
-import { checkDatabase, checkRedis, toPublicHealth } from "./lib/health";
 import { logger } from "./lib/logger";
 import { closeDatabase } from "@stock-quant/database";
 
-const app = new Elysia()
-	.onRequest(({ request, set }) => {
-		const requestId = request.headers.get("x-request-id") ?? crypto.randomUUID();
-		set.headers["x-request-id"] = requestId;
-	})
-	.onAfterResponse(({ request, set }) => {
-		logger.info(
-			{
-				requestId: set.headers["x-request-id"] ?? request.headers.get("x-request-id"),
-				method: request.method,
-				path: new URL(request.url).pathname,
-				status: set.status,
-			},
-			"request completed",
-		);
-	})
-	.onError(({ code, error, request, set }) => {
-		logger.error(
-			{
-				requestId: set.headers["x-request-id"] ?? request.headers.get("x-request-id"),
-				method: request.method,
-				path: new URL(request.url).pathname,
-				code,
-				error,
-			},
-			"request failed",
-		);
+const app = createApp().listen(process.env.PORT_API || 3000);
 
-		if (code === "VALIDATION" || code === "PARSE") {
-			set.status = 400;
-			return { success: false, code, message: "请求参数无效" };
-		}
-
-		if (code === "NOT_FOUND") {
-			set.status = 404;
-			return { success: false, code, message: "资源不存在" };
-		}
-
-		set.status = 500;
-		return { success: false, code: "INTERNAL_ERROR", message: "服务器内部错误" };
-	})
-	.use(
-		cors({
-			origin: process.env.CORS_ORIGIN || "http://localhost:5173",
-			credentials: true,
-			allowedHeaders: ["Content-Type", "Authorization"],
-		}),
-	)
-	.get("/health/live", () => ({ status: "ok" }))
-	.get("/health", async ({ set }) => {
-		const [database, redis] = await Promise.all([checkDatabase(), checkRedis()]);
-		const healthy = database.status === "ok" && redis.status === "ok";
-		if (!healthy) set.status = 503;
-		return {
-			status: healthy ? "ok" : "error",
-			dependencies: {
-				database: toPublicHealth(database),
-				redis: toPublicHealth(redis),
-			},
-		};
-	})
-	.use(betterAuthPlugin)
-	.group("/api", (app) =>
-		app
-			.use(configModule)
-			.use(watchlistModule)
-			.use(taskModule)
-			.use(factorModule)
-			.use(factorSelectionModule)
-			.use(strategyModule)
-			.use(llmModule)
-			.use(llmStockSelectionModule)
-			.use(marketDataModule)
-	)
-	.get("/", () => "Stock Quant System API Gateway is running")
-	.listen(process.env.PORT_API || 3000);
-
-export type App = typeof app;
+export type { App } from "./app";
 
 logger.info(
 	{ hostname: app.server?.hostname, port: app.server?.port },

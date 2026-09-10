@@ -15,7 +15,7 @@ import {
 import type { TableColumnsType } from 'antd';
 
 import { api } from '../../../api/api';
-import { getApiErrorMessage } from '../../llm/api-error';
+import { getApiErrorMessage, request } from '../../../api/request';
 import { normalizeLlmSelectionTask } from '../types';
 import type {
   LlmSelectionResult,
@@ -47,10 +47,9 @@ export function LlmSelectionResultModal(props: Props) {
     setLoading(true);
     setError(null);
     try {
-      const { data, error: requestError } = await api['llm-stock-selections']({ id: props.task.id }).results.get({
+      const data = await request(api['llm-stock-selections']({ id: props.task.id }).results.get({
         query: { view, limit: 200, offset: 0 },
-      });
-      if (requestError || !data) throw requestError?.value;
+      }));
       const resultResponse: LlmSelectionResultsResponse = {
         task: normalizeLlmSelectionTask(data.task),
         items: data.items,
@@ -186,12 +185,10 @@ function StockEvidenceDrawer(props: { taskId: string | null; symbol: string | nu
       return;
     }
     setLoading(true);
-    api['llm-stock-selections']({ id: props.taskId }).results({ symbol: props.symbol }).get()
-      .then(({ data, error: requestError }) => {
+    request(api['llm-stock-selections']({ id: props.taskId }).results({ symbol: props.symbol }).get())
+      .then((data) => {
         if (!active) return;
-        if (requestError || !data) throw requestError?.value;
-        const stockDetail: LlmSelectionStockDetail = data;
-        setDetail(stockDetail);
+        setDetail(data);
       })
       .catch((requestError) => {
         if (active) setError(getApiErrorMessage(requestError, '加载股票证据失败'));

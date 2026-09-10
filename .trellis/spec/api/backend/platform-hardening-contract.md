@@ -21,6 +21,8 @@ Use this contract when changing API-to-Engine HTTP calls, authentication runtime
 - The legacy Dashboard and legacy Analysis API remain disabled until analysis is rebuilt on the durable Redis worker lifecycle.
 - Missing market data is a failed analysis precondition; placeholder data must never produce `COMPLETED` research output.
 - Simulation metrics that are not actually calculated are `null`, never fixed or inferred constants.
+- Business JSON follows [API Response Contract](./api-response-contract.md). Better Auth is restricted to `/api/auth` and `/api/auth/*` without Elysia body parsing; its native responses, health, root text, and streams are not enveloped. Broad `/*` auth mounting must not intercept business 404s.
+- Keep private Engine string errors and service authentication unchanged. Gateway maps Engine service-token failures to upstream 502, not browser-session 401; an internal simulation HTTP 200 with `status: "error"` is a public failure, never a successful simulation.
 
 ## 4. Validation & Error Matrix
 
@@ -28,6 +30,8 @@ Use this contract when changing API-to-Engine HTTP calls, authentication runtime
 |---|---|
 | `/internal/*` without or with a wrong token | HTTP 401 |
 | Engine has no internal token configured | HTTP 503 |
+| Gateway receives an Engine service-token 401/403 | Public 502 / `ApiCode.UPSTREAM_AUTH_ERROR` |
+| Engine simulation HTTP 200 contains `status: "error"` | Public 502 / `ApiCode.UPSTREAM_ERROR` |
 | Production Better Auth secret missing/short | API startup error naming only the key |
 | Legacy analysis left active across API restart | task becomes `FAILED` with actionable retry text |
 | Price summary unavailable or data preparation times out | analysis fails; no LLM success report |

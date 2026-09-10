@@ -1,4 +1,5 @@
 import { Elysia } from "elysia";
+import { apiSuccess } from "../../lib/api-response";
 
 import { strategyModel } from "./model";
 import { StrategyService } from "./service";
@@ -11,7 +12,7 @@ export const strategyModule = new Elysia({ prefix: "/strategy", name: "strategy"
 		"/recommend",
 		async ({ body, user }) => {
 			if (!user) throw new Error("Unauthorized");
-			return StrategyService.recommendFactors(user.id, body.style);
+			return apiSuccess(await StrategyService.recommendFactors(user.id, body.style));
 		},
 		{
 			auth: true,
@@ -22,7 +23,7 @@ export const strategyModule = new Elysia({ prefix: "/strategy", name: "strategy"
 		"/simulate",
 		async ({ body, user }) => {
 			if (!user) throw new Error("Unauthorized");
-			return StrategyService.simulateFactor(user.id, body.factorId, body.constraints);
+			return apiSuccess(await StrategyService.simulateFactor(user.id, body.factorId, body.constraints));
 		},
 		{
 			auth: true,
@@ -33,7 +34,7 @@ export const strategyModule = new Elysia({ prefix: "/strategy", name: "strategy"
 		"/generate-report",
 		async ({ body, user }) => {
 			if (!user) throw new Error("Unauthorized");
-			return StrategyService.generateReportStructured(user.id, body);
+			return apiSuccess(await StrategyService.generateReportStructured(user.id, body));
 		},
 		{
 			auth: true,

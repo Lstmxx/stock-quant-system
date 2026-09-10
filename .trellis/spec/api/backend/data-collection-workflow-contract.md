@@ -10,6 +10,8 @@ The collection dataset is global. It is not user-isolated like factor mining: au
 
 ### HTTP
 
+All `/api/*` business results below are payloads inside `ApiSuccess.data`; failures follow [API Response Contract](./api-response-contract.md) with numeric codes and null data. `/internal/*` remains the unchanged private Engine protocol.
+
 - `GET /api/tasks/data-collection?limit&offset`
   - `limit`: integer, `1..100`, default `50`
   - `offset`: integer, `>= 0`, default `0`
@@ -18,17 +20,18 @@ The collection dataset is global. It is not user-isolated like factor mining: au
   - response: `{ lookbackDays, workerCount, cronExpression }`
 - `PUT /api/tasks/data-collection/config`
   - body: `{ lookbackDays, workerCount, cronExpression }`
+  - acknowledgement: `data: null`
 - `POST /api/tasks/data-collection/run`
-  - success: `{ success: true, taskId }`
-  - active-slot conflict: HTTP 409 with `{ success: false, conflict: true, taskId?, status? }`
+  - success payload: `{ taskId }`
+  - active-slot conflict: HTTP 409 / `ApiCode.ACTIVE_TASK`, `data: null`; refresh the list to recover `activeTask`
 - `POST /api/tasks/:id/cancel`
-  - response: `{ success: true, status }`
+  - response payload: `{ status }`
 - `GET /api/tasks/:id/progress`
   - response: `{ taskId, status, workers[] }`
 - `GET /api/tasks/:id/failed-stocks`
   - response: `{ taskId, stocks, failures: [{ code, reason }] }`
 - `POST /api/tasks/:id/retry-failed`
-  - success: `{ success: true, taskId, stockCount }`
+  - success payload: `{ taskId, stockCount }`
 - `POST /internal/fetch-data`
   - body: `{ symbol: string, days: number, force_update?: boolean }`
   - `force_update` defaults to `false`; real source-integration tests set it to `true`
@@ -78,6 +81,8 @@ The collection dataset is global. It is not user-isolated like factor mining: au
 9. A real Baostock integration run must bypass both aggregate and per-symbol caches through `force_update = true`. Deleting only `market_data:*` is insufficient because `kline:*` entries can still make the test pass without fetching Baostock.
 10. Integration tests remove the target summary before triggering, subscribe before the request, and close pub/sub plus Redis clients in `finally`.
 11. The market chart page is a read-only consumer of the per-symbol cache. Missing or invalid chart data is reported as an empty/error state and must not start a collection task.
+12. After start/retry conflicts or enqueue failures, Web refreshes task history instead of reading task IDs from error data. Preserve retry task ID/count delivery on success and keep the detail modal open on failure.
+13. `parseWorkerProgress` validates Redis records at the HTTP boundary: nonnegative integer worker/count fields, a known worker status, and nullable current symbol. Invalid records are ignored; Engine keys/values and worker success counters are unchanged.
 
 ## 4. Validation & Error Matrix
 
@@ -86,10 +91,10 @@ The collection dataset is global. It is not user-isolated like factor mining: au
 | `lookbackDays` is non-integer or outside `1..5000` | API validation error; do not persist |
 | `workerCount` is non-integer or outside `1..16` | API validation error; do not enqueue |
 | cron does not contain five valid APScheduler fields | Engine returns HTTP 400; existing job remains installed |
-| active collection task exists | HTTP 409; return active task; do not cancel or insert another task |
+| active collection task exists | HTTP 409 / `ApiCode.ACTIVE_TASK`, null data; list refresh recovers active task; do not cancel or insert another task |
 | concurrent inserts race | partial unique index rejects one insert; map PostgreSQL `23505` to conflict |
 | Redis enqueue fails | task becomes `FAILED`; return a retryable service error |
-| progress hash contains malformed JSON | ignore that worker snapshot; do not fail the endpoint |
+| progress hash contains malformed JSON or invalid worker fields | ignore that worker snapshot; do not fail the endpoint |
 | retry source is not a terminal data-collection task | reject retry |
 | all retry targets fail | task is `FAILED`; preserve the previous aggregate cache |
 | some symbols fail | publish reasons and finish as `PARTIAL_SUCCESS` after rebuilding usable aggregate data |

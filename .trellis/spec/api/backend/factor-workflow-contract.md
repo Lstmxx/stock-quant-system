@@ -6,11 +6,13 @@ Use this contract when changing factor mining, factor persistence, Redis task di
 
 ## 2. Signatures
 
-- `POST /tasks/mining`: `{ researchDirection, days } -> { success, taskId? , error? }`
-- `GET /factors?limit&offset&keyword`: numeric `limit`/`offset` after Elysia coercion
-- `GET|PUT /factors/selection`: shared AUTO/MANUAL factor set for selection and analysis
-- `POST /factor-selections`: `{ universeType, topN, lookbackDays? } -> { success, taskId?, error? }`
-- `GET /factor-selections`: immutable task history; `GET /factor-selections/:id`: user-scoped Top N detail
+Business HTTP uses [API Response Contract](./api-response-contract.md). Payloads below are inside success `data`; failures have numeric codes and null data.
+
+- `POST /api/tasks/mining`: `{ researchDirection, days } -> { taskId }`
+- `GET /api/factors?limit&offset&keyword`: `{ data, total }`; numeric `limit`/`offset` after Elysia coercion
+- `GET|PUT /api/factors/selection`: shared AUTO/MANUAL factor set; PUT returns `{ mode }`
+- `POST /api/factor-selections`: `{ universeType, topN, lookbackDays? } -> { taskId }`
+- `GET /api/factor-selections`: `{ data, total }` history; `GET /api/factor-selections/:id`: user-scoped Top N detail
 - Queue producer/consumer: `RPUSH stock:tasks:queue <payload>` with `BLPOP stock:tasks:queue`
 - Task lifecycle: `PENDING -> RUNNING -> COMPLETED|FAILED`; cancellation uses `RUNNING -> CANCELLING -> CANCELLED` and may use `PENDING -> CANCELLED`.
 
@@ -28,6 +30,7 @@ Database contracts:
 - AUTO selects at most five valid factors by absolute IC, absolute ICIR, then stable ID. MANUAL uses only valid factors owned by the current user.
 - The analysis prompt consumes a persisted `FactorAnalysisContext`: selection task ID, data date, universe, symbol, composite score/rank, and actual per-factor value/z-score/percentile/direction/contribution.
 - Queue insertion failure compensates the persisted task to `FAILED`; it must not leave a permanent `PENDING` row.
+- Web refreshes history after failed create/enqueue; failed task IDs are recovered from history, not from the error envelope.
 - Mining infrastructure, LLM contract, evolution, or persistence exceptions propagate to the worker and become `FAILED`. Candidate expression/evaluation rejection may remain a recorded candidate failure.
 - Cancellation is cooperative. UI text says a cancellation request was submitted until the worker reaches a checkpoint and writes `CANCELLED`.
 - Log polling is serial (`await request`, then `setTimeout`), generation-scoped to the active task, stops after a terminal state, and exposes request errors.
@@ -36,9 +39,9 @@ Database contracts:
 
 | Condition | Required result |
 | --- | --- |
-| Unsupported research direction or `days` outside 10..1000 | HTTP 422 |
-| Factor list `limit` outside 1..100, fractional pagination, or negative `offset` | HTTP 422 |
-| Selection `topN` outside 1..100 or lookback outside 30..1000 | HTTP 422 |
+| Unsupported research direction or `days` outside 10..1000 | Assembled API HTTP 400 / `ApiCode.VALIDATION_ERROR` |
+| Factor list `limit` outside 1..100, fractional pagination, or negative `offset` | Assembled API HTTP 400 / `ApiCode.VALIDATION_ERROR` |
+| Selection `topN` outside 1..100 or lookback outside 30..1000 | Assembled API HTTP 400 / `ApiCode.VALIDATION_ERROR` |
 | WATCHLIST with no current-user symbols | 400 with actionable error; no task created |
 | Empty effective factor set | 400 with actionable error; no task created |
 | Foreign, invalid, missing, or duplicated manual factor ID | 400; previous selection remains unchanged |

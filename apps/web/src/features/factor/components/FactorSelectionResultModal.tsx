@@ -3,6 +3,7 @@ import { Alert, Descriptions, Modal, Table, Tag, Typography } from 'antd';
 import type { TableColumnsType } from 'antd';
 
 import { api } from '../../../api/api';
+import { getApiErrorMessage, request } from '../../../api/request';
 import type { FactorSelectionDetail, FactorSelectionResult } from '../types';
 
 const { Text } = Typography;
@@ -26,10 +27,11 @@ export function FactorSelectionResultModal({ taskId, onClose }: Props) {
     }
     setLoading(true);
     setError(null);
-    api['factor-selections']({ id: taskId }).get().then(({ data, error: requestError }) => {
+    request(api['factor-selections']({ id: taskId }).get()).then((data) => {
       if (!active) return;
-      if (data && 'results' in data) setDetail(data);
-      else setError(requestError ? '加载选股结果失败' : '任务结果不存在');
+      setDetail(data);
+    }).catch((error) => {
+      if (active) setError(getApiErrorMessage(error, '加载选股结果失败'));
     }).finally(() => {
       if (active) setLoading(false);
     });

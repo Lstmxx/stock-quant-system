@@ -3,7 +3,7 @@ import { Alert, App, Modal, Form, Select, Typography } from 'antd';
 import { AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../../../api/api';
-import { getApiErrorMessage } from '../../llm/api-error';
+import { getApiErrorMessage, request } from '../../../api/request';
 import { LlmModel } from '../../llm/types';
 
 const { Text } = Typography;
@@ -26,27 +26,15 @@ export const FactorTaskConfigModal: React.FC<Props> = ({ open, onCancel, onSaved
     setLoading(true);
     setLoadError(null);
     try {
-      const [modelsRes, configRes] = await Promise.all([
-        api.llm.get(),
-        api.config.get(),
+      const [models, configs] = await Promise.all([
+        request(api.llm.get()),
+        request(api.config.get()),
       ]);
-
-      if (modelsRes.error || !modelsRes.data) {
-        throw new Error(getApiErrorMessage(modelsRes.error?.value, '获取大模型列表失败'));
-      }
-      setModels(modelsRes.data as LlmModel[]);
-
-      if (configRes.error) {
-        throw new Error(getApiErrorMessage(configRes.error.value, '获取因子任务配置失败'));
-      }
-      if (configRes.data) {
-        const factorConfig = configRes.data.find(
-          (c: { key: string; value: string }) => c.key === 'FACTOR_TASK_LLM_MODEL'
-        );
-        form.setFieldsValue({
-          llmModelId: factorConfig?.value ?? undefined,
-        });
-      }
+      setModels(models);
+      const factorConfig = configs.find((config) => config.key === 'FACTOR_TASK_LLM_MODEL');
+      form.setFieldsValue({
+        llmModelId: factorConfig?.value ?? undefined,
+      });
     } catch (error) {
       const detail = getApiErrorMessage(error, '加载任务配置失败，请检查网络连接');
       setLoadError(detail);
@@ -69,18 +57,13 @@ export const FactorTaskConfigModal: React.FC<Props> = ({ open, onCancel, onSaved
     try {
       const values = await form.validateFields();
       setSaving(true);
-      const { error } = await api.config.post({
+      await request(api.config.post({
         key: 'FACTOR_TASK_LLM_MODEL',
         value: values.llmModelId,
-      });
-
-      if (!error) {
-        message.success('任务配置已保存');
-        onSaved?.();
-        onCancel();
-      } else {
-        message.error(getApiErrorMessage(error?.value, '保存失败，请重试'));
-      }
+      }));
+      message.success('任务配置已保存');
+      onSaved?.();
+      onCancel();
     } catch (error) {
       if (!(error && typeof error === 'object' && 'errorFields' in error)) {
         message.error(getApiErrorMessage(error, '保存失败，请检查网络连接'));

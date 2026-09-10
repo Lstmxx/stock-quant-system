@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Button, Card, Space, Tag } from 'antd';
+import { Alert, App, Button, Card, Space, Tag } from 'antd';
 import { BrainCircuit, Plus } from 'lucide-react';
 
 import { api } from '../../api/api';
+import { getApiErrorMessage, request } from '../../api/request';
 import type { LlmModel } from '../llm/types';
 import { CreateLlmSelectionModal } from './components/create-llm-selection-modal';
 import { LlmSelectionResultModal } from './components/llm-selection-result-modal';
@@ -25,24 +26,29 @@ const emptyOptions: RunOptions = {
 };
 
 export default function LlmStockSelectionPage() {
+  const { message } = App.useApp();
   const selections = useLlmStockSelections();
   const [createOpen, setCreateOpen] = useState(false);
   const [activeResultTask, setActiveResultTask] = useState<LlmSelectionTask | null>(null);
   const [options, setOptions] = useState<RunOptions>(emptyOptions);
 
   const fetchOptions = useCallback(async () => {
-    const [modelsResponse, factorsResponse, watchlistsResponse] = await Promise.all([
-      api.llm.get(),
-      api.factors.selection.get(),
-      api.watchlists.get(),
-    ]);
-    setOptions({
-      models: (modelsResponse.data ?? []) as LlmModel[],
-      factorMode: factorsResponse.data?.mode ?? null,
-      factorCount: factorsResponse.data?.factorIds.length ?? 0,
-      watchlistCount: watchlistsResponse.data?.length ?? 0,
-    });
-  }, []);
+    try {
+      const [models, factors, watchlists] = await Promise.all([
+        request(api.llm.get()),
+        request(api.factors.selection.get()),
+        request(api.watchlists.get()),
+      ]);
+      setOptions({
+        models,
+        factorMode: factors.mode,
+        factorCount: factors.factorIds.length,
+        watchlistCount: watchlists.length,
+      });
+    } catch (error) {
+      message.error(getApiErrorMessage(error, '加载选股配置失败'));
+    }
+  }, [message]);
 
   useEffect(() => {
     void fetchOptions();

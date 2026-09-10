@@ -1,10 +1,33 @@
 import { describe, expect, it } from "bun:test";
 import { Elysia } from "elysia";
 
-import { CreateMiningTaskBody } from "./model";
+import { CreateMiningTaskBody, parseWorkerProgress } from "./model";
 
 const app = new Elysia().post("/mining", ({ body }) => body, {
 	body: CreateMiningTaskBody,
+});
+
+describe("worker progress boundary", () => {
+	const worker = { worker_id: 1, total: 2, success: 0, failed: 2, current_code: null, status: "failed" };
+
+	it("retains Engine field names and partial/failure states", () => {
+		expect(parseWorkerProgress(JSON.stringify(worker))).toEqual(worker);
+		expect(parseWorkerProgress(JSON.stringify({ ...worker, status: "partial", current_code: "sh.600519" })))
+			.toMatchObject({ status: "partial", current_code: "sh.600519" });
+	});
+
+	it("normalizes an omitted current symbol without accepting arbitrary worker objects", () => {
+		const { current_code, ...withoutSymbol } = worker;
+		expect(parseWorkerProgress(JSON.stringify(withoutSymbol))).toEqual(worker);
+		for (const invalid of [
+			null, [], {}, { ...worker, worker_id: -1 }, { ...worker, total: 1.5 },
+			{ ...worker, success: "1" }, { ...worker, failed: -1 },
+			{ ...worker, status: "unknown" }, { ...worker, current_code: 600519 },
+		]) {
+			expect(parseWorkerProgress(JSON.stringify(invalid))).toBeNull();
+		}
+		expect(parseWorkerProgress("invalid JSON")).toBeNull();
+	});
 });
 async function submit(body: unknown): Promise<Response> {
 	return app.handle(

@@ -83,6 +83,7 @@ const DataManagement: React.FC = () => {
         open={isDetailModalVisible}
         onCancel={() => setIsDetailModalVisible(false)}
         onRetryCreated={() => void fetchTasks()}
+        onRetryFailed={() => void fetchTasks()}
       />
 
       <DataCollectionConfigModal

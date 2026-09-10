@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { api } from '../../../api/api';
+import { getApiErrorMessage, request } from '../../../api/request';
 
 const POLL_INTERVAL_MS = 2000;
 const TERMINAL_STATUSES = new Set(['COMPLETED', 'FAILED', 'CANCELLED']);
@@ -34,26 +35,17 @@ export function useTaskLogsPolling(
     let disposed = false;
     const poll = async () => {
       try {
-        const response = await api.tasks({ id: taskId }).logs.get({
+        const data = await request(api.tasks({ id: taskId }).logs.get({
           query: { offset: offsetRef.current },
-        });
+        }));
         if (disposed || generationRef.current !== generation) return;
-        if (
-          response.error
-          || !response.data
-          || typeof response.data === 'string'
-          || !('logs' in response.data)
-        ) {
-          setError('任务日志加载失败，请稍后重试');
-        } else {
-          setError(null);
-          const newLogs = response.data.logs.map(formatLogLine);
-          if (newLogs.length > 0) setLogs((previous) => [...previous, ...newLogs]);
-          offsetRef.current = response.data.nextOffset;
-        }
-      } catch {
+        setError(null);
+        const newLogs = data.logs.map(formatLogLine);
+        if (newLogs.length > 0) setLogs((previous) => [...previous, ...newLogs]);
+        offsetRef.current = data.nextOffset;
+      } catch (error) {
         if (!disposed && generationRef.current === generation) {
-          setError('任务日志加载失败，请检查网络连接');
+          setError(getApiErrorMessage(error, '任务日志加载失败，请检查网络连接'));
         }
       } finally {
         if (
@@ -79,8 +71,9 @@ export function useTaskLogsPolling(
 
 function formatLogLine(log: string): string {
   try {
-    const parsed = JSON.parse(log) as { message?: unknown };
-    return typeof parsed.message === 'string' ? parsed.message : log;
+    const parsed: unknown = JSON.parse(log);
+    return parsed && typeof parsed === 'object' && 'message' in parsed && typeof parsed.message === 'string'
+      ? parsed.message : log;
   } catch {
     return log;
   }

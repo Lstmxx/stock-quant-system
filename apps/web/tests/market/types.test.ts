@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ApiCode } from '@stock-quant/api/contracts';
 import { isMarketKlineData } from '../../src/features/market/types';
 
 const validChartData = {
@@ -22,6 +23,6 @@ describe('market chart payload guard', () => {
       ...validChartData,
       bars: [{ ...validChartData.bars[0], close: Number.NaN }],
     })).toBe(false);
-    expect(isMarketKlineData({ success: false, code: 'KLINE_NOT_FOUND', message: 'missing' })).toBe(false);
+    expect(isMarketKlineData({ success: false, code: ApiCode.KLINE_NOT_FOUND, message: 'missing', data: null })).toBe(false);
   });
 });
