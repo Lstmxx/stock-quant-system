@@ -248,3 +248,45 @@
 
 - 缓存修复须先返回 Phase 3.4 提交任务代码，再执行归档。
 - 规范初始化和自动化测试闭环尚未达到完成条件，继续保留，不作为本次完成任务归档。
+
+
+## Session 8: 完成股票缓存覆盖修复任务收尾
+
+**Date**: 2026-09-10
+**Task**: 完成股票缓存覆盖修复任务收尾
+**Package**: engine
+**Branch**: `refactor`
+
+### Summary
+
+完成 08-27-fix-stock-cache-overwrite：稳定单股 Redis key、兼容旧 key、去重股票及行情记录；补齐跨日期范围覆盖写入与最后有效记录回归测试。质量验证通过，经用户确认提交后归档本任务，其余任务和并行改动不纳入，不推送。
+
+### Main Changes
+
+- 工作提交 `430ea85` 包含缓存修复、专项测试、数据采集契约及任务验收记录。
+- 新增直接覆盖写入测试，验证不同日期范围使用同一个单股 key、返回最新内容并保留七天 TTL；补充日期过滤及最后有效重复记录测试。
+- 归档提交 `9e9ed93` 仅移动本任务到 `.trellis/tasks/archive/2026-09/08-27-fix-stock-cache-overwrite/` 并标记完成。
+- 归档会清除本会话的任务指针，因此日志通过 `--no-commit` 生成并显式指定 package/branch，再单独暂存 journal/index，避免 session-fallback 把另一会话任务纳入日志提交。
+- 保留规范初始化、自动化测试闭环、07-13 任务的既有删除、技能、示例和并行出现的 `.gitignore` 改动。
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `430ea85` | (see git log) |
+
+### Testing
+
+- Engine 专项回归测试为 **8 passed**，全量测试为 **64 passed, 1 skipped**。
+- 全量测试在沙箱外连接已启动的本地 Redis；`RUN_REAL_DATA_INTEGRATION=0`，未执行真实 Baostock 数据集成测试。
+- 任务相关文件的 Ruff、Python compileall 和 `git diff --check` 均通过；归档提交路径核对通过。
+- 详细命令与验收映射见 `.trellis/tasks/archive/2026-09/08-27-fix-stock-cache-overwrite/verification.md`。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 本任务已完成；规范初始化仍为 `in_progress`，自动化测试闭环仍为 `planning`，本轮不继续归档。
