@@ -232,9 +232,13 @@
 | `ee615a2` | (see git log) |
 | `0905fba` | (see git log) |
 
+### Scope Audit
+
+- 日志脚本通过 session-fallback 选中了另一会话的 `07-22-ai-development-test-loop`，误将其 7 个规划文件纳入日志提交。使用独立纠正提交恢复这些文件原本的未跟踪状态，保留文件内容，不改写历史或修改另一会话的任务指针。
+
 ### Testing
 
-- Validation was not recorded for this session.
+- 本次收尾不重复运行代码测试；引用工作提交前的隔离快照验证：API 50/187 项通过，两批类型检查与构建通过，Web 为相同的 4 个既有 Login 失败。归档状态、提交路径和工作区保留范围另行核对。
 
 ### Status
 
@@ -242,4 +246,5 @@
 
 ### Next Steps
 
-- None - task complete
+- 缓存修复须先返回 Phase 3.4 提交任务代码，再执行归档。
+- 规范初始化和自动化测试闭环尚未达到完成条件，继续保留，不作为本次完成任务归档。
