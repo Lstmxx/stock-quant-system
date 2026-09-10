@@ -7,6 +7,7 @@ const AuthLayout = React.lazy(() => import('../features/auth/AuthLayout'));
 const AppLayout = React.lazy(() => import('../components/layout/AppLayout'));
 const LlmManagement = React.lazy(() => import('../features/llm/LlmManagement'));
 const DataManagement = React.lazy(() => import('../features/data/DataManagement'));
+const MarketChartPage = React.lazy(() => import('../features/market/MarketChartPage'));
 const FactorTasksPage = React.lazy(() => import('../features/factor/FactorTasksPage'));
 const FactorListPage = React.lazy(() => import('../features/factor/FactorListPage'));
 const FactorSelectionPage = React.lazy(() => import('../features/factor/FactorSelectionPage'));
@@ -50,6 +51,10 @@ export const router = createBrowserRouter([
       {
         path: 'data',
         element: <Suspense fallback={<div>Loading...</div>}><DataManagement /></Suspense>,
+      },
+      {
+        path: 'market',
+        element: <Suspense fallback={<div>Loading...</div>}><MarketChartPage /></Suspense>,
       },
       {
         path: 'factor',

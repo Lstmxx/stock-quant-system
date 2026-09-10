@@ -14,6 +14,7 @@ import {
   Network,
   ScanSearch,
   Sparkles,
+  TrendingUp,
 } from 'lucide-react';
 import { authClient } from '../../api/auth-client';
 import { useAuthStore } from '../../features/auth/store';
@@ -23,6 +24,7 @@ const pageMap: Record<string, { icon: React.ReactNode; title: string; eyebrow: s
   '/llm': { icon: <BrainCircuit size={17} />, title: '大模型管理', eyebrow: 'MODEL OPS' },
   '/llm-selection': { icon: <ScanSearch size={17} />, title: 'LLM 选股', eyebrow: 'SIGNAL LAB' },
   '/data': { icon: <Database size={17} />, title: '股票数据管理', eyebrow: 'DATA STREAM' },
+  '/market': { icon: <TrendingUp size={17} />, title: '行情图表', eyebrow: 'MARKET VIEW' },
   '/factor/tasks': { icon: <Layers3 size={17} />, title: '因子任务', eyebrow: 'FACTOR LAB' },
   '/factor/list': { icon: <Network size={17} />, title: '因子列表', eyebrow: 'FACTOR INDEX' },
   '/factor/selection': { icon: <ScanSearch size={17} />, title: '因子选股', eyebrow: 'SIGNAL LAB' },
@@ -46,6 +48,7 @@ const AppLayout: React.FC = () => {
     { key: '/llm', icon: <BrainCircuit size={17} />, label: '大模型管理' },
     { key: '/llm-selection', icon: <ScanSearch size={17} />, label: 'LLM 选股' },
     { key: '/data', icon: <Database size={17} />, label: '股票数据管理' },
+    { key: '/market', icon: <TrendingUp size={17} />, label: '行情图表' },
     {
       key: '/factor', icon: <FlaskConical size={17} />, label: '因子管理',
       children: [

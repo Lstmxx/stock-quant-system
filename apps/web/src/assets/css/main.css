@@ -20,6 +20,7 @@
   --component-input-bg:var(--color-bg-surface); --component-input-text:var(--color-text-primary); --component-input-placeholder:var(--color-text-placeholder); --component-input-border:var(--color-border-default); --component-input-focus:var(--color-border-focus);
   --component-table-head:var(--color-bg-elevated); --component-table-row:var(--color-bg-surface); --component-table-row-hover:var(--primitive-acid-alpha-04);
   --component-modal-bg:var(--color-bg-elevated); --component-tooltip-bg:var(--primitive-ink-800); --component-alert-info-bg:rgba(143,183,255,.14); --component-alert-info-text:var(--color-text-primary); --component-alert-success-bg:rgba(143,227,176,.14); --component-alert-success-text:var(--color-text-primary); --component-alert-warning-bg:rgba(255,210,125,.14); --component-alert-warning-text:var(--color-text-primary); --component-alert-error-bg:rgba(255,155,148,.14); --component-alert-error-text:var(--color-text-primary);
+  --component-chart-background:var(--color-bg-surface); --component-chart-grid:rgba(143,183,255,.08); --component-chart-border:var(--color-border-default); --component-chart-up:var(--color-success); --component-chart-down:var(--color-error); --component-chart-volume:var(--color-info);
   font-family:'Space Grotesk',system-ui,sans-serif; color:var(--color-text-primary); background:var(--color-bg-page);
 }
 * { box-sizing:border-box; }
@@ -57,3 +58,18 @@ button, input { font-family:inherit; }
 .content-canvas .ant-input,.content-canvas .ant-input-affix-wrapper,.content-canvas .ant-select-selector,.content-canvas .ant-picker { color:var(--component-input-text); background:var(--component-input-bg); border-color:var(--component-input-border); }.content-canvas .ant-input::placeholder { color:var(--component-input-placeholder); opacity:1; }.content-canvas .ant-form-item-label>label { color:var(--color-text-secondary); }.content-canvas .ant-empty-description,.content-canvas .ant-typography-secondary { color:var(--color-text-secondary); }
 .mobile-nav-overlay { position:fixed; inset:88px 0 0; z-index:30; background:rgba(8,11,18,.72); backdrop-filter:blur(4px); animation:overlay-in .2s ease both; }.mobile-nav-panel { width:min(300px,86vw); height:100%; padding:18px 10px; overflow-y:auto; background:var(--color-bg-surface); border-right:1px solid var(--color-border-default); box-shadow:18px 0 50px var(--color-shadow-strong); animation:drawer-in .25s cubic-bezier(.2,.8,.2,1) both; }.mobile-nav-panel .app-menu { min-height:100%; }
 @keyframes overlay-in { from { opacity:0; } to { opacity:1; } } @keyframes drawer-in { from { opacity:0; transform:translateX(-18px); } to { opacity:1; transform:none; } }
+.market-chart-page { display:flex; flex-direction:column; gap:18px; }
+.market-chart-hero { display:flex; align-items:flex-end; justify-content:space-between; gap:28px; padding:28px 30px; background:linear-gradient(120deg,var(--color-bg-surface),var(--color-bg-elevated)); border:1px solid var(--color-border-default); box-shadow:0 20px 70px var(--color-shadow-soft); }
+.market-chart-heading { display:flex; flex-direction:column; gap:10px; }
+.market-chart-heading h1,.market-chart-card-head h2 { margin:0; color:var(--color-text-primary); }
+.market-chart-heading .ant-typography { color:var(--color-text-secondary); }
+.market-search { width:min(520px,100%); }
+.market-search-option { display:flex; justify-content:space-between; gap:24px; }
+.market-chart-state { min-height:260px; display:flex; align-items:center; justify-content:center; }
+.market-chart-card { overflow:hidden; }
+.market-chart-card-head { display:flex; align-items:flex-start; justify-content:space-between; gap:24px; margin-bottom:20px; }
+.market-chart-summary { display:flex; gap:28px; }
+.market-chart-summary .ant-statistic-title { color:var(--color-text-tertiary); font:10px 'DM Mono',monospace; letter-spacing:.08em; text-transform:uppercase; }
+.market-chart-summary .ant-statistic-content { color:var(--color-text-primary); font-family:'DM Mono',monospace; }
+.market-chart-canvas { min-height:540px; width:100%; }
+@media (max-width: 700px) { .market-chart-hero,.market-chart-card-head { align-items:stretch; flex-direction:column; }.market-search { width:100%; }.market-chart-summary { justify-content:space-between; }.market-chart-canvas { min-height:420px; } }

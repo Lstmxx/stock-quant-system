@@ -12,6 +12,7 @@ import { factorSelectionModule } from "./modules/factor-selection";
 import { strategyModule } from "./modules/strategy";
 import { llmModule } from "./modules/llm";
 import { llmStockSelectionModule } from "./modules/llm-stock-selection";
+import { marketDataModule } from "./modules/market-data";
 import { TaskService } from "./modules/task/service";
 import { runBackgroundTask } from "./lib/background";
 import { checkDatabase, checkRedis, toPublicHealth } from "./lib/health";
@@ -90,6 +91,7 @@ const app = new Elysia()
 			.use(strategyModule)
 			.use(llmModule)
 			.use(llmStockSelectionModule)
+			.use(marketDataModule)
 	)
 	.get("/", () => "Stock Quant System API Gateway is running")
 	.listen(process.env.PORT_API || 3000);

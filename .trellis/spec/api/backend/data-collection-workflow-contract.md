@@ -33,6 +33,13 @@ The collection dataset is global. It is not user-isolated like factor mining: au
   - body: `{ symbol: string, days: number, force_update?: boolean }`
   - `force_update` defaults to `false`; real source-integration tests set it to `true`
   - immediate response: `{ status: "accepted", symbol, message }`
+- `GET /api/market-data/search?q`
+  - authenticated read-only search over the current main-board stock universe
+  - response: up to 20 `{ code, name }` results, ranked by exact/prefix code then name
+- `GET /api/market-data/:symbol/kline`
+  - authenticated read-only chart data lookup; it never triggers Baostock fetching
+  - response: `{ symbol, name, bars[], volume[], latest, range }`
+  - reads `kline:{code}` first and falls back to the newest legacy range key
 
 ### Queue and cache
 
@@ -70,6 +77,7 @@ The collection dataset is global. It is not user-isolated like factor mining: au
 8. Redis failure details expire. If `result.failedCount > 0` but the failure set is empty, the UI must say that details expired; it must not claim all stocks succeeded.
 9. A real Baostock integration run must bypass both aggregate and per-symbol caches through `force_update = true`. Deleting only `market_data:*` is insufficient because `kline:*` entries can still make the test pass without fetching Baostock.
 10. Integration tests remove the target summary before triggering, subscribe before the request, and close pub/sub plus Redis clients in `finally`.
+11. The market chart page is a read-only consumer of the per-symbol cache. Missing or invalid chart data is reported as an empty/error state and must not start a collection task.
 
 ## 4. Validation & Error Matrix
 
